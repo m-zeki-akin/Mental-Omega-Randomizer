@@ -99,7 +99,7 @@ the run, and opens the next stage.
 
 `run_length` still exists but is **Archipelago-only**. An AP slot needs a finite
 location count and a goal condition — the APWorld builds one location per stage
-and validates 5..20 — so an AP run stops after `run_length` missions (9 by
+and validates 5..20 — so an AP run stops after `run_length` missions (10 by
 default, a whole number of stages). `endless` is persisted per run and set from
 whether the run has an AP identity, so a run keeps its own rules.
 
@@ -185,7 +185,7 @@ Suggested default economy ranking:
 | Finale    |                   4 |                     250 |                 70 |
 
 Ore is deliberately several times the Gem figure. The run shop stocks eight
-units and four powers at once, refreshes them every mission, and takes buff
+units and three powers at once, refreshes them every mission, and takes buff
 stacks on top, so a mission's Ore has to buy a real choice out of that slate
 rather than a single item. `tools/shop_balance_simulator.py` reports the ratio
 directly as purchases per mission.
@@ -239,8 +239,8 @@ Suggested config:
 ```json
 {
   "settings": {
-    "run_length": 9,
-    "stage_length": 3,
+    "run_length": 10,
+    "stage_length": 5,
     "starting_lives": 3,
     "stage_income_percent_per_stage": 40,
     "challenge_reward_multiplier_percent": 250,
@@ -765,9 +765,9 @@ fixed for its whole length:
 
 | Setting                      | Range   | Default | Harder direction |
 | ---------------------------- | ------- | ------: | ---------------- |
-| Ore income per stage (%)     | 0-100   |      40 | lower            |
-| Enemy buffs per challenge (stages 1-2) | 0-4 | 2 | more          |
-| Missions per stage           | 2-5     |       3 | fewer            |
+| Ore income per stage (%)             | 0-100 |  40 | lower           |
+| Enemy buffs for first Challenge      | 0-4   |   2 | more            |
+| Missions per stage                   | 3-8   |   5 | either way eases |
 
 Game speed is fixed at 4 - Fast and written to the spawned mission and the
 in-game options alike: missions, rewards, and enemy scaling are all tuned at
@@ -781,7 +781,7 @@ every buff that targets them:
 
 | Filter                                 | Hides                                              |
 | -------------------------------------- | -------------------------------------------------- |
-| Exclude campaign-only units            | 44 story units no skirmish game can build           |
+| Exclude campaign-only units            | 45 story units no skirmish game can build           |
 | Exclude campaign-only support powers   | 4 powers that exist only inside scripted missions   |
 | Exclude superweapons                   | 13 game-ending superweapons                         |
 
@@ -795,7 +795,7 @@ nothing would leave a checkbox claiming to hide rewards it never touches.
 Exclusion is by **target**, not reward id. An access entry and the dozen buff
 entries aimed at the same unit share a target, so hiding "Paradox Engine
 Access" while leaving "Paradox Engine Firepower I" on the shelf would hide
-nothing. Ticking all three removes 61 targets and 629 of the catalogue's 4,049
+nothing. Ticking all three removes 62 targets and 642 of the catalogue's 4,049
 shop entries.
 
 The superweapon group includes Overforge, the Blast Furnace's own power,
@@ -851,11 +851,22 @@ difficulty — see section 9.1 for why modifiers are excluded.
 Each adjustable rule applies for the run's whole length, so all three are
 worth whole points:
 
-| Step                     | Difficulty |
-| ------------------------ | ---------: |
-| 10% Ore income per stage |       ∓1   |
-| One buff per challenge   |       ±3   |
-| One mission per stage    |       ∓2   |
+| Step                                 | Difficulty |
+| ------------------------------------ | ---------: |
+| 10% Ore income per stage             |       ∓2   |
+| One buff on the first challenge      |       ±4   |
+| One mission per stage, either way    |       −1   |
+
+The buff figure sets the *first* challenge and every later one escalates from
+it, so one step there moves the whole run rather than a single mission, which
+is what it is worth four points for.
+
+Missions per stage is the one setting that eases the run in **both**
+directions, and its row reads −1 rather than ∓1 for that reason. Shorter
+stages mean more challenges but reach the escalating tiers and their larger
+payouts sooner; longer stages mean the reverse. Which one helps depends on the
+modifiers a player took, so either choice is a tuning advantage over the
+baseline and either one costs a point. Only the default is free.
 
 The score scales **Gem** payouts from 200% down to **0%**, and the score itself
 is floored where that reaches zero (−10). Easing past that point pays nothing,
@@ -1092,7 +1103,7 @@ Suggested schema:
   "seed": "stable seed",
   "status": "active",
   "stage": 3,
-  "run_length": 9,
+  "run_length": 10,
   "endless": true,
   "permanent_enemy_buff_ids": ["infantry_armor", "vehicle_production"],
   "run_coins": 11,
@@ -1491,7 +1502,7 @@ Suggested options:
 ```yaml
 progression_mode: shop
 
-shop_run_length: 9
+shop_run_length: 10
 
 shop_mission_victories_are_locations: true
 
@@ -1709,8 +1720,8 @@ Example:
 ```json
 {
   "schema_version": 1,
-  "run_length": 9,
-  "stage_length": 3,
+  "run_length": 10,
+  "stage_length": 5,
   "starting_lives": 3,
   "stage_income_percent_per_stage": 40,
   "challenge_reward_multiplier_percent": 250,

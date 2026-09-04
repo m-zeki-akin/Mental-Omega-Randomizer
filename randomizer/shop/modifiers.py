@@ -74,12 +74,20 @@ def modifier_difficulty(modifier_ids):
 # harder run scores higher. Only the rules that shape the whole run are
 # adjustable; opening resources keep their configured values.
 PACING_DIFFICULTY_WEIGHTS = {
-    'stage_income_percent_per_stage': Fraction(-1),
-    'permanent_enemy_buffs_per_challenge': Fraction(3),
-    'stage_length': Fraction(-2),
+    'stage_income_percent_per_stage': Fraction(-2),
+    # The figure sets the first challenge and every later one escalates from
+    # it, so one step here moves the whole run, not a single mission.
+    'permanent_enemy_buffs_per_challenge': Fraction(4),
+    'stage_length': Fraction(-1),
 }
 # Income moves in larger units than the counts, so score it per ten percent.
 PACING_DIFFICULTY_STEPS = {'stage_income_percent_per_stage': 10}
+# Fields where moving away from the baseline is a concession whichever way it
+# goes. Stage length is the one: shorter stages mean more challenges but reach
+# the escalating tiers sooner, longer stages mean the reverse, and a player
+# picks whichever suits the modifiers they took. Both directions are a tuning
+# advantage, so both cost difficulty rather than one paying for the other.
+PACING_ABSOLUTE_FIELDS = frozenset({'stage_length'})
 GEM_SCALE_PER_DIFFICULTY_PERCENT = 10
 MINIMUM_GEM_SCALE_PERCENT = 0
 MAXIMUM_GEM_SCALE_PERCENT = 200
@@ -105,7 +113,10 @@ def pacing_difficulty(reward_settings, config: ShopModeConfig = SHOP_CONFIG):
     for field, value in overrides.items():
         weight = PACING_DIFFICULTY_WEIGHTS.get(field, Fraction(0))
         step = PACING_DIFFICULTY_STEPS.get(field, 1)
-        score += weight * Fraction(value - getattr(config, field), step)
+        delta = value - getattr(config, field)
+        if field in PACING_ABSOLUTE_FIELDS:
+            delta = abs(delta)
+        score += weight * Fraction(delta, step)
     return max(MINIMUM_PACING_DIFFICULTY, score)
 
 

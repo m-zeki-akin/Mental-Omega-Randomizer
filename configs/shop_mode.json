@@ -3,8 +3,8 @@
   "description": "Shop Mode endless run rules, stage economy, prices, upgrades, and launcher-only challenge modifiers.",
   "sections": {
     "settings": {
-      "run_length": 9,
-      "stage_length": 3,
+      "run_length": 10,
+      "stage_length": 5,
       "starting_lives": 3,
       "stage_income_percent_per_stage": 40,
       "stage_gem_income_percent_per_stage": 15,
@@ -13,7 +13,7 @@
       "enemy_buff_escalation_stages": 2,
       "mission_offer_count": 3,
       "unit_inventory_size": 8,
-      "power_inventory_size": 4,
+      "power_inventory_size": 3,
       "max_selected_permanent_units": 5,
       "starting_run_coins": 125,
       "starting_rerolls": 2,
@@ -1072,6 +1072,7 @@
           "BRUTM",
           "RHAD",
           "BRUTV",
+          "LUNRE",
           "BORIS",
           "KRUKOV",
           "REZNOV",

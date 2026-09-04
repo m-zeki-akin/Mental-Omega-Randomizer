@@ -123,6 +123,16 @@ from .transitions import (
 )
 
 
+def _closing_mission(tier):
+    """Return the mission index that closes a difficulty tier.
+
+    Fixtures that hard-code a mission number are really asserting about the
+    tier it falls in, and silently start testing a different tier the moment
+    stage_length moves.
+    """
+    return tier * SHOP_CONFIG.stage_length
+
+
 def _reward(reward_id):
     reward = canonical_reward_for_id(reward_id)
     if reward.get('name') != reward_id:
@@ -1408,24 +1418,34 @@ def validate_shop_domain():
             )
             for sample in range(1000)
         )
-        for stage in (3, 9, 15, 24)
+        for stage in (
+            _closing_mission(1), _closing_mission(3),
+            _closing_mission(5), _closing_mission(8),
+        )
     }
+    tier_one, tier_three, tier_five, tier_eight = (
+        _closing_mission(1), _closing_mission(3),
+        _closing_mission(5), _closing_mission(8),
+    )
     stage_game_difficulty_valid = bool(
-        mission_difficulty_weights_for_stage(3)
+        mission_difficulty_weights_for_stage(_closing_mission(1))
         == {'Casual': 85, 'Normal': 15, 'Mental': 0}
-        and mission_difficulty_weights_for_stage(4)
+        and mission_difficulty_weights_for_stage(_closing_mission(2))
         == {'Casual': 55, 'Normal': 45, 'Mental': 0}
-        and mission_difficulty_weights_for_stage(6)
-        == {'Casual': 55, 'Normal': 45, 'Mental': 0}
-        and mission_difficulty_weights_for_stage(12)
+        and mission_difficulty_weights_for_stage(_closing_mission(4))
         == {'Casual': 25, 'Normal': 65, 'Mental': 10}
-        and difficulty_samples[3]['Mental'] == 0
-        and difficulty_samples[9]['Normal'] > difficulty_samples[9]['Casual']
-        and all(difficulty_samples[9][name] > 0 for name in (
+        and mission_difficulty_weights_for_stage(_closing_mission(7))
+        == {'Casual': 10, 'Normal': 60, 'Mental': 30}
+        and difficulty_samples[tier_one]['Mental'] == 0
+        and difficulty_samples[tier_three]['Normal']
+        > difficulty_samples[tier_three]['Casual']
+        and all(difficulty_samples[tier_three][name] > 0 for name in (
             'Casual', 'Normal', 'Mental'
         ))
-        and difficulty_samples[15]['Mental'] > difficulty_samples[15]['Casual']
-        and difficulty_samples[24]['Mental'] > difficulty_samples[24]['Normal']
+        and difficulty_samples[tier_five]['Mental']
+        > difficulty_samples[tier_five]['Casual']
+        and difficulty_samples[tier_eight]['Mental']
+        > difficulty_samples[tier_eight]['Normal']
         and mission_difficulty('DETERMINISTIC', 6, 'SAMPLE')
         == mission_difficulty('DETERMINISTIC', 6, 'SAMPLE')
     )
@@ -1678,8 +1698,10 @@ def validate_shop_domain():
         and mission_classes_for_stage(1) == {
             MissionEconomyClass.ACT_1
         }
-        and MissionEconomyClass.FINALE not in mission_classes_for_stage(9)
-        and MissionEconomyClass.FINALE in mission_classes_for_stage(18)
+        and MissionEconomyClass.FINALE
+        not in mission_classes_for_stage(_closing_mission(2))
+        and MissionEconomyClass.FINALE
+        in mission_classes_for_stage(_closing_mission(6))
         and offers == generate_mission_offers(
             mission_pool, run_seed='SHOP-SELF-CHECK', stage=1
         )
@@ -1705,7 +1727,7 @@ def validate_shop_domain():
     late_modifier_samples = [
         mission_modifier_for_offer(
             'SHOP-MODIFIER-CHECK',
-            6,
+            _closing_mission(1),
             MissionOffer(f'SC_MOD_{index}', MissionEconomyClass.ACT_1),
         )
         for index in range(100)
@@ -1743,10 +1765,14 @@ def validate_shop_domain():
             MissionOffer('SC_OPERATION', MissionEconomyClass.OPERATION),
         ) is None
     )
+    # Every offer on a stage-closing mission is a challenge and no offer
+    # between them ever is, so the split is all-or-nothing rather than a
+    # curve. Sampling both sides proves the rule holds on every offer.
     mission_modifier_curve_valid = bool(
-        early_boons > early_challenges
-        and late_challenges > late_boons
-        and late_challenges > early_challenges
+        early_challenges == 0
+        and early_boons
+        and late_boons == 0
+        and late_challenges == len(late_modifier_samples)
     )
     configured_effect_reward_ids = {
         reward_id

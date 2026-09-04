@@ -186,7 +186,7 @@ RUN_PACING_SETTINGS = {
     'shop_enemy_buffs_per_challenge': (
         'permanent_enemy_buffs_per_challenge', 0, 4
     ),
-    'shop_stage_length': ('stage_length', 2, 5),
+    'shop_stage_length': ('stage_length', 3, 8),
 }
 
 

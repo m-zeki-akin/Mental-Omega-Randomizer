@@ -62,10 +62,12 @@ print(f'stage_length={CFG.stage_length}  starting_lives={CFG.starting_lives}  '
       f'AP run_length={CFG.run_length}')
 
 # --- 1. endless run, all victories -----------------------------------------
-print('\n[1] Sonsuz run, 12 zafer')
+CHALLENGES = 4
+VICTORIES = CHALLENGES * CFG.stage_length
+print(f'\n[1] Sonsuz run, {VICTORIES} zafer ({CHALLENGES} challenge)')
 profile, run = ShopProfile(), new_run()
 cursor, log = 10, []
-for step in range(12):
+for step in range(VICTORIES):
     code = run.mission_offers[0].mission_code
     mod = mission_modifier_for_run_offer(run, run.mission_offers[0])
     was_challenge = bool(mod and mod.challenge)
@@ -80,14 +82,18 @@ for step in range(12):
           f'{reward.meta_coins:>3} Gem  +{log[-1][4]} buff  '
           f'gecmis={log[-1][5]}')
 
-check('challenge tam olarak 3, 6, 9, 12de',
-      [s for s, _t, c, *_ in log if c] == [3, 6, 9, 12])
+expected_challenges = [
+    (index + 1) * CFG.stage_length for index in range(CHALLENGES)
+]
+check(f'challenge tam olarak {expected_challenges} gorevlerinde',
+      [s for s, _t, c, *_ in log if c] == expected_challenges)
 check('challenge buff sayisi her 2 stagede 1 artti',
       [b for _s, _t, c, _g, b, _h, _o in log if c] == [2, 2, 3, 3])
 check('challenge disi gorev buff vermedi',
       all(b == 0 for _s, _t, c, _g, b, _h, _o in log if not c))
 check('tier atlayinca gorev gecmisi sifirlandi',
-      [h for s, _t, _c, _g, _b, h, _o in log if s % 3 == 0] == [0, 0, 0, 0])
+      [h for s, _t, _c, _g, _b, h, _o in log
+       if s % CFG.stage_length == 0] == [0] * CHALLENGES)
 check('run hala aktif (sonsuz)', run.status is RunStatus.ACTIVE)
 # Ore carries the stage multiplier; Gems deliberately do not, so permanent
 # progression does not accelerate just because the run has run long.
@@ -104,7 +110,7 @@ check('Gem artisi Ore artisindan yavas',
       (challenge_gems[-1] / challenge_gems[0])
       < (challenge_ore[-1] / challenge_ore[0]))
 check('challenge Gem >= normalin 2 kati',
-      log[2][3] >= log[1][3] * 2)
+      log[CFG.stage_length - 1][3] >= log[CFG.stage_length - 2][3] * 2)
 check('toplam 10 kalici buff birikti', len(run.permanent_enemy_buff_ids) == 10)
 check('buff stack tavani asilmadi',
       all(run.permanent_enemy_buff_ids.count(b) <= 5
@@ -148,7 +154,7 @@ check('ayni seed -> ayni dizi', sequence('seed-A') == sequence('seed-A'))
 check('farkli seed -> farkli dizi', sequence('seed-A') != sequence('seed-B'))
 
 # --- 5. Archipelago run stays finite ---------------------------------------
-print('\n[5] AP run 9. gorevde biter')
+print(f'\n[5] AP run {CFG.run_length}. gorevde biter')
 profile, run = ShopProfile(), new_run(endless=False)
 cursor = 10
 for _ in range(CFG.run_length):
