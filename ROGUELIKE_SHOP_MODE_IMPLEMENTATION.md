@@ -590,15 +590,15 @@ This bonus is added after base mission-class Ore Coins.
 
 Example:
 
-Operation reward = 7  
+Operation reward = 70  
 Victory Coin Bonus level = 3  
-Ore Coins awarded = 10
+Ore Coins awarded = 100
 
 Display the breakdown in the victory result:
 
-`Operation: +7`  
-`Permanent Victory Bonus: +3`  
-`Total: +10 Ore Coins`
+`Operation: +70`  
+`Permanent Victory Bonus: +30`  
+`Total: +100 Ore Coins`
 
 This upgrade must never award money on a failed mission.
 
@@ -676,7 +676,7 @@ Example modifiers:
 
 ### Blind Choice
 
-`+1 Ore per victory, one mission offer hides its exact reward until selected`
+`+10 Ore per victory, one mission offer hides its exact reward until selected`
 
 Implemented additions are Glass Cannon, Overclocked Factories, Black Market,
 Elite Force, No Safety Net, Support Doctrine, War Economy, Narrow Intelligence,
@@ -1694,7 +1694,7 @@ At minimum verify:
 ### Economy
 
 - Act 1 reward returns configured values
-- Operation reward + level 3 victory bonus adds exactly +3 Ore Coins
+- Operation reward + level 3 victory bonus adds exactly +30 Ore Coins
 - victory bonus caps at level 5
 - no failed mission reward helper grants coins
 - shop discount never lowers price below 1
@@ -1884,7 +1884,7 @@ The feature is complete when all statements below are true.
 - Existing buff stack limits are respected.
 - Permanent unit prices scale by Tier 1 < Tier 2 < Tier 3.
 - Permanent reroll upgrade works.
-- Permanent victory bonus supports +1 through +5 Ore Coins per successful mission.
+- Permanent victory bonus supports +10 through +50 Ore Coins per successful mission.
 - Rerolls are persisted and cannot be regained by restarting the launcher.
 - Current mission offer is persisted and cannot be rerolled by restarting.
 - Duplicate victory events cannot duplicate currency.

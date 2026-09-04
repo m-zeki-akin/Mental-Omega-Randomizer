@@ -1191,6 +1191,22 @@ def _phase_seven_checks():
     failure_summary = run_summary_lines(ShopProfile(meta_coins=42), failed)
     restored = normalize_shop_run(run.to_dict())
     return {
+        # Flat Ore/Gem effects are quoted verbatim in the modifier's own
+        # description. Scaling the effects and forgetting the text left the
+        # player reading last balance pass's numbers, so tie them together.
+        'modifier_flat_text_valid': bool(
+            all(
+                str(abs(int(value))) in SHOP_CONFIG.modifiers[
+                    modifier_id
+                ].description
+                for modifier_id, definition in SHOP_CONFIG.modifiers.items()
+                for effect, value in definition.effects.items()
+                if effect in {
+                    'run_reward_flat', 'meta_reward_flat',
+                    'shop_price_flat', 'starting_run_coins_flat',
+                } and value
+            )
+        ),
         'modifier_polish_valid': bool(
             len(hidden) == 1
             and hidden == hidden_offer_codes(run)

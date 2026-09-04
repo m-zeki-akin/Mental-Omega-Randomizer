@@ -22,6 +22,7 @@ from randomizer.shop.modifiers import (
     modifier_difficulty,
     modifier_effects,
 )
+from randomizer.shop.config import SHOP_CONFIG
 from randomizer.shop.text import gem_text
 from randomizer.shop.inventory import (
     guarantee_premium_offer,
@@ -1346,7 +1347,8 @@ class ShopPolishController(ShopArchipelagoController):
             ),
             'shop_discount': (
                 f'Each level reduces run-shop prices by '
-                f'{effects.get("ore_per_level", 0)} Ore, minimum price 1 Ore.'
+                f'{effects.get("ore_per_level", 0)} Ore, minimum price '
+                f'{SHOP_CONFIG.minimum_shop_price} Ore.'
             ),
             'extra_shop_stock': (
                 f'Each level adds +{effects.get("units_per_level", 0)} unit '
@@ -1379,7 +1381,8 @@ class ShopPolishController(ShopArchipelagoController):
             ),
             'discount_specialization': (
                 f'Each level reduces all run-shop unit, buff, and power prices '
-                f'by {effects.get("ore_per_level", 0)} Ore, minimum price 1 Ore.'
+                f'by {effects.get("ore_per_level", 0)} Ore, minimum price '
+                f'{SHOP_CONFIG.minimum_shop_price} Ore.'
             ),
             'permanent_challenge_slots': (
                 f'Each level guarantees +{effects.get("slots_per_level", 0)} '
@@ -1402,10 +1405,11 @@ class ShopPolishController(ShopArchipelagoController):
             'gem_dividend': (
                 f'On run victory, gain 1 Gem per '
                 f'{effects.get("ore_per_gem", 0)} remaining Ore, capped at '
-                f'{effects.get("maximum_gems_per_level", 0)} Gem per level.'
+                f'{gem_text(effects.get("maximum_gems_per_level", 0))} '
+                'per level.'
             ),
             'premium_supplier': (
-                f'From stage {effects.get("minimum_stage", 0)}, guarantee '
+                f'From mission {effects.get("minimum_stage", 0)}, guarantee '
                 'one higher-tier access offer in each stock rotation.'
             ),
         }
