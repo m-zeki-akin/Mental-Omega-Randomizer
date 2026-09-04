@@ -57,6 +57,8 @@ from .economy import (
     starting_run_coins,
 )
 from .meta import (
+    PERMANENT_PURCHASE_LOCKED_MESSAGE,
+    permanent_purchase_block_reason,
     purchase_permanent_buff,
     purchase_permanent_unit,
     purchase_permanent_upgrade,
@@ -621,6 +623,22 @@ def _phase_two_checks(mission_pool):
         and not abandoned.run.mission_committed
     )
 
+    # Endless runs never end on their own, so a rule that closed the
+    # permanent shop for a whole run closed it forever. The window is the gap
+    # between missions instead, and it has to shut the moment one starts.
+    committed_run = commit_selected_mission(
+        started.run, started.run.mission_offers[0].mission_code
+    )
+    permanent_window_valid = bool(
+        permanent_purchase_block_reason(None) is None
+        and started.run.status is RunStatus.ACTIVE
+        and permanent_purchase_block_reason(started.run) is None
+        and committed_run.mission_committed
+        and permanent_purchase_block_reason(committed_run)
+        == PERMANENT_PURCHASE_LOCKED_MESSAGE
+        and permanent_purchase_block_reason(abandoned.run) is None
+    )
+
     finale_offer = MissionOffer(
         'SC_FIN_1', MissionEconomyClass.FINALE
     )
@@ -780,6 +798,7 @@ def _phase_two_checks(mission_pool):
         'victory_idempotency_valid': victory_idempotency_valid,
         'failure_transition_valid': failure_valid,
         'abandon_transition_valid': abandon_valid,
+        'permanent_purchase_window_valid': permanent_window_valid,
         'completion_transition_valid': completion_valid,
         'persistence_recovery_valid': persistence_valid,
         'upgrade_currency_compatibility_valid': (

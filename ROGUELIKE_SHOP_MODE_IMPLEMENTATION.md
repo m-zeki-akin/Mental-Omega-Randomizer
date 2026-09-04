@@ -1040,7 +1040,35 @@ The same Shop Mode tab should include a clear section or nested internal panel:
 
 `Permanent Unlocks`
 
-This is available between runs and may optionally remain view-only during an active run.
+Permanent Unlocks are open **between missions**, and closed only while a
+mission is committed or launching.
+
+They were originally closed for the whole of a run, which worked while a run
+ended after a fixed number of missions: the window came round on its own every
+time. Endless runs never end, so that rule left Gems unspendable unless the
+player died or gave up the run -- the permanent half of the progression loop
+had no way to open. The gap between missions is the window instead. Once a
+mission is committed its rewards, difficulty, and map inputs are already
+decided and several upgrades are read live from the profile, so a purchase
+there would change a mission already under way.
+
+What a mid-run purchase actually does depends on what it is, and the rows say
+so rather than leaving the player to find out:
+
+| Bought mid-run                                                       | Applies |
+| -------------------------------------------------------------------- | ------- |
+| Upgrades read live from the profile (Extra Life, Victory Ore Bonus, Shop Discount, Challenge Hunter, ...) | at once |
+| Starting Capital, Expanded Loadout, Starting Buff Draft, Veteran Academy | next run |
+| Permanent units and permanent buffs                                  | next run |
+
+The last two rows are snapshotted into the run when it starts, so their rows
+read `Available (next run)` while a run is going. Selecting a permanent unit
+into the starting loadout stays locked for the whole run for the same reason:
+the selection cannot take effect until a run is built around it.
+
+The rule lives in `permanent_purchase_block_reason` and both the screen and
+`ShopProgressionService` ask it, so a stale window cannot buy what the service
+would refuse.
 
 Contains:
 

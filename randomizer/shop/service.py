@@ -27,6 +27,7 @@ from .economy import (
     run_reward_price,
 )
 from .meta import (
+    permanent_purchase_block_reason,
     purchase_permanent_unit as apply_permanent_unit_purchase,
     purchase_permanent_buff as apply_permanent_buff_purchase,
     purchase_permanent_upgrade as apply_permanent_upgrade_purchase,
@@ -327,10 +328,9 @@ class ShopProgressionService:
 
     def purchase_permanent_unit(self, reward_id):
         profile, run = self.repository.load()
-        if run is not None and run.status is RunStatus.ACTIVE:
-            raise ShopTransitionError(
-                'Permanent purchases are locked during an active Shop run'
-            )
+        blocked = permanent_purchase_block_reason(run)
+        if blocked:
+            raise ShopTransitionError(blocked)
         reward = canonical_reward_for_id(reward_id)
         entry = catalogue_entry(reward)
         shop_eligible = bool(
@@ -347,10 +347,9 @@ class ShopProgressionService:
 
     def purchase_permanent_buff(self, reward_id):
         profile, run = self.repository.load()
-        if run is not None and run.status is RunStatus.ACTIVE:
-            raise ShopTransitionError(
-                'Permanent purchases are locked during an active Shop run'
-            )
+        blocked = permanent_purchase_block_reason(run)
+        if blocked:
+            raise ShopTransitionError(blocked)
         reward = canonical_reward_for_id(reward_id)
         entry = catalogue_entry(reward)
         shop_eligible = bool(
@@ -367,10 +366,9 @@ class ShopProgressionService:
 
     def purchase_permanent_upgrade(self, upgrade_id):
         profile, run = self.repository.load()
-        if run is not None and run.status is RunStatus.ACTIVE:
-            raise ShopTransitionError(
-                'Permanent purchases are locked during an active Shop run'
-            )
+        blocked = permanent_purchase_block_reason(run)
+        if blocked:
+            raise ShopTransitionError(blocked)
         outcome = apply_permanent_upgrade_purchase(profile, upgrade_id)
         if outcome.validation.allowed:
             self.repository.save_profile(outcome.profile)

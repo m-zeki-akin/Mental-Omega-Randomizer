@@ -16,10 +16,38 @@ from .model import (
     LoadoutValidation,
     PurchaseResult,
     PurchaseValidation,
+    RunStatus,
     ShopModeConfig,
     ShopProfile,
     ShopRewardType,
 )
+
+
+PERMANENT_PURCHASE_LOCKED_MESSAGE = (
+    'Permanent purchases are locked while a mission is in progress'
+)
+
+
+def permanent_purchase_block_reason(run):
+    """Return why permanent purchases are closed right now, or None.
+
+    They used to be closed for the whole of a run. That worked while a run
+    ended after a fixed number of missions, because the window came round on
+    its own; endless runs never end, so the rule left Gems unspendable unless
+    the player died or gave up.
+
+    The window is now the gap between missions. Once a mission is committed
+    its rewards, difficulty, and map inputs are already decided and several
+    upgrades are read live from the profile, so a purchase there would change
+    a mission already under way.
+    """
+    if (
+        run is not None
+        and run.status is RunStatus.ACTIVE
+        and run.mission_committed
+    ):
+        return PERMANENT_PURCHASE_LOCKED_MESSAGE
+    return None
 
 
 @dataclass(frozen=True)

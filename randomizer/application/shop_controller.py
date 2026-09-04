@@ -60,6 +60,10 @@ from randomizer.shop.missions import (
     mission_classes_for_stage,
 )
 from randomizer.shop.mission_modifiers import active_mission_modifier
+from randomizer.shop.meta import (
+    PERMANENT_PURCHASE_LOCKED_MESSAGE,
+    permanent_purchase_block_reason,
+)
 from randomizer.shop.transitions import maximum_run_lives
 from randomizer.shop.modifiers import (
     format_difficulty,
@@ -102,6 +106,15 @@ SHOP_CAMPAIGN_FACTIONS = {
 # Shop progression grants exact purchased identities. Reuse Chaos' isolated
 # access pipeline internally; Shop Mode still owns its separate economy/UI.
 SHOP_REWARD_MODE = SHOP_ACCESS_REWARD_MODE
+# Upgrades whose effect is read once, while a run is being built. Bought
+# mid-run they are real purchases that simply wait for the next one; every
+# other upgrade is read live from the profile and applies at once.
+RUN_START_UPGRADES = frozenset({
+    'starting_capital',
+    'expanded_loadout',
+    'starting_buff_draft',
+    'veteran_academy',
+})
 class ShopController(ShopPolishController):
     def initialize_shop_controller(self):
         self.shop_config = SHOP_CONFIG
@@ -750,6 +763,16 @@ class ShopController(ShopPolishController):
 
     def _shop_mission(self, code):
         return self._mission_by_code.get(str(code).upper(), {})
+
+    def shop_permanent_purchase_block(self):
+        """Return why the permanent shop is closed right now, or None.
+
+        A launch in flight counts as a committed mission even before the run
+        records it, so both are asked.
+        """
+        if self.shop_launch_active():
+            return PERMANENT_PURCHASE_LOCKED_MESSAGE
+        return permanent_purchase_block_reason(self.shop_run)
 
     def shop_pending_reward_exclusions(self):
         """Return the shelf filters the entry screen currently has ticked."""
@@ -2225,6 +2248,7 @@ class ShopController(ShopPolishController):
             self.shop_run is not None
             and self.shop_run.status is RunStatus.ACTIVE
         )
+        purchases_blocked = bool(self.shop_permanent_purchase_block())
         unit_tree = self.shop_permanent_unit_tree
         unit_tree.delete(*unit_tree.get_children())
         self._shop_permanent_rows = {}
@@ -2264,8 +2288,8 @@ class ShopController(ShopPolishController):
                 state = 'Owned'
                 row_tag = 'owned'
                 buyable = False
-            elif active_run:
-                state = 'Locked: run active'
+            elif purchases_blocked:
+                state = 'Locked: mission in progress'
                 row_tag = 'unavailable'
                 buyable = False
             elif self.shop_profile.meta_coins < price:
@@ -2276,7 +2300,9 @@ class ShopController(ShopPolishController):
                 row_tag = 'unavailable'
                 buyable = False
             else:
-                state = 'Available'
+                # The run snapshots its loadout at the start, so a unit
+                # bought mid-run is for the next one.
+                state = 'Available (next run)' if active_run else 'Available'
                 row_tag = 'available'
                 buyable = True
             options = {
@@ -2317,8 +2343,10 @@ class ShopController(ShopPolishController):
             )
             if maxed:
                 state, row_tag, buyable = 'Maximum level', 'maxed', False
-            elif active_run:
-                state, row_tag, buyable = 'Locked: run active', 'unavailable', False
+            elif purchases_blocked:
+                state, row_tag, buyable = (
+                    'Locked: mission in progress', 'unavailable', False
+                )
             elif self.shop_profile.meta_coins < price:
                 state = (
                     f'Need {gem_text(price - self.shop_profile.meta_coins)} '
@@ -2326,7 +2354,14 @@ class ShopController(ShopPolishController):
                 )
                 row_tag, buyable = 'unavailable', False
             else:
-                state, row_tag, buyable = 'Available', 'available', True
+                # Most upgrades are read live from the profile and take hold
+                # at once; the ones listed here only shape a run's opening.
+                state = (
+                    'Available (next run)'
+                    if active_run and upgrade_id in RUN_START_UPGRADES
+                    else 'Available'
+                )
+                row_tag, buyable = 'available', True
             next_price = 'Max' if maxed else gem_text(price)
             iid = f'upgrade-{index}'
             upgrade_tree.insert(
@@ -2356,6 +2391,7 @@ class ShopController(ShopPolishController):
         tree.delete(*tree.get_children())
         self._shop_permanent_buff_rows = {}
         self._shop_permanent_buff_buyable = {}
+        purchases_blocked = bool(self.shop_permanent_purchase_block())
         owned = set(self.shop_profile.permanent_unit_unlocks)
         owned_entries = sorted(
             (
@@ -2406,8 +2442,10 @@ class ShopController(ShopPolishController):
             effect_state = 'MAX' if maxed else f'Stacks {stacks} / {maximum}'
             if maxed:
                 state, row_tag, buyable = 'Maximum stacks', 'maxed', False
-            elif active_run:
-                state, row_tag, buyable = 'Locked: run active', 'unavailable', False
+            elif purchases_blocked:
+                state, row_tag, buyable = (
+                    'Locked: mission in progress', 'unavailable', False
+                )
             elif self.shop_profile.meta_coins < price:
                 state = (
                     f'Need {gem_text(price - self.shop_profile.meta_coins)} '
@@ -2415,7 +2453,9 @@ class ShopController(ShopPolishController):
                 )
                 row_tag, buyable = 'unavailable', False
             else:
-                state, row_tag, buyable = 'Available', 'available', True
+                # Permanent buffs ride the run's opening snapshot too.
+                state = 'Available (next run)' if active_run else 'Available'
+                row_tag, buyable = 'available', True
             iid = f'permanent-buff-{index}'
             options = {
                 'iid': iid,
