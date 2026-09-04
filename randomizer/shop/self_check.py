@@ -1124,7 +1124,9 @@ def _phase_seven_checks():
         modifiers=run.modifiers,
     )
     greedy_start = starting_run_coins(
-        starting_capital_level=999, modifiers=('greedy', 'generous_command')
+        starting_capital_level=999,
+        modifiers=('greedy', 'generous_command'),
+        carried_run_coins=200,
     )
     generous_reward = mission_reward(
         MissionEconomyClass.OPERATION,
@@ -1214,8 +1216,8 @@ def _phase_seven_checks():
             and set(hidden) == {offer.mission_code for offer in offers}
             and adjusted.run_coins == 420
             and adjusted.meta_coins == 61
-            # Greedy's empty wallet outranks both a bought capital ladder and
-            # a modifier that hands out starting Ore.
+            # Greedy's empty wallet outranks a bought capital ladder, a
+            # modifier that hands out starting Ore, and carried salvage.
             and greedy_start == 0
             and discounted_shop_price(
                 50, modifiers=('poor_logistics',)

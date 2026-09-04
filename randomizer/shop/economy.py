@@ -166,6 +166,7 @@ def starting_run_coins(
     *,
     starting_capital_level=0,
     modifiers=(),
+    carried_run_coins=0,
     config: ShopModeConfig = SHOP_CONFIG,
 ):
     level = _bounded_upgrade_level(
@@ -176,8 +177,9 @@ def starting_run_coins(
     ]
     effects = modifier_effects(modifiers, config)
     if effects['no_starting_run_coins']:
-        # Greedy's whole cost is the empty wallet. A +125 Ore modifier or a
-        # bought capital ladder cancelling it would make the modifier free,
+        # Greedy's whole cost is the empty wallet. A bought capital ladder,
+        # salvage carried out of the last run, or a modifier handing out
+        # opening Ore would each cancel that penalty and leave Greedy free,
         # so this overrides the sum rather than joining it.
         return 0
     return min(
@@ -186,7 +188,8 @@ def starting_run_coins(
             0,
             config.starting_run_coins
             + level * int(per_level)
-            + effects['starting_run_coins_flat'],
+            + effects['starting_run_coins_flat']
+            + max(0, int(carried_run_coins)),
         ),
     )
 

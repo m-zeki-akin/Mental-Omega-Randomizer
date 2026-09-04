@@ -236,13 +236,11 @@ def start_new_run(
         # Archipelago slots need a finite goal; standalone runs do not end
         # until the lives are gone.
         endless=not ap_identity,
-        run_coins=min(
-            config.maximum_starting_ore,
-            starting_run_coins(
-                starting_capital_level=profile.upgrade_level('starting_capital'),
-                modifiers=modifier_ids,
-                config=config,
-            ) + profile.salvaged_run_coins,
+        run_coins=starting_run_coins(
+            starting_capital_level=profile.upgrade_level('starting_capital'),
+            modifiers=modifier_ids,
+            carried_run_coins=profile.salvaged_run_coins,
+            config=config,
         ),
         campaign_filter=str(campaign_filter or 'All Campaigns'),
         reward_mode=str(reward_mode or 'Standard'),
