@@ -2097,6 +2097,16 @@ def validate_shop_domain():
         )
 
     _all_visible = visible_entries({})
+    # Every hidden target the permanent shop actually prices, which is the
+    # campaign-unit group; the power groups name superweapons it never sells.
+    surcharge_group = frozenset(
+        target_id
+        for group in SHOP_CONFIG.reward_exclusion_groups
+        for target_id in group.target_ids
+    )
+    surcharge_targets = sorted(
+        surcharge_group & set(SHOP_CONFIG.unit_target_prices)
+    )
     hidden_by_group = {
         group.id: _all_visible - visible_entries({group.setting_key: True})
         for group in SHOP_CONFIG.reward_exclusion_groups
@@ -2161,8 +2171,15 @@ def validate_shop_domain():
         # A hidden target is still on sale for Gems, at a multiple of the
         # normal price. Both the access reward and its buffs carry it, and a
         # target nobody ticked stays at list price.
+        #
+        # Only the unit group is measured, because it is the only one the
+        # permanent shop can sell: the other two hide superweapons and aid
+        # powers, which have no permanent price at all. Asserting over every
+        # group would pass on an empty set and read like coverage it has not
+        # got, so the surcharged targets are gathered explicitly instead.
         'shop_exclusion_gem_surcharge_valid': bool(
-            SHOP_CONFIG.excluded_target_gem_price_multiplier > 1
+            surcharge_targets
+            and SHOP_CONFIG.excluded_target_gem_price_multiplier > 1
             and all(
                 permanent_unit_price(
                     surcharge_target, excluded_target_ids=surcharge_group
@@ -2172,23 +2189,10 @@ def validate_shop_domain():
                     surcharge_target, excluded_target_ids=surcharge_group
                 ) == permanent_buff_price(surcharge_target)
                 * SHOP_CONFIG.excluded_target_gem_price_multiplier
-                for surcharge_group in (
-                    group.target_ids
-                    for group in SHOP_CONFIG.reward_exclusion_groups
-                )
-                for surcharge_target in (
-                    sorted(
-                        surcharge_group & set(SHOP_CONFIG.unit_target_prices)
-                    )[:1]
-                )
+                for surcharge_target in surcharge_targets
             )
             and permanent_unit_price(
-                'E1',
-                excluded_target_ids=frozenset(
-                    target_id
-                    for group in SHOP_CONFIG.reward_exclusion_groups
-                    for target_id in group.target_ids
-                ),
+                'E1', excluded_target_ids=surcharge_group
             ) == permanent_unit_price('E1')
         ),
         'shop_exact_access_mode_valid': SHOP_ACCESS_REWARD_MODE == 'Chaos',

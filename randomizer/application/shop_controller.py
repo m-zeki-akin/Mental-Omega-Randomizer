@@ -2481,7 +2481,9 @@ class ShopController(ShopPolishController):
                         entry, effect_state, stacks
                     ),
                     f'{stacks} / {maximum}',
-                    state,
+                    f'{state} • Reward Pool surcharge'
+                    if entry.target_id in hidden_targets and not maxed
+                    else state,
                     'Max' if maxed else gem_text(price),
                 ),
             }
