@@ -96,11 +96,13 @@ challenge_gems = [item[3] for item in log if item[2]]
 check('challenge Ore geliri her tierde artti',
       challenge_ore == sorted(challenge_ore)
       and challenge_ore[0] < challenge_ore[-1])
-# Boon modifiers still add a little Gem variance; what must not happen is
-# Gems tracking the tier the way Ore does.
-check('Gem geliri tier ile olceklenmedi',
-      challenge_gems[-1] <= challenge_gems[0] * 1.25
-      and challenge_ore[-1] >= challenge_ore[0] * 2)
+# Both currencies climb, but Gems use their own slower curve so run length
+# cannot become the fastest route to permanent progression.
+check('challenge Gem geliri de artti',
+      challenge_gems[-1] > challenge_gems[0])
+check('Gem artisi Ore artisindan yavas',
+      (challenge_gems[-1] / challenge_gems[0])
+      < (challenge_ore[-1] / challenge_ore[0]))
 check('challenge Gem >= normalin 2 kati',
       log[2][3] >= log[1][3] * 2)
 check('toplam 8 kalici buff birikti', len(run.permanent_enemy_buff_ids) == 8)

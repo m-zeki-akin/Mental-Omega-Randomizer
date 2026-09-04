@@ -99,6 +99,9 @@ def load_shop_mode_config() -> ShopModeConfig:
         stage_income_percent_per_stage=int(
             settings['stage_income_percent_per_stage']
         ),
+        stage_gem_income_percent_per_stage=int(
+            settings['stage_gem_income_percent_per_stage']
+        ),
         challenge_reward_multiplier_percent=int(
             settings['challenge_reward_multiplier_percent']
         ),

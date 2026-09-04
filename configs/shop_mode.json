@@ -7,6 +7,7 @@
       "stage_length": 3,
       "starting_lives": 3,
       "stage_income_percent_per_stage": 40,
+      "stage_gem_income_percent_per_stage": 15,
       "challenge_reward_multiplier_percent": 250,
       "permanent_enemy_buffs_per_challenge": 2,
       "mission_offer_count": 3,

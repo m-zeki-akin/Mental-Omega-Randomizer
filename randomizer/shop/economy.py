@@ -27,6 +27,22 @@ def stage_income_multiplier(stage, config: ShopModeConfig = SHOP_CONFIG):
     return 1 + Fraction(percent, 100) * (tier - 1)
 
 
+def stage_gem_multiplier(stage, config: ShopModeConfig = SHOP_CONFIG):
+    """Return the Gem multiplier for the tier a mission sits in.
+
+    Gems climb more slowly than Ore and this rate is not player-facing.
+    Ore has to keep the run shop level with the mission in front of it,
+    while Gems buy permanent progression: letting a long run compound
+    them at the same rate would make run length, rather than difficulty,
+    the fastest way to advance the profile.
+    """
+    from .missions import difficulty_stage
+
+    tier = difficulty_stage(stage, config)
+    percent = max(0, int(config.stage_gem_income_percent_per_stage))
+    return 1 + Fraction(percent, 100) * (tier - 1)
+
+
 def _scaled(amount, multiplier):
     """Round a scaled currency amount half-up so payouts stay whole."""
     return int(Fraction(amount) * Fraction(multiplier) + Fraction(1, 2))
@@ -77,10 +93,11 @@ def mission_reward(
     base_run_coins = _scaled(
         base_run_coins, stage_multiplier * challenge_multiplier
     )
-    # The stage multiplier is Ore only. Gems take the challenge multiplier
-    # alone, so permanent progression tracks what the player took on rather
-    # than how long the run has been going.
-    meta_coins = _scaled(meta_coins, challenge_multiplier)
+    # Gems use their own, slower tier curve; see stage_gem_multiplier.
+    meta_coins = _scaled(
+        meta_coins,
+        stage_gem_multiplier(stage, config) * challenge_multiplier,
+    )
     if challenge:
         meta_coins = int(
             meta_coins * effects['challenge_meta_reward_percent']

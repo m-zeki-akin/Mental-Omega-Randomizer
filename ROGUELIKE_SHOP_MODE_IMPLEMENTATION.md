@@ -184,13 +184,20 @@ Suggested default economy ranking:
 | Operation |                   3 |                       7 |                  5 |
 | Finale    |                   4 |                      10 |                  7 |
 
-These are the **stage 1** values. Every later stage multiplies **Ore** by
-`1 + stage_income_percent_per_stage/100 x (tier - 1)`, because the run shop
-must keep pace with permanently harder missions. Gems are deliberately not
-scaled by the stage: permanent progression tracks what the player took on, not
-how long the run has been going. A challenge pays
-`challenge_reward_multiplier_percent` (250% by default) in both currencies,
-which is what the two permanent enemy buffs it grants are priced against.
+These are the **stage 1** values. Each currency climbs on its own tier curve:
+
+| Currency | Per tier | Adjustable |
+| -------- | -------- | ---------- |
+| Ore      | `stage_income_percent_per_stage` (40%) | yes, on the entry screen |
+| Gems     | `stage_gem_income_percent_per_stage` (15%) | no |
+
+Ore has to keep the run shop level with the mission in front of it, so it is
+the player's to tune. Gems buy permanent progression and climb more slowly on a
+fixed rate: letting a long run compound them at the Ore rate would make run
+length, rather than difficulty, the fastest way to advance the profile. A
+challenge pays `challenge_reward_multiplier_percent` (250% by default) in both
+currencies, which is what the two permanent enemy buffs it grants are priced
+against.
 
 Economy class decides the payout and says nothing about difficulty: eleven of
 the twenty-five `operation` missions are ordinary base-building maps and the

@@ -149,6 +149,7 @@ class ShopModeConfig:
     stage_length: int
     starting_lives: int
     stage_income_percent_per_stage: int
+    stage_gem_income_percent_per_stage: int
     challenge_reward_multiplier_percent: int
     permanent_enemy_buffs_per_challenge: int
     mission_offer_count: int
