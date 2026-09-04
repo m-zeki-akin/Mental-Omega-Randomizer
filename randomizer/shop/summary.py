@@ -14,8 +14,16 @@ def reward_breakdown_lines(
     modifiers=(),
     mission_modifier=None,
     challenge_hunter_level=0,
+    stage=1,
+    gem_scale_percent=100,
     config=SHOP_CONFIG,
 ):
+    """Itemise what a mission pays at the tier it is actually played.
+
+    Stage and pacing scale are part of the payout, so a breakdown that omits
+    them reports the tier 1 value for a mission the player is winning at tier
+    4. They are passed through rather than defaulted at every call site.
+    """
     definition = config.mission_rewards[mission_class]
     reward = mission_reward(
         mission_class,
@@ -23,6 +31,8 @@ def reward_breakdown_lines(
         modifiers=modifiers,
         mission_modifier=mission_modifier,
         challenge_hunter_level=challenge_hunter_level,
+        stage=stage,
+        gem_scale_percent=gem_scale_percent,
         config=config,
     )
     lines = [

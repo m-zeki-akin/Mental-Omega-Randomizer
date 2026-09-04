@@ -495,6 +495,10 @@ def apply_mission_victory(
             offer,
             challenge_slots=profile.upgrade_level(
                 'permanent_challenge_slots'
+            ) * int(
+                config.permanent_upgrades[
+                    'permanent_challenge_slots'
+                ].effects['slots_per_level']
             ),
         ),
         challenge_hunter_level=profile.upgrade_level('challenge_hunter'),

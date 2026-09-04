@@ -17,6 +17,7 @@ from randomizer.shop.economy import (
 )
 from randomizer.shop.model import RunStatus, ShopRewardType
 from randomizer.shop.modifiers import (
+    pacing_gem_scale_percent,
     hidden_offer_codes,
     modifier_difficulty,
     modifier_effects,
@@ -450,6 +451,10 @@ class ShopPolishController(ShopArchipelagoController):
                 mission_modifier=mission_modifier,
                 challenge_hunter_level=self.shop_profile.upgrade_level(
                     'challenge_hunter'
+                ),
+                stage=run.stage,
+                gem_scale_percent=pacing_gem_scale_percent(
+                    run.reward_settings
                 ),
             )
             selected = bool(
@@ -1556,8 +1561,18 @@ class ShopPolishController(ShopArchipelagoController):
             challenge_hunter_level=self.shop_profile.upgrade_level(
                 'challenge_hunter'
             ),
+            stage=previous_run.stage,
+            gem_scale_percent=pacing_gem_scale_percent(
+                previous_run.reward_settings
+            ),
         )
-        dividend = transition.reward.gem_dividend_meta_coins
+        # The itemisation is a recomputation; the totals are what the run was
+        # actually paid. Report the paid figures so the two can never disagree.
+        paid = transition.reward
+        lines = tuple(lines[:-1]) + (
+            f'Total: +{paid.run_coins} Ore, +{gem_text(paid.meta_coins)}',
+        )
+        dividend = paid.gem_dividend_meta_coins
         self._set_shop_message(
             f'{source}: {code} victory. ' + ' | '.join(lines)
             + (
