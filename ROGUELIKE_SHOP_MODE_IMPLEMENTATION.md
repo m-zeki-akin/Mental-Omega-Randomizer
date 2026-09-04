@@ -766,7 +766,7 @@ fixed for its whole length:
 | Setting                      | Range   | Default | Harder direction |
 | ---------------------------- | ------- | ------: | ---------------- |
 | Ore income per stage (%)     | 0-100   |      40 | lower            |
-| Enemy buffs per challenge (stage 1) | 0-4 |    2 | more             |
+| Enemy buffs per challenge (stages 1-2) | 0-4 | 2 | more          |
 | Missions per stage           | 2-5     |       3 | fewer            |
 
 Game speed is fixed at 4 - Fast and written to the spawned mission and the
