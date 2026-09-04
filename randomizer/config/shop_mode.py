@@ -340,7 +340,8 @@ def validate_shop_mode_config(sections, path, invalid):
         'emergency_revival': ('lives_per_level',),
         'free_buff_token': ('tokens_per_level',),
         'challenge_hunter': (
-            'run_coins_per_level', 'meta_coins_every_levels'
+            'run_coins_per_level', 'meta_coins_every_levels',
+            'meta_coins_per_award',
         ),
         'recovery_salvage': ('ore_per_level', 'maximum_saved_ore'),
         'starting_buff_draft': ('buffs_per_level',),

@@ -169,7 +169,7 @@ def _requested_upgrade_modifier_checks():
         status=RunStatus.ACTIVE,
         stage=SHOP_CONFIG.run_length,
         run_length=SHOP_CONFIG.run_length,
-        run_coins=20,
+        run_coins=200,
         mission_offers=(final_offer,),
         selected_mission_code='FINALE',
         mission_committed=True,
@@ -256,7 +256,7 @@ def _requested_upgrade_modifier_checks():
             and len(premium) == 2
         ),
         'gem_dividend_valid': bool(
-            dividend.reward.gem_dividend_meta_coins == 3
+            dividend.reward.gem_dividend_meta_coins == 30
             and dividend.profile.meta_coins == dividend.reward.meta_coins
         ),
         'liquid_assets_valid': bool(
@@ -488,8 +488,8 @@ def _permanent_feature_checks(mission_pool):
         'challenge_hunter_valid': bool(
             forced is not None
             and forced.challenge
-            and challenge_reward.challenge_hunter_run_coins == 5
-            and challenge_reward.challenge_hunter_meta_coins == 2
+            and challenge_reward.challenge_hunter_run_coins == 50
+            and challenge_reward.challenge_hunter_meta_coins == 20
         ),
         'recovery_salvage_valid': bool(
             not failed.revived
@@ -1114,7 +1114,7 @@ def _phase_seven_checks():
         status=RunStatus.ACTIVE,
         stage=4,
         run_length=SHOP_CONFIG.run_length,
-        run_coins=100,
+        run_coins=1000,
         mission_offers=offers,
         modifiers=('greedy', 'veteran_economy', 'blind_choice'),
     )
@@ -1195,19 +1195,19 @@ def _phase_seven_checks():
             len(hidden) == 1
             and hidden == hidden_offer_codes(run)
             and hidden[0] in {offer.mission_code for offer in offers}
-            and adjusted.run_coins == 14
-            and adjusted.meta_coins == 8
-            and poor_logistics_reward.run_coins == 7
-            and starting_run_coins(modifiers=('poor_logistics',)) == 5
+            and adjusted.run_coins == 140
+            and adjusted.meta_coins == 87
+            and poor_logistics_reward.run_coins == 70
+            and starting_run_coins(modifiers=('poor_logistics',)) == 50
             and discounted_shop_price(
-                5, modifiers=('poor_logistics',)
-            ) == 7
-            and generous_reward.meta_coins == 4
+                50, modifiers=('poor_logistics',)
+            ) == 70
+            and generous_reward.meta_coins == 40
             and 'meta_reward_flat' not in SHOP_CONFIG.modifiers[
                 'generous_command'
             ].effects
-            and any('Permanent Victory Bonus: +2' in line for line in breakdown)
-            and any('Total: +16 Ore' in line for line in breakdown)
+            and any('Permanent Victory Bonus: +20' in line for line in breakdown)
+            and any('Total: +160 Ore' in line for line in breakdown)
             and 'Persistent Gems: 42' in completion_summary
             and restored == run
         ),
@@ -1217,7 +1217,7 @@ def _phase_seven_checks():
             and buff_validation.result is PurchaseResult.OK
             and with_buff.run_buffs == (BuffPurchase(power_buff.reward_id, 1),)
             and with_buff.run_coins
-            == 100 - access_price - buff_price
+            == 1000 - access_price - buff_price
         ),
         'run_summary_valid': bool(
             completion_summary[0] == 'RUN VICTORY'
@@ -1332,16 +1332,16 @@ def validate_shop_domain():
         except ValueError:
             pass
     economy_valid = bool(
-        (act_one.run_coins, act_one.meta_coins) == (3, 2)
-        and operation.run_coins == 10
-        and operation.meta_coins == 5
-        and operation.victory_bonus_run_coins == 3
-        and capped_bonus.victory_bonus_run_coins == 5
+        (act_one.run_coins, act_one.meta_coins) == (30, 20)
+        and operation.run_coins == 100
+        and operation.meta_coins == 50
+        and operation.victory_bonus_run_coins == 30
+        and capped_bonus.victory_bonus_run_coins == 50
         and len(SHOP_CONFIG.unit_target_prices) == 310
         and len(SHOP_CONFIG.power_target_prices) == 93
         and all(
-            SHOP_CONFIG.power_target_prices[target_id].run_access == 12
-            and SHOP_CONFIG.power_target_prices[target_id].run_buff == 6
+            SHOP_CONFIG.power_target_prices[target_id].run_access == 120
+            and SHOP_CONFIG.power_target_prices[target_id].run_buff == 60
             for target_id in (
                 'LIGHTNINGSTORMSPECIAL',
                 'NUKESPECIAL',
@@ -1349,20 +1349,20 @@ def validate_shop_domain():
                 'GREATTEMPESTSPECIAL',
             )
         )
-        and run_unit_price('E1') == 2
-        and run_unit_price('AHMV') == 4
-        and run_unit_price('STARDUSTB') == 12
-        and run_buff_price('SPY') == 2
-        and run_buff_price('STARDUSTB') == 6
+        and run_unit_price('E1') == 20
+        and run_unit_price('AHMV') == 40
+        and run_unit_price('STARDUSTB') == 120
+        and run_buff_price('SPY') == 20
+        and run_buff_price('STARDUSTB') == 60
         and (failed.run_coins, failed.meta_coins) == (0, 0)
-        and meta_rewards_by_difficulty == [2, 3, 5, 7]
-        and discounted_shop_price(0, shop_discount_level=999) == 1
-        and permanent_unit_price('SPY') == 10
-        and permanent_unit_price('STARDUSTB') == 60
-        and permanent_buff_price('SPY') == 5
-        and permanent_buff_price('STARDUSTB') == 12
+        and meta_rewards_by_difficulty == [20, 30, 50, 70]
+        and discounted_shop_price(0, shop_discount_level=999) == 10
+        and permanent_unit_price('SPY') == 100
+        and permanent_unit_price('STARDUSTB') == 600
+        and permanent_buff_price('SPY') == 50
+        and permanent_buff_price('STARDUSTB') == 120
         and unavailable_price_valid
-        and starting_run_coins(starting_capital_level=999) == 50
+        and starting_run_coins(starting_capital_level=999) == 500
         and starting_credit_upgrade.max_level == 20
         and starting_credit_upgrade.effects['credits_per_level'] == 1000
         and starting_credit_upgrade.max_level

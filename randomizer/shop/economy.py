@@ -138,8 +138,11 @@ def mission_reward(
         if getattr(mission_modifier, 'challenge', False) else 0
     )
     interval = max(1, int(hunter_effects['meta_coins_every_levels']))
+    # Awards are counted in levels but paid in Gems, so the payout comes from
+    # a configured amount rather than the level count itself.
+    per_award = int(hunter_effects['meta_coins_per_award'])
     challenge_hunter_meta = (
-        hunter_level // interval
+        (hunter_level // interval) * per_award
         if getattr(mission_modifier, 'challenge', False) else 0
     )
     return CurrencyReward(

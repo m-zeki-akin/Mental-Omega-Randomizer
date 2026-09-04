@@ -179,10 +179,17 @@ Suggested default economy ranking:
 
 | Class     | Relative difficulty | Stage 1 Run Coin reward | Stage 1 Gem reward |
 | --------- | ------------------: | ----------------------: | -----------------: |
-| Act 1     |                   1 |                       3 |                  2 |
-| Act 2     |                   2 |                       5 |                  3 |
-| Operation |                   3 |                       7 |                  5 |
-| Finale    |                   4 |                      10 |                  7 |
+| Act 1     |                   1 |                      30 |                 20 |
+| Act 2     |                   2 |                      50 |                 30 |
+| Operation |                   3 |                      70 |                 50 |
+| Finale    |                   4 |                     100 |                 70 |
+
+Every Ore and Gem amount is held at ten times its natural size: rewards,
+prices, upgrade ladders, and the flat adjustments modifiers make. Percentage
+modifiers used to be rounded away at single-digit values -- a 25% Gem bonus on
+a 2 Gem reward produced 2 -- and now land whole. Rates and counts are **not**
+scaled: the Gem Dividend exchange stays at 5 Ore per Gem, and level counts,
+slot counts, and level intervals are unchanged.
 
 These are the **stage 1** values. Each currency climbs on its own tier curve:
 
