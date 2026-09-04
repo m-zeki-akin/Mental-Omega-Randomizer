@@ -102,23 +102,34 @@ def running_instance_pid(path=None):
     return int(digits.group()) if digits else None
 
 
-def report_already_running(message=None):
-    """Tell the player which launcher is already open, then leave."""
-    message = message or (
-        'Mental Omega Randomizer is already running for this game folder.\n\n'
-        'Use the window that is already open. Running several launchers at '
-        'once makes them fight over the same files.'
-    )
-    pid = running_instance_pid()
-    if pid:
-        message += f'\n\nExisting launcher process ID: {pid}'
+def focus_running_instance():
+    """Raise the launcher that already owns this folder. True when focused."""
+    if os.name != 'nt':
+        return False
     try:
-        import tkinter as tk
-        from tkinter import messagebox
+        import ctypes
 
-        root = tk.Tk()
-        root.withdraw()
-        messagebox.showinfo('Mental Omega Randomizer', message)
-        root.destroy()
+        from randomizer.core.version import APP_VERSION
+
+        user32 = ctypes.windll.user32
+        handle = user32.FindWindowW(
+            None, f'Mental Omega Randomizer Launcher v{APP_VERSION}'
+        )
+        if not handle:
+            return False
+        user32.ShowWindow(handle, 9)  # SW_RESTORE
+        user32.SetForegroundWindow(handle)
+        return True
     except Exception:
-        print(message, file=sys.stderr)
+        return False
+
+
+def report_already_running():
+    """Point the player at the launcher that is already open, then leave.
+
+    Deliberately not a message box. The case this guard exists for is many
+    instances starting at once, and a modal dialog per instance would keep
+    every one of them alive waiting for a click -- the pile-up it is meant to
+    prevent. Raising the existing window is the feedback instead.
+    """
+    focus_running_instance()
