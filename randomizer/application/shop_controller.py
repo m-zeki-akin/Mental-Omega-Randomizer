@@ -752,6 +752,49 @@ class ShopController(ShopPolishController):
         if hasattr(self, 'append_log'):
             self.append_log(str(message), error=error)
 
+    def _schedule_shop_workspace_repaint(self):
+        """Coalesce workspace repaints into one per event-loop turn.
+
+        Startup and most state changes trigger several independent refresh
+        calls in a row -- tab sync, config load, mission load, and the traced
+        setup variables. Each one rebuilt six trees and re-resolved their
+        cameos, so a single startup repainted the workspace six times over.
+        Run state is still refreshed synchronously by the caller; only the
+        painting waits for the event loop to settle.
+        """
+        if getattr(self, '_shop_repaint_scheduled', False):
+            return
+        self._shop_repaint_scheduled = True
+        try:
+            self.after_idle(self._repaint_shop_workspace)
+        except Exception:
+            # No usable event loop (teardown, or a headless check). Paint now
+            # rather than silently skipping the refresh.
+            self._shop_repaint_scheduled = False
+            self._repaint_shop_workspace()
+
+    def flush_shop_workspace_repaint(self):
+        """Run a pending repaint now, for callers that read painted state."""
+        if getattr(self, '_shop_repaint_scheduled', False):
+            self._repaint_shop_workspace()
+
+    def _repaint_shop_workspace(self):
+        self._shop_repaint_scheduled = False
+        if not hasattr(self, 'shop_stage_var'):
+            return
+        self._refresh_shop_missions()
+        self.refresh_shop_catalogue()
+        self._refresh_shop_loadout()
+        self._refresh_shop_setup()
+        self._refresh_permanent_shop()
+        if hasattr(self, 'header_summary_var'):
+            self.update_header_summary()
+        self._refresh_shop_history()
+        self._refresh_archipelago_shop_purchases()
+        self.refresh_shop_settings_controls()
+        if hasattr(self, 'shop_debug_mission_combo'):
+            self.refresh_shop_debug_completion_choices()
+
     def refresh_shop_mode(self, *_args):
         if not hasattr(self, 'shop_stage_var'):
             return
@@ -788,18 +831,7 @@ class ShopController(ShopPolishController):
         capacity = self._shop_reroll_capacity()
         used = run.rerolls_used if run is not None else 0
         self.shop_rerolls_var.set(f'Rerolls: {used} / {capacity}')
-        self._refresh_shop_missions()
-        self.refresh_shop_catalogue()
-        self._refresh_shop_loadout()
-        self._refresh_shop_setup()
-        self._refresh_permanent_shop()
-        if hasattr(self, 'header_summary_var'):
-            self.update_header_summary()
-        self._refresh_shop_history()
-        self._refresh_archipelago_shop_purchases()
-        self.refresh_shop_settings_controls()
-        if hasattr(self, 'shop_debug_mission_combo'):
-            self.refresh_shop_debug_completion_choices()
+        self._schedule_shop_workspace_repaint()
         self.refresh_progress_view()
 
     def refresh_shop_debug_completion_choices(self):
@@ -1572,6 +1604,9 @@ class ShopController(ShopPolishController):
         return chosen
 
     def start_shop_run(self):
+        # The selected extra loadout is pruned against owned units while the
+        # workspace paints, so settle any pending repaint before reading it.
+        self.flush_shop_workspace_repaint()
         if not self.missions:
             messagebox.showwarning(
                 'Shop Mode', 'Mission data is still loading.', parent=self
