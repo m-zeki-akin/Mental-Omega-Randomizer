@@ -24,6 +24,7 @@ from randomizer.shop.modifiers import (
 from randomizer.shop.config import SHOP_CONFIG
 from randomizer.shop.text import gem_text
 from randomizer.shop.shelf import shop_shelf
+from randomizer.shop.unit_pricing import unit_access_gem_price_reason
 from randomizer.shop.mission_modifiers import (
     mission_modifier_for_run_offer,
 )
@@ -1456,9 +1457,28 @@ class ShopPolishController(ShopArchipelagoController):
         reward_id = self._shop_permanent_rows.get(row_id)
         if not reward_id:
             return ''
+        # Gem prices no longer track the unit's credit cost, so a hero at 500
+        # beside a rifleman at 90 needs the shop to say what it is charging
+        # for. The row has no room; the tooltip does.
+        entry = self._shop_entry_by_reward_id.get(reward_id)
+        reason = (
+            unit_access_gem_price_reason(entry.target_id)
+            if entry is not None else ''
+        )
+        surcharged = bool(
+            entry is not None
+            and entry.target_id in self.shop_pending_reward_exclusions()
+        )
+        multiplier = self.shop_config.excluded_target_gem_price_multiplier
         return (
             f'{reward_id}\nPermanent local entitlement. '
             'Selectable in future Shop run loadouts.'
+            + (f'\nPrice: {reason}.' if reason else '')
+            + (
+                '\nReward Pool surcharge: hidden from run offers, '
+                f'so it costs {multiplier}x here.'
+                if surcharged else ''
+            )
         )
 
     def shop_upgrade_tooltip(self, row_id):

@@ -161,6 +161,36 @@ def unit_access_gem_price(target_id, *, config: ShopModeConfig = SHOP_CONFIG):
     return max(step, int(round((band + adjustment) / step)) * step)
 
 
+def unit_access_gem_price_reason(target_id, *, config: ShopModeConfig = SHOP_CONFIG):
+    """Return why a unit costs what it costs, in one short phrase.
+
+    The old prices tracked in-game cost, so a player could read them off the
+    unit they knew. These do not, and a hero at 500 Gems beside a rifleman at
+    90 is unexplained unless the shop says what it is charging for.
+    """
+    from .catalogue import unit_access_tier
+
+    pricing = config.unit_access_gem_pricing
+    traits = unit_pricing_traits(target_id)
+    reasons = []
+    if _unique_gems(traits, pricing):
+        reasons.append(
+            'Hero infantry'
+            if traits.get('category') in UNIQUE_INFANTRY_CATEGORIES
+            else 'Hero unit'
+        )
+    if traits.get('stolen_tech'):
+        reasons.append('Stolen tech')
+    if reasons:
+        return ' / '.join(reasons) + ' -- flat price, tier does not apply'
+    tier = unit_access_tier(target_id).replace('_', ' ').title()
+    cost = traits.get('cost') or 0
+    return (
+        f'{tier} band'
+        + (f', adjusted for its {cost} credit cost' if cost else '')
+    )
+
+
 def unit_access_gem_price_report(*, config: ShopModeConfig = SHOP_CONFIG):
     """Return every access target's Gem price, for tooling and self-checks."""
     from .catalogue import shop_catalogue
