@@ -327,6 +327,7 @@ class ShopPolishController(ShopArchipelagoController):
                 f'Status: {run.status.value.title()}'
             ))
             lines = ['Current mission offers', '======================']
+            hidden = set(hidden_offer_codes(run))
             for offer in run.mission_offers:
                 mission = self._shop_mission(offer.mission_code)
                 mission_modifier = mission_modifier_for_run_offer(
@@ -347,13 +348,15 @@ class ShopPolishController(ShopArchipelagoController):
                     )
                 )
                 marker = ' [IN PROGRESS]' if selected else ''
+                reward_hidden = offer.mission_code in hidden and not selected
                 lines.extend((
                     '',
                     f'{mission.get("title") or offer.mission_code} '
                     f'({offer.mission_code}){marker}',
                     f'{mission.get("side") or "Unknown faction"} | '
-                    f'{definition.display_name} | '
-                    f'Reward Tier {definition.difficulty} | '
+                    f'{"???" if reward_hidden else definition.display_name} | '
+                    'Reward Tier '
+                    f'{"???" if reward_hidden else definition.difficulty} | '
                     f'Game difficulty {normal_difficulty}'
                     + (
                         f' -> {eased_difficulty}'
@@ -364,6 +367,8 @@ class ShopPolishController(ShopArchipelagoController):
                 if mission_modifier is not None:
                     kind = 'Challenge' if mission_modifier.challenge else 'Boon'
                     lines.append(
+                        f'{kind}: hidden until mission launch'
+                        if reward_hidden else
                         f'{kind}: {mission_modifier.title} — '
                         f'{mission_modifier.description} '
                         f'Reward bonus: {mission_modifier.reward_text}.'
@@ -380,6 +385,10 @@ class ShopPolishController(ShopArchipelagoController):
                         mission_modifier=mission_modifier,
                         challenge_hunter_level=(
                             self.shop_profile.upgrade_level('challenge_hunter')
+                        ),
+                        stage=run.stage,
+                        gem_scale_percent=pacing_gem_scale_percent(
+                            run.reward_settings
                         ),
                     ))
             if not run.mission_offers:
@@ -471,10 +480,19 @@ class ShopPolishController(ShopArchipelagoController):
             faction = mission.get('side') or 'Unknown faction'
             card['code'] = offer.mission_code
             card['name'].set(f'{title} ({offer.mission_code})')
+            # Mission class names the base reward outright (act_1 is 75
+            # Ore, operation is 175), so printing it beside a hidden
+            # number would have hidden nothing.
+            shown_class = (
+                '???' if reward_hidden else definition.display_name
+            )
+            shown_tier = (
+                '???' if reward_hidden else definition.difficulty
+            )
             card['detail'].set(
                 f'Faction: {faction}\n'
-                f'Mission class: {definition.display_name}\n'
-                f'Reward tier: {definition.difficulty}\n'
+                f'Mission class: {shown_class}\n'
+                f'Reward tier: {shown_tier}\n'
                 f'Run difficulty: +{modifier_difficulty(run.modifiers)}'
             )
             effective_difficulty = (
@@ -498,12 +516,14 @@ class ShopPolishController(ShopArchipelagoController):
                 + ('  •  Full reward retained' if assisted else '')
             )
             card['effect'].set(
-                (
-                    f'{"Challenge" if mission_modifier.challenge else "Bonus"}: '
-                    f'{mission_modifier.title} — {mission_modifier.description} '
-                    f'Reward bonus: {mission_modifier.reward_text}.'
-                )
-                if mission_modifier is not None else ''
+                ''
+                if mission_modifier is None else
+                f'{"Challenge" if mission_modifier.challenge else "Bonus"}: '
+                'hidden until mission launch'
+                if reward_hidden else
+                f'{"Challenge" if mission_modifier.challenge else "Bonus"}: '
+                f'{mission_modifier.title} — {mission_modifier.description} '
+                f'Reward bonus: {mission_modifier.reward_text}.'
             )
             card['effect_label'].configure(
                 style=(
@@ -524,9 +544,14 @@ class ShopPolishController(ShopArchipelagoController):
                 challenge_hunter_level=self.shop_profile.upgrade_level(
                     'challenge_hunter'
                 ),
+                stage=run.stage,
+                gem_scale_percent=pacing_gem_scale_percent(
+                    run.reward_settings
+                ),
             )
             card['tooltip'].text = (
-                'Blind Choice hides this reward until mission launch.'
+                'Blind Choice hides the class, reward tier, reward, and bonus '
+                'of every mission until it is launched.'
                 if reward_hidden else '\n'.join(breakdown)
                 + (
                     f'\n\n{mission_modifier.title}: '

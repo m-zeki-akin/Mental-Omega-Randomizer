@@ -185,10 +185,14 @@ Suggested default economy ranking:
 | Finale    |                   4 |                     250 |                 70 |
 
 Ore is deliberately several times the Gem figure. The run shop stocks eight
-units and six powers at once, refreshes them every mission, and takes buff
+units and four powers at once, refreshes them every mission, and takes buff
 stacks on top, so a mission's Ore has to buy a real choice out of that slate
 rather than a single item. `tools/shop_balance_simulator.py` reports the ratio
 directly as purchases per mission.
+
+A run opens with 125 Ore, and the Starting Capital ladder adds 25 more per
+level up to a 1,250 Ore ceiling -- the same 2.5x the mission rewards carry,
+so the opening purchase keeps the weight it was designed with.
 
 Every Ore and Gem amount is held at ten times its natural size: rewards,
 prices, upgrade ladders, and the flat adjustments modifiers make. Percentage
@@ -616,9 +620,8 @@ Good candidates:
 
 ### Starting Capital
 
-+2 starting Ore Coins per level.
-
-Max 5.
++25 starting Ore per level, over a long ladder that tops out at the 1,250
+Ore starting ceiling.
 
 ### Shop Discount
 
@@ -662,27 +665,49 @@ These modifiers should make runs easier or harder and may alter rewards.
 
 The first implementation should use a small, explicit modifier catalogue instead of fully procedural effects.
 
-Example modifiers:
+Shipped modifiers:
 
 ### Greedy
 
-`Each victory gives 25% more Gems than normal. You start with 2 less Ore.`
+`Each victory gives 25% more Gems than normal. You start the run with no Ore at
+all, whatever your upgrades or other modifiers would grant.`
+
+The empty wallet is the entire cost, so it is absolute rather than another term
+in the starting-Ore sum: a bought Starting Capital ladder or a modifier that
+hands out opening Ore would otherwise cancel it and leave Greedy free.
 
 ### Veteran Economy
 
-`Each victory gives 30% more Ore than normal. Each Run Shop price costs 20% more.`
+`Each victory gives 40% more Ore than normal, but 30% fewer Gems.`
 
 ### Poor Logistics
 
-`Each victory gives 4 extra Ore, but each Run Shop price costs 2 extra Ore.`
+`Run-shop prices are 25% lower, but everything you build takes 25% longer.`
 
 ### Generous Command
 
-`You start with 5 extra Ore, but each victory gives 20% fewer Gems than normal. Saved Gems are never removed.`
+`You start with 125 extra Ore, but each victory gives 20% fewer Gems than
+normal. Saved Gems are never removed.`
 
 ### Blind Choice
 
-`+10 Ore per victory, one mission offer hides its exact reward until selected`
+`Each victory gives 20% more Ore, but every mission offer hides its class,
+reward tier, exact reward, and bonus until it is launched.`
+
+Hiding the reward alone was cosmetic: the mission class is printed on the same
+card and maps one-to-one onto the base reward, so a player reading `Operation`
+already knew the number. Class, reward tier, and the bonus line follow the
+reward behind the curtain, and all of it lifts on launch.
+
+### Why two of these were replaced rather than renumbered
+
+Veteran Economy and Poor Logistics both traded more Ore against a pricier
+run shop. Ore rewards grow 40% per stage tier while shop prices are flat, so
+that trade drifts in the player's favour at every tier and ends the run as a
+straight buff no matter which numbers it carries -- the structure is the
+problem, not the values. Their replacements trade Ore against something that
+is not Ore: Gems in one case, build time in the other. Any future modifier
+that pairs a scaling reward against a flat cost inherits the same drift.
 
 Implemented additions are Glass Cannon, Overclocked Factories, Black Market,
 Elite Force, No Safety Net, Support Doctrine, War Economy, Narrow Intelligence,
@@ -739,7 +764,7 @@ in-game options alike: missions, rewards, and enemy scaling are all tuned at
 that speed.
 
 Only the rules that shape the whole run are adjustable. Opening resources keep
-their configured values and are not player-facing settings: three lives, five
+their configured values and are not player-facing settings: three lives, 125
 Ore, and two rerolls. The Extra Life, Starting Capital, and Mission Reroll
 upgrades still add to those baselines, which is where a player changes them.
 
@@ -1618,13 +1643,13 @@ Example:
   "mission_offer_count": 3,
   "max_selected_permanent_units": 5,
 
-  "starting_run_coins": 5,
+  "starting_run_coins": 125,
 
   "mission_rewards": {
-    "act_1": { "run_coins": 3, "meta_coins": 1 },
-    "act_2": { "run_coins": 5, "meta_coins": 1 },
-    "operation": { "run_coins": 7, "meta_coins": 2 },
-    "finale": { "run_coins": 10, "meta_coins": 3 }
+    "act_1": { "run_coins": 75, "meta_coins": 20 },
+    "act_2": { "run_coins": 125, "meta_coins": 30 },
+    "operation": { "run_coins": 175, "meta_coins": 50 },
+    "finale": { "run_coins": 250, "meta_coins": 70 }
   },
 
   "run_unit_prices": {

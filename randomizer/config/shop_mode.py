@@ -435,6 +435,7 @@ def validate_shop_mode_config(sections, path, invalid):
 
     allowed_modifier_effects = {
         'starting_run_coins_flat',
+        'no_starting_run_coins',
         'run_reward_percent',
         'run_reward_flat',
         'meta_reward_percent',
@@ -486,6 +487,7 @@ def validate_shop_mode_config(sections, path, invalid):
         ))
         has_penalty = bool(isinstance(effects, dict) and (
             effects.get('starting_run_coins_flat', 0) < 0
+            or effects.get('no_starting_run_coins', 0) > 0
             or effects.get('run_reward_flat', 0) < 0
             or effects.get('meta_reward_flat', 0) < 0
             or effects.get('run_reward_percent', 100) < 100
@@ -495,6 +497,7 @@ def validate_shop_mode_config(sections, path, invalid):
             or effects.get('hidden_offer_count', 0) > 0
             or effects.get('player_armor_percent', 100) < 100
             or effects.get('player_cost_percent', 100) > 100
+            or effects.get('production_time_percent', 100) > 100
             or effects.get('combat_production_time_percent', 100) > 100
             or effects.get('starter_unit_count_flat', 0) < 0
             or effects.get('disable_rerolls', 0) > 0

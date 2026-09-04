@@ -175,6 +175,11 @@ def starting_run_coins(
         'run_coins_per_level'
     ]
     effects = modifier_effects(modifiers, config)
+    if effects['no_starting_run_coins']:
+        # Greedy's whole cost is the empty wallet. A +125 Ore modifier or a
+        # bought capital ladder cancelling it would make the modifier free,
+        # so this overrides the sum rather than joining it.
+        return 0
     return min(
         config.maximum_starting_ore,
         max(

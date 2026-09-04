@@ -243,7 +243,7 @@ def _requested_upgrade_modifier_checks():
                 effects['production_time_percent'] * effects[
                     'combat_production_time_percent'
                 ]
-            ) == 0.9
+            ) == 1.125
             and effects['disable_rerolls']
             and effects['disable_assists']
             and effects['disable_revivals']
@@ -1123,9 +1123,8 @@ def _phase_seven_checks():
         MissionEconomyClass.FINALE,
         modifiers=run.modifiers,
     )
-    poor_logistics_reward = mission_reward(
-        MissionEconomyClass.ACT_1,
-        modifiers=('poor_logistics',),
+    greedy_start = starting_run_coins(
+        starting_capital_level=999, modifiers=('greedy', 'generous_command')
     )
     generous_reward = mission_reward(
         MissionEconomyClass.OPERATION,
@@ -1208,22 +1207,25 @@ def _phase_seven_checks():
             )
         ),
         'modifier_polish_valid': bool(
-            len(hidden) == 1
+            # Blind Choice covers the whole board now, so a visible card
+            # beside a hidden one can no longer give the reward away.
+            len(hidden) == len(offers)
             and hidden == hidden_offer_codes(run)
-            and hidden[0] in {offer.mission_code for offer in offers}
-            and adjusted.run_coins == 335
-            and adjusted.meta_coins == 87
-            and poor_logistics_reward.run_coins == 115
-            and starting_run_coins(modifiers=('poor_logistics',)) == 50
+            and set(hidden) == {offer.mission_code for offer in offers}
+            and adjusted.run_coins == 420
+            and adjusted.meta_coins == 61
+            # Greedy's empty wallet outranks both a bought capital ladder and
+            # a modifier that hands out starting Ore.
+            and greedy_start == 0
             and discounted_shop_price(
                 50, modifiers=('poor_logistics',)
-            ) == 70
+            ) == 37
             and generous_reward.meta_coins == 40
             and 'meta_reward_flat' not in SHOP_CONFIG.modifiers[
                 'generous_command'
             ].effects
             and any('Permanent Victory Bonus: +20' in line for line in breakdown)
-            and any('Total: +355 Ore' in line for line in breakdown)
+            and any('Total: +440 Ore' in line for line in breakdown)
             and 'Persistent Gems: 42' in completion_summary
             and restored == run
         ),
@@ -1378,7 +1380,7 @@ def validate_shop_domain():
         and permanent_buff_price('SPY') == 50
         and permanent_buff_price('STARDUSTB') == 120
         and unavailable_price_valid
-        and starting_run_coins(starting_capital_level=999) == 500
+        and starting_run_coins(starting_capital_level=999) == 1250
         and starting_credit_upgrade.max_level == 20
         and starting_credit_upgrade.effects['credits_per_level'] == 1000
         and starting_credit_upgrade.max_level

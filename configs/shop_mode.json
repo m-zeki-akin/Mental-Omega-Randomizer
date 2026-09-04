@@ -12,11 +12,11 @@
       "permanent_enemy_buffs_per_challenge": 2,
       "mission_offer_count": 3,
       "unit_inventory_size": 8,
-      "power_inventory_size": 6,
+      "power_inventory_size": 4,
       "max_selected_permanent_units": 5,
-      "starting_run_coins": 50,
+      "starting_run_coins": 125,
       "starting_rerolls": 2,
-      "maximum_starting_ore": 500,
+      "maximum_starting_ore": 1250,
       "minimum_shop_price": 10,
       "reroll_policy": "per_run",
       "archipelago_purchase_locations": 5,
@@ -489,7 +489,7 @@
         "max_level": 45,
         "prices": [40, 40, 40, 40, 40, 40, 40, 40, 40, 40, 40, 40, 40, 40, 40, 40, 40, 40, 40, 40, 40, 40, 40, 40, 40, 40, 40, 40, 40, 40, 40, 40, 40, 40, 40, 40, 40, 40, 40, 40, 40, 40, 40, 40, 40],
         "effects": {
-          "run_coins_per_level": 10
+          "run_coins_per_level": 25
         }
       },
       "mission_starting_credits": {
@@ -907,42 +907,42 @@
     "modifiers": {
       "greedy": {
         "display_name": "Greedy",
-        "description": "Each victory gives 25% more Gems than normal. You start with 20 less Ore.",
+        "description": "Each victory gives 25% more Gems than normal. You start the run with no Ore at all, whatever your upgrades or other modifiers would grant.",
         "effects": {
           "meta_reward_percent": 125,
-          "starting_run_coins_flat": -20
+          "no_starting_run_coins": 1
         }
       },
       "veteran_economy": {
         "display_name": "Veteran Economy",
-        "description": "Each victory gives 30% more Ore than normal. Each run-shop price costs 20% more.",
+        "description": "Each victory gives 40% more Ore than normal, but 30% fewer Gems.",
         "effects": {
-          "shop_price_percent": 120,
-          "run_reward_percent": 130
+          "run_reward_percent": 140,
+          "meta_reward_percent": 70
         }
       },
       "poor_logistics": {
         "display_name": "Poor Logistics",
-        "description": "Each victory gives 40 extra Ore, but each run-shop price costs 20 extra Ore.",
+        "description": "Run-shop prices are 25% lower, but everything you build takes 25% longer.",
         "effects": {
-          "run_reward_flat": 40,
-          "shop_price_flat": 20
+          "shop_price_percent": 75,
+          "production_time_percent": 125
         }
       },
       "generous_command": {
         "display_name": "Generous Command",
-        "description": "You start with 50 extra Ore, but each victory gives 20% fewer Gems than normal. Saved Gems are never removed.",
+        "description": "You start with 125 extra Ore, but each victory gives 20% fewer Gems than normal. Saved Gems are never removed.",
         "effects": {
-          "starting_run_coins_flat": 50,
+          "starting_run_coins_flat": 125,
           "meta_reward_percent": 80
         }
       },
       "blind_choice": {
         "display_name": "Blind Choice",
-        "description": "+10 Ore per victory, but one mission offer hides its exact reward until launched.",
+        "description": "Each victory gives 20% more Ore, but every mission offer hides its class, reward tier, exact reward, and bonus until it is launched.",
         "effects": {
-          "run_reward_flat": 10,
-          "hidden_offer_count": 1
+          "run_reward_percent": 120,
+          "hidden_offer_count": 3
         }
       },
       "glass_cannon": {
@@ -998,9 +998,9 @@
       },
       "war_economy": {
         "display_name": "War Economy",
-        "description": "Start with 50 extra Ore, but every mission starts with 3,000 fewer in-game Credits.",
+        "description": "Start with 125 extra Ore, but every mission starts with 3,000 fewer in-game Credits.",
         "effects": {
-          "starting_run_coins_flat": 50,
+          "starting_run_coins_flat": 125,
           "mission_starting_credits_flat": -3000
         }
       },
