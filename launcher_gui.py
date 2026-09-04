@@ -40,6 +40,21 @@ from randomizer.ui.config import EVA_APPEARANCE_PROFILES, EVA_VOICE_TAGS
 
 def run_launcher():
     """Load config-dependent application modules with visible startup errors."""
+    from randomizer.core.single_instance import (
+        AlreadyRunningError,
+        acquire_single_instance_lock,
+        report_already_running,
+    )
+
+    try:
+        lock = acquire_single_instance_lock()
+    except AlreadyRunningError as exc:
+        # Several launchers on one game folder rebuild the same caches and
+        # clear the same staging directory, which is heavy and makes them fail
+        # on each other's open files.
+        log_event('launcher_already_running', detail=str(exc))
+        report_already_running()
+        return 0
     try:
         from randomizer.application.app import main
         main()

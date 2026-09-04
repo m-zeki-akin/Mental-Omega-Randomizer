@@ -270,8 +270,15 @@ def remove_generated_runtime_assets():
     # next prepared map, so launcher exit leaves no generated payload behind.
     if RUNTIME_ASSET_DIR.is_dir():
         for source in RUNTIME_ASSET_DIR.iterdir():
-            if source.is_file():
+            if not source.is_file():
+                continue
+            try:
                 source.unlink()
+            except OSError:
+                # Another process still has the staged asset open. Staging is
+                # disposable and rebuilt per launch, so leaving one file behind
+                # must never stop the launcher from starting.
+                continue
     return removed
 
 
