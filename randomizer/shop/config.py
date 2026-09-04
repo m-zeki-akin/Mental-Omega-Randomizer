@@ -115,6 +115,13 @@ def load_shop_mode_config() -> ShopModeConfig:
         mission_offer_count=int(settings['mission_offer_count']),
         unit_inventory_size=int(settings['unit_inventory_size']),
         power_inventory_size=int(settings['power_inventory_size']),
+        upgrade_inventory_size=int(settings['upgrade_inventory_size']),
+        mission_upgrade_reward_count=int(
+            settings['mission_upgrade_reward_count']
+        ),
+        mission_unit_gift_count=int(
+            settings['mission_unit_gift_count']
+        ),
         max_selected_permanent_units=int(
             settings['max_selected_permanent_units']
         ),

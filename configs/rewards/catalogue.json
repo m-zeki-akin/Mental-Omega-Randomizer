@@ -681,7 +681,7 @@
         "id": "cost",
         "name": "Logistics",
         "setting_label": "Cost reduction",
-        "description": "{plural} cost 20% less in future launched missions."
+        "description": "{plural} cost 15% less in future launched missions."
       },
       {
         "id": "speed",
@@ -704,6 +704,7 @@
       },
       {
         "id": "sight",
+        "draw_weight": 1,
         "name": "Recon Package",
         "setting_label": "Vision",
         "description": "{plural} gain more vision in future launched missions.",
@@ -778,6 +779,7 @@
       },
       {
         "id": "cloak",
+        "draw_weight": 1,
         "name": "Stealth Systems",
         "setting_label": "Cloaking",
         "description": "{plural} gain cloaking in future launched missions.",
@@ -785,6 +787,7 @@
       },
       {
         "id": "sensors",
+        "draw_weight": 1,
         "name": "Sensor Suite",
         "setting_label": "Sensors",
         "description": "{plural} gain sensors in future launched missions.",
@@ -792,6 +795,7 @@
       },
       {
         "id": "veteran",
+        "draw_weight": 1,
         "name": "Veteran Training",
         "setting_label": "Veteran start",
         "description": "{plural} start as veterans for the player house in future launched missions."

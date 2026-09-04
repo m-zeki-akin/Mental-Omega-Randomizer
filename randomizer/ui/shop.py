@@ -281,7 +281,7 @@ def build_shop_tab(self, workspace_tabs):
     sort_box = ttk.Combobox(
         filters,
         textvariable=self.shop_sort_var,
-        values=('Name', 'Tier', 'Price', 'Status'),
+        values=('Shelf', 'Name', 'Tier', 'Price', 'Status'),
         state='readonly',
         width=9,
     )
@@ -349,7 +349,8 @@ def build_shop_tab(self, workspace_tabs):
     ttk.Label(
         loadout_help,
         text=(
-            'Every owned unit can be upgraded. Use its Open Upgrades button.'
+            'Upgrades arrive from mission victories and the run shop. '
+            'Use Show Upgrades to see what a unit carries.'
         ),
         style='Shop.Help.TLabel',
     ).grid(row=0, column=0, sticky='w')

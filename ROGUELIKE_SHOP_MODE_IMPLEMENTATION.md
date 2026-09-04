@@ -184,11 +184,13 @@ Suggested default economy ranking:
 | Operation |                   3 |                     175 |                 50 |
 | Finale    |                   4 |                     250 |                 70 |
 
-Ore is deliberately several times the Gem figure. The run shop stocks eight
-units and three powers at once, refreshes them every mission, and takes buff
-stacks on top, so a mission's Ore has to buy a real choice out of that slate
+Ore is deliberately several times the Gem figure. The run shop stocks ten
+things at once -- four units, two powers, four upgrades -- and refreshes them
+every mission, so a mission's Ore has to buy a real choice out of that slate
 rather than a single item. `tools/shop_balance_simulator.py` reports the ratio
-directly as purchases per mission.
+directly as purchases per mission. It counts only what is sold: every victory
+also hands over a unit and two upgrades for nothing, so a run's real gain per
+mission is higher than the Ore figure alone.
 
 A run opens with 125 Ore, and the Starting Capital ladder adds 25 more per
 level up to a 1,250 Ore ceiling -- the same 2.5x the mission rewards carry,
@@ -386,9 +388,46 @@ These values must be configurable.
 
 Tier classification should use the repository's existing reward/unit classification where available.
 
-## 6.2 Buff purchases
+## 6.2 Upgrades
 
-A buff may only be bought if the player currently has access to the corresponding unit.
+Upgrades are **drawn, never chosen**. A player used to open a unit's upgrade
+list and buy the same buff over and over, which made the strongest play a
+narrow one: keep the roster small, pour everything into one unit, and build
+the whole run around producing it. Nothing in the economy pushed back, because
+a stack was always available to anyone who could pay.
+
+So the picking is gone. Upgrades reach a run two ways, and both of them choose
+the target:
+
+- **Mission victory.** Every win grants `mission_upgrade_reward_count`
+  upgrades, at most one per target, plus `mission_unit_gift_count` units from
+  the lowest tier that still has anything left to give. The gift is what keeps
+  a roster from staying narrow: a player who owns every Tier 1 unit starts
+  receiving Tier 2, so refusing to broaden no longer concentrates the rewards.
+- **The run shop.** `upgrade_inventory_size` upgrades sit on the shelf beside
+  the units and powers, rotating with them each mission.
+
+Both draws are restricted to targets the player already owns, and both skip
+anything already at its stack limit, so a slot is never spent on nothing.
+
+The draw is weighted. Four upgrade types -- Veteran Training, Stealth Systems,
+Sensor Suite, Recon Package -- are a single decisive switch rather than a
+curve, and appearing as often as the stacking kinds made them far too easy to
+collect. Each carries `draw_weight: 1` in `configs/rewards/catalogue.json`
+against the default 4, so they come up a quarter as often. Anything without an
+explicit weight is ordinary.
+
+Because the shelf is now the permission, the purchase service asks
+`randomizer/shop/shelf.py` whether a reward is stocked rather than whether it
+could ever be sold. That is what closes the old manual path for good: a stale
+window cannot buy an upgrade the current stage did not offer.
+
+Logistics was rebalanced at the same time. It reduced cost 20% per stack with
+no floor and a 24-stack ceiling, which made units literally free at the cap.
+It now reduces 15% per stack and bottoms out at 35% of the original price,
+which derives a useful ceiling of about seven stacks.
+
+A buff may only be granted if the player currently has access to the corresponding unit.
 
 Access can come from:
 
@@ -406,7 +445,8 @@ The Shop UI must filter or disable buffs for units that are not currently owned.
 
 Recommended UX:
 
-- purchased/owned unit: show eligible buffs
+- purchased/owned unit: **Show Upgrades** opens a read-only list of what it
+  carries and how far each stack has left to run
 - not-owned unit: show unit card but buffs locked with tooltip `Purchase/unlock this unit first`
 - maxed buff: show `MAX`
 - insufficient Ore Coins: disable purchase
@@ -989,9 +1029,13 @@ Buttons:
 
 ### Run Shop
 
-The main table shows one rotating access list with an **Available / Owned**
-filter. Owned access rows expose **Open Upgrades**, which opens the valid buff
-table for that exact unit or power. Searchable tables replace target dropdowns.
+The main table shows one rotating shelf with an **Available / Owned** filter,
+listed in the order it was drawn: units, then powers, then upgrades. The
+default `Shelf` sort keeps that order; the other sort modes reorder it on
+request. Owned access rows expose **Show Upgrades**, which opens a read-only
+list of what that unit or power already carries -- nothing there is for sale,
+because upgrades are drawn rather than picked. Searchable tables replace
+target dropdowns.
 
 Cards show:
 
@@ -1002,8 +1046,8 @@ Cards show:
 - price
 - purchase button
 
-Repeat buff purchases retain row selection until Ore is insufficient or the
-stack limit is reached.
+Buying an upgrade off the shelf retains row selection until Ore is
+insufficient or the stack limit is reached.
 
 Unit card states:
 

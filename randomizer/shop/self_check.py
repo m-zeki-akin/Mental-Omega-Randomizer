@@ -24,9 +24,12 @@ from randomizer.ui.cameos import (
 )
 
 from .catalogue import (
+    DEFAULT_BUFF_DRAW_WEIGHT,
+    buff_draw_weights,
     canonical_reward_for_id,
     run_excluded_target_ids,
     shop_catalogue,
+    shop_catalogue_by_reward_id,
     shop_entry_available,
 )
 from .active import (
@@ -104,6 +107,11 @@ from .model import (
     ShopRun,
 )
 from .purchases import apply_validated_run_purchase, validate_run_purchase
+from .shelf import (
+    shop_shelf,
+    shop_shelf_reward_ids,
+    upgradeable_entries,
+)
 from .persistence import (
     ShopPersistenceError,
     ShopPersistencePaths,
@@ -1288,6 +1296,150 @@ def _phase_seven_checks():
     }
 
 
+def _upgrade_reward_checks():
+    """Prove upgrades are drawn onto owned targets and cannot be picked.
+
+    The rework's whole claim is that a player can no longer pour every buff
+    into one favourite unit. That rests on four things that are easy to break
+    silently: the shelf only ever offers upgrades for what is owned, the four
+    one-shot buff types stay rare, a victory spreads its grants across
+    different targets, and the service refuses anything the shelf did not
+    offer -- which is what stops a stale window from reopening the old manual
+    path.
+    """
+    offers = tuple(
+        MissionOffer(code, MissionEconomyClass.ACT_1)
+        for code in ('AXX01', 'AXX02', 'AXX03')[:SHOP_CONFIG.mission_offer_count]
+    )
+    started = start_new_run(
+        ShopProfile(),
+        run_id='upgrade-rework-check',
+        seed='UPGRADE-REWORK-CHECK',
+        mission_offers=offers,
+        eligible_mission_codes=tuple(
+            offer.mission_code for offer in offers
+        ) + ('AXX04', 'AXX05', 'AXX06'),
+    )
+    profile, run = started.profile, started.run
+    # Give the run something to upgrade. Two owned units is the smallest
+    # roster that can show a grant spreading rather than stacking.
+    owned = tuple(
+        entry.reward_id
+        for entry in shop_catalogue()
+        if entry.reward_type is ShopRewardType.UNIT_ACCESS
+        and entry.target_id in {'E1', 'HTNK'}
+    )
+    run = replace(
+        run,
+        run_purchases=tuple(PurchaseRecord(reward_id) for reward_id in owned),
+    )
+    owned_tech = set(active_shop_tech_ids(run))
+    units, powers, upgrades = shop_shelf(profile, run)
+    shelf_shape_valid = bool(
+        len(units) == SHOP_CONFIG.unit_inventory_size
+        and len(powers) == SHOP_CONFIG.power_inventory_size
+        and len(upgrades) == SHOP_CONFIG.upgrade_inventory_size
+        and all(
+            entry.reward_type is ShopRewardType.UNIT_BUFF
+            or entry.reward_type is ShopRewardType.POWER_BUFF
+            for entry in upgrades
+        )
+    )
+    upgrades_target_owned_valid = all(
+        entry.target_id in owned_tech for entry in upgrades
+    )
+    weights = buff_draw_weights()
+    weights_valid = bool(
+        {
+            buff_id for buff_id, weight in weights.items()
+            if weight != DEFAULT_BUFF_DRAW_WEIGHT
+        } == {'sight', 'cloak', 'sensors', 'veteran'}
+        and all(
+            weights[buff_id] * 4 == DEFAULT_BUFF_DRAW_WEIGHT
+            for buff_id in ('sight', 'cloak', 'sensors', 'veteran')
+        )
+    )
+    committed = replace(
+        run,
+        selected_mission_code=offers[0].mission_code,
+        mission_committed=True,
+    )
+    next_offers = (MissionOffer('AXX04', MissionEconomyClass.ACT_1),)
+    victory = apply_mission_victory(
+        profile, committed, offers[0].mission_code, next_offers=next_offers
+    )
+    granted_upgrades = victory.reward.granted_upgrade_ids
+    granted_units = victory.reward.granted_unit_ids
+    granted_targets = [
+        shop_catalogue_by_reward_id()[reward_id].target_id
+        for reward_id in granted_upgrades
+    ]
+    mission_grant_valid = bool(
+        len(granted_upgrades) == SHOP_CONFIG.mission_upgrade_reward_count
+        and len(granted_targets) == len(set(granted_targets))
+        and all(target in owned_tech for target in granted_targets)
+        and len(granted_units) == SHOP_CONFIG.mission_unit_gift_count
+    )
+    granted_stacks = {
+        item.reward_id: item.stacks for item in victory.run.run_buffs
+    }
+    grant_applied_valid = all(
+        granted_stacks.get(reward_id) for reward_id in granted_upgrades
+    ) and set(granted_units).issubset({
+        item.reward_id for item in victory.run.run_purchases
+    })
+    # A victory reported twice must not pay twice, grants included.
+    repeated = apply_mission_victory(
+        profile, committed, offers[0].mission_code, next_offers=next_offers
+    )
+    repeat_grant_valid = bool(
+        repeated.changed
+        and repeated.reward.granted_upgrade_ids == granted_upgrades
+        and apply_mission_victory(
+            victory.profile,
+            victory.run,
+            offers[0].mission_code,
+            next_offers=(),
+        ).reward.granted_upgrade_ids == ()
+    )
+    # The gift climbs a tier only once the one below is spent, so a run with
+    # Tier 1 stock left must never be handed a Tier 2 unit.
+    gift_entries = tuple(
+        shop_catalogue_by_reward_id()[reward_id]
+        for reward_id in granted_units
+    )
+    unit_gift_tier_valid = all(
+        entry.tier == 'tier_1' for entry in gift_entries
+    )
+    # An upgrade that is perfectly legal -- owned target, stacks to spare --
+    # but was not drawn onto the shelf has to be refused.
+    shelf_ids = shop_shelf_reward_ids(profile, run)
+    unstocked = next(
+        (
+            entry for entry in upgradeable_entries(run)
+            if entry.reward_id not in shelf_ids
+        ),
+        None,
+    )
+    shelf_gate_valid = unstocked is not None and not validate_run_purchase(
+        canonical_reward_for_id(unstocked.reward_id),
+        price=0,
+        run_coins=run.run_coins,
+        active_tech_ids=tuple(owned_tech),
+        shop_eligible=unstocked.reward_id in shelf_ids,
+    ).allowed
+    return {
+        'upgrade_shelf_shape_valid': shelf_shape_valid,
+        'upgrade_shelf_targets_owned_valid': upgrades_target_owned_valid,
+        'upgrade_draw_weights_valid': weights_valid,
+        'mission_upgrade_grant_valid': mission_grant_valid,
+        'mission_grant_applied_valid': grant_applied_valid,
+        'mission_grant_idempotent_valid': repeat_grant_valid,
+        'mission_unit_gift_tier_valid': unit_gift_tier_valid,
+        'upgrade_shelf_purchase_gate_valid': shelf_gate_valid,
+    }
+
+
 def validate_shop_domain():
     malformed_config = load_static_config('shop_mode.json')
     malformed_config['settings']['run_length'] = 0
@@ -2050,6 +2202,7 @@ def validate_shop_domain():
     details.update(_phase_seven_checks())
     details.update(_permanent_feature_checks(mission_pool))
     details.update(_requested_upgrade_modifier_checks())
+    details.update(_upgrade_reward_checks())
     details['valid'] = all(
         value for key, value in details.items()
         if key.endswith('_valid')

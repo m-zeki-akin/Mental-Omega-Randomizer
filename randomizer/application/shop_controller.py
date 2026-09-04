@@ -146,7 +146,7 @@ class ShopController(ShopPolishController):
         self.shop_loadout_search_var = tk.StringVar(value='')
         self.shop_setup_search_var = tk.StringVar(value='')
         self.shop_permanent_search_var = tk.StringVar(value='')
-        self.shop_sort_var = tk.StringVar(value='Name')
+        self.shop_sort_var = tk.StringVar(value='Shelf')
         self.shop_summary_var = tk.StringVar(value='No Shop run exists.')
         self.shop_modifier_vars = {
             modifier_id: tk.BooleanVar(value=False)
@@ -1824,6 +1824,14 @@ class ShopController(ShopPolishController):
             return
         reward_id = self._shop_catalogue_rows.get(selected[0])
         if not reward_id:
+            return
+        if not self._shop_catalogue_buyable.get(selected[0]):
+            # The upgrade view lists what a unit already carries. Saying so
+            # beats letting the service answer with a rejection code.
+            self._set_shop_message(
+                f'{reward_id} is not for sale here. Upgrades arrive from '
+                'mission victories and the run shop.'
+            )
             return
         try:
             validation = self.shop_service.purchase_run_reward(reward_id)

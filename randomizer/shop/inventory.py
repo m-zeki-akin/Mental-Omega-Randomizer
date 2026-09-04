@@ -3,6 +3,8 @@
 from hashlib import sha256
 import random
 
+from .catalogue import DEFAULT_BUFF_DRAW_WEIGHT
+
 
 _TIER_RANK = {None: 0, 'tier_1': 1, 'tier_2': 2, 'tier_3': 3}
 
@@ -84,6 +86,77 @@ def rotating_power_inventory(
         offer_count=offer_count,
         stream_name='shop_power_inventory',
         excluded_target_ids=excluded_target_ids,
+    )
+
+
+def weighted_upgrade_draw(
+    entries,
+    *,
+    run_seed,
+    stage,
+    offer_count,
+    stream_name,
+    weights=None,
+    one_per_target=False,
+):
+    """Return a deterministic weighted sample of upgrade offers.
+
+    Upgrades are no longer picked off a target selector, so the draw itself is
+    what decides which of a unit's dozen possible upgrades a player is ever
+    offered. Weighting is what keeps the one-shot kinds -- veteran start,
+    cloaking, sensors, vision -- from crowding out the stacking ones simply by
+    being as numerous.
+
+    ``one_per_target`` spreads a small draw across different units, which is
+    what a mission reward wants: two upgrades on two units beats two stacks on
+    one, since concentrating buffs on a single unit is the habit this is meant
+    to break. A shop shelf leaves it off, so a unit with several good upgrades
+    can still show more than one.
+    """
+    ordered = tuple(sorted(entries, key=lambda entry: entry.reward_id.casefold()))
+    count = max(0, min(int(offer_count), len(ordered)))
+    if not count:
+        return ()
+    weights = dict(weights or {})
+    pool = list(ordered)
+    pool_weights = [
+        max(1, int(weights.get(entry.buff_type, DEFAULT_BUFF_DRAW_WEIGHT)))
+        for entry in pool
+    ]
+    stream = f'{stream_name}\0{run_seed}\0{int(stage)}'.encode('utf-8')
+    rng = random.Random(int.from_bytes(sha256(stream).digest()[:16], 'big'))
+    drawn = []
+    used_targets = set()
+    while pool and len(drawn) < count:
+        total = sum(pool_weights)
+        threshold = rng.random() * total
+        running = 0.0
+        index = len(pool) - 1
+        for position, weight in enumerate(pool_weights):
+            running += weight
+            if running > threshold:
+                index = position
+                break
+        entry = pool.pop(index)
+        pool_weights.pop(index)
+        if one_per_target and entry.target_id in used_targets:
+            continue
+        used_targets.add(entry.target_id)
+        drawn.append(entry)
+    return tuple(drawn)
+
+
+def rotating_upgrade_inventory(
+    entries, *, run_seed, stage, offer_count, weights=None
+):
+    """Return deterministic upgrade stock for one stage of the run shop."""
+    return weighted_upgrade_draw(
+        entries,
+        run_seed=run_seed,
+        stage=stage,
+        offer_count=offer_count,
+        stream_name='shop_upgrade_inventory',
+        weights=weights,
     )
 
 

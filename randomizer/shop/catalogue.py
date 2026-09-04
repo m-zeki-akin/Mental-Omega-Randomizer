@@ -10,6 +10,8 @@ from randomizer.rewards.catalogue import (
     buff_stack_limit,
     canonical_reward,
 )
+from randomizer.rewards.definitions import BUFF_TYPES
+from randomizer.rewards.power_buff_definitions import POWER_BUFF_TYPES
 from randomizer.rewards.roster import randomizer_unit_template_values
 from randomizer.rewards.rules import tech_ids_for_rewards
 
@@ -81,6 +83,7 @@ def catalogue_entry(reward):
             None,
             buff_stack_limit(canonical),
             factions,
+            str(canonical.get('power_buff_type') or '') or None,
         )
     if kind == 'buff':
         target_id = str(canonical.get('unit') or '').upper()
@@ -93,6 +96,7 @@ def catalogue_entry(reward):
             _unit_tiers().get(target_id, 'tier_1'),
             buff_stack_limit(canonical),
             factions,
+            str(canonical.get('buff_type') or '') or None,
         )
     target_id = _root_access_unit(canonical)
     if not target_id:
@@ -197,6 +201,32 @@ def shop_catalogue():
     _validate_unit_target_prices(entries)
     _validate_power_target_prices(entries)
     return tuple(entries)
+
+
+# What an upgrade type is worth in a random draw. Four kinds are a single
+# decisive switch rather than a curve -- a unit either starts veteran or does
+# not -- so a shelf that treated them like any other stack would hand them out
+# far more often than they are meant to appear. Anything without an explicit
+# weight in the reward catalogue is ordinary and worth the full share.
+DEFAULT_BUFF_DRAW_WEIGHT = 4
+
+
+@lru_cache(maxsize=1)
+def buff_draw_weights():
+    """Return the draw weight for every unit and power upgrade type."""
+    weights = {}
+    for definition in (*BUFF_TYPES, *POWER_BUFF_TYPES):
+        buff_id = str(definition.get('id') or '')
+        if not buff_id:
+            continue
+        try:
+            weight = int(definition.get(
+                'draw_weight', DEFAULT_BUFF_DRAW_WEIGHT
+            ))
+        except (TypeError, ValueError):
+            weight = DEFAULT_BUFF_DRAW_WEIGHT
+        weights[buff_id] = max(1, weight)
+    return weights
 
 
 @lru_cache(maxsize=1)

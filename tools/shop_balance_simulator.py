@@ -138,11 +138,15 @@ def economy_report(config: ShopModeConfig, settings, tiers: int) -> None:
 def purchasing_power_report(config, settings, tiers: int) -> None:
     """What share of the offered shop a tier's Ore can actually buy.
 
-    Fact, not a model. Measured against the whole slate on offer -- every
-    stocked unit and power plus one buff each -- rather than a single median
-    item, because the shop stocks many things at once and buffs stack. A
-    figure under 100% means Ore is still a real constraint and the player has
-    to choose; over 100% means a tier can clear the shelves.
+    Fact, not a model. Measured against the whole slate on offer -- the
+    stocked units, powers, and upgrades of one rotation -- rather than a
+    single median item, because the shop stocks many things at once. A figure
+    under 100% means Ore is still a real constraint and the player has to
+    choose; over 100% means a tier can clear the shelves.
+
+    It counts only what is for sale. Every victory also hands over a unit and
+    a couple of upgrades for free, so a run's real gain per mission is higher
+    than any Ore figure here.
     """
     def median(values):
         values = sorted(values)
@@ -160,12 +164,14 @@ def purchasing_power_report(config, settings, tiers: int) -> None:
         price.run_access for price in config.power_target_prices.values()
         if price.run_access
     )
-    slate = config.unit_inventory_size * (unit + unit_buff)
+    slate = config.unit_inventory_size * unit
     slate += config.power_inventory_size * power
+    slate += config.upgrade_inventory_size * unit_buff
     print()
     print(f'== Satin alma gucu (bir turluk stok ~{slate}o: '
-          f'{config.unit_inventory_size} birim + buff, '
-          f'{config.power_inventory_size} guc) ==')
+          f'{config.unit_inventory_size} birim, '
+          f'{config.power_inventory_size} guc, '
+          f'{config.upgrade_inventory_size} upgrade) ==')
     print(f'{"tier":>4} {"tier Ore":>9} {"stogun %":>10}'
           f'{"gorev Ore":>12}{"alim/gorev":>12}')
     for tier in range(1, tiers + 1):
@@ -184,8 +190,9 @@ def purchasing_power_report(config, settings, tiers: int) -> None:
         per_mission = ore / config.stage_length
         print(f'{tier:>4} {ore:>9} {100 * ore / slate:>9.0f}%'
               f'{per_mission:>12.0f}{per_mission / unit:>12.1f}')
-    print('   not: stok her gorevde yenilenir ve buff lar ust uste binebilir,'
-          ' yani gercek harcama tavani bundan yuksek')
+    print('   not: stok her gorevde yenilenir, yani gercek harcama tavani'
+          ' bundan yuksek; ustelik her zafer 1 birim + '
+          f'{config.mission_upgrade_reward_count} upgrade i bedava verir')
 
 
 def career_report(config, settings, model, careers, runs_each, seed):

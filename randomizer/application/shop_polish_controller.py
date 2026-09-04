@@ -20,16 +20,10 @@ from randomizer.shop.modifiers import (
     pacing_gem_scale_percent,
     hidden_offer_codes,
     modifier_difficulty,
-    modifier_effects,
 )
 from randomizer.shop.config import SHOP_CONFIG
 from randomizer.shop.text import gem_text
-from randomizer.shop.inventory import (
-    guarantee_premium_offer,
-    preserve_locked_offer,
-    rotating_power_inventory,
-    rotating_unit_inventory,
-)
+from randomizer.shop.shelf import shop_shelf
 from randomizer.shop.mission_modifiers import (
     mission_modifier_for_run_offer,
 )
@@ -104,7 +98,7 @@ class ShopPolishController(ShopArchipelagoController):
         for iid, target in self._shop_catalogue_upgrade_targets.items():
             button = ttk.Button(
                 self.shop_catalogue_tree,
-                text='Open Upgrades',
+                text='Show Upgrades',
                 style='Launch.TButton',
                 takefocus=False,
                 command=lambda row=iid, value=target: (
@@ -128,7 +122,7 @@ class ShopPolishController(ShopArchipelagoController):
         for iid, target in self._shop_current_loadout_targets.items():
             button = ttk.Button(
                 self.shop_loadout_tree,
-                text='Open Upgrades',
+                text='Show Upgrades',
                 style='Launch.TButton',
                 takefocus=False,
                 command=lambda row=iid, value=target: (
@@ -811,11 +805,15 @@ class ShopPolishController(ShopArchipelagoController):
         self._shop_catalogue_details = {}
         term = self.shop_search_var.get().strip().casefold()
         run = self.shop_run
-        modifier_values = modifier_effects(run.modifiers) if run else None
         active_tech = set(active_shop_tech_ids(run))
         active_powers = set(active_shop_power_ids(run))
         visible = []
         category = self.shop_category_var.get()
+        # Three kinds of view, and they are not the same thing. The shelf
+        # categories show what is for sale this stage; the access ones are the
+        # subset that also carries a Show Upgrades column; the buff ones are
+        # the read-only drill-down that column opens.
+        shelf_category = category in {'Offers', 'Units', 'Powers', 'Upgrades'}
         access_category = category in {'Offers', 'Units', 'Powers'}
         buff_category = category in {'Unit Buffs', 'Power Buffs'}
         owned_view = bool(
@@ -842,22 +840,6 @@ class ShopPolishController(ShopArchipelagoController):
         selected_target = self._sync_shop_buff_target_selector(
             category, candidates, active_tech, active_powers
         )
-        access_candidates = candidates
-        stock_definition = self.shop_config.permanent_upgrades[
-            'extra_shop_stock'
-        ]
-        unit_offer_count = (
-            self.shop_config.unit_inventory_size
-            + self.shop_profile.upgrade_level('extra_shop_stock')
-            * int(stock_definition.effects['units_per_level'])
-            + (modifier_values['unit_inventory_flat'] if modifier_values else 0)
-        )
-        power_offer_count = (
-            self.shop_config.power_inventory_size
-            + self.shop_profile.upgrade_level('extra_shop_stock')
-            * int(stock_definition.effects['powers_per_level'])
-            + (modifier_values['power_inventory_flat'] if modifier_values else 0)
-        )
         if owned_view:
             candidates = tuple(
                 entry for entry in candidates
@@ -869,98 +851,21 @@ class ShopPolishController(ShopArchipelagoController):
                     and entry.target_id in active_powers
                 )
             )
-        elif category == 'Offers':
-            unit_candidates = tuple(
-                entry for entry in candidates
-                if entry.reward_type is ShopRewardType.UNIT_ACCESS
-            )
-            power_candidates = tuple(
-                entry for entry in candidates
-                if entry.reward_type is ShopRewardType.POWER_ACCESS
-            )
-            candidates = (
-                (*rotating_unit_inventory(
-                    unit_candidates,
-                    run_seed=run.seed,
-                    stage=run.stage,
-                    offer_count=(
-                        unit_offer_count
-                    ),
-                    excluded_target_ids=active_tech,
-                ), *rotating_power_inventory(
-                    power_candidates,
-                    run_seed=run.seed,
-                    stage=run.stage,
-                    offer_count=(
-                        power_offer_count
-                    ),
-                    excluded_target_ids=active_powers,
-                ))
-                if run is not None else ()
-            )
-        elif category == 'Units':
-            candidates = (
-                rotating_unit_inventory(
-                    candidates,
-                    run_seed=run.seed,
-                    stage=run.stage,
-                    offer_count=(
-                        unit_offer_count
-                    ),
-                    excluded_target_ids=active_tech,
-                )
-                if run is not None else ()
-            )
-        elif category == 'Powers':
-            candidates = (
-                rotating_power_inventory(
-                    candidates,
-                    run_seed=run.seed,
-                    stage=run.stage,
-                    offer_count=(
-                        power_offer_count
-                    ),
-                    excluded_target_ids=active_powers,
-                )
-                if run is not None else ()
-            )
+        elif shelf_category:
+            # One shelf, listed units first, then powers, then upgrades, so
+            # the order on screen is the order the stock was drawn in.
+            units, powers, upgrades = shop_shelf(self.shop_profile, run)
+            candidates = {
+                'Offers': (*units, *powers, *upgrades),
+                'Units': units,
+                'Powers': powers,
+                'Upgrades': upgrades,
+            }[category]
         elif buff_category:
             candidates = tuple(
                 entry for entry in candidates
                 if entry.target_id == selected_target
             )
-        if run is not None and access_category and not owned_view:
-            locked_entry = self._shop_entry_by_reward_id.get(
-                run.stock_lock_reward_id or ''
-            )
-            if (
-                locked_entry is not None
-                and run.stock_lock_stage is not None
-                and run.stage <= run.stock_lock_stage + 1
-                and self._shop_entry_available(locked_entry, run)
-                and locked_entry.target_id not in active_tech
-                and locked_entry.target_id not in active_powers
-            ):
-                candidates = preserve_locked_offer(candidates, locked_entry)
-            protected = (
-                (locked_entry.reward_id,)
-                if locked_entry is not None else ()
-            )
-            premium = self.shop_config.permanent_upgrades['premium_supplier']
-            if self.shop_profile.upgrade_level('premium_supplier'):
-                eligible = tuple(
-                    entry for entry in access_candidates
-                    if entry.target_id not in active_tech
-                    and entry.target_id not in active_powers
-                )
-                candidates = guarantee_premium_offer(
-                    candidates,
-                    eligible,
-                    run_seed=run.seed,
-                    stage=run.stage,
-                    minimum_stage=int(premium.effects['minimum_stage']),
-                    protected_reward_ids=protected,
-                )
         for entry in candidates:
             if term and term not in (
                 entry.reward_id + ' ' + entry.target_id
@@ -985,22 +890,30 @@ class ShopPolishController(ShopArchipelagoController):
             'Status': lambda item: (
                 item[1][0].casefold(), item[0].reward_id.casefold()
             ),
+            'Name': lambda item: item[0].reward_id.casefold(),
         }.get(
             sort_mode,
-            lambda item: item[0].reward_id.casefold(),
+            # Shelf order: units, then powers, then upgrades, as drawn. A
+            # constant key leaves a stable sort alone, which is the point --
+            # the shelf already decided the order and the default view should
+            # not shuffle it into an alphabet.
+            (lambda item: 0) if shelf_category
+            else (lambda item: item[0].reward_id.casefold()),
         )
         visible.sort(key=key)
         if category == 'Unit Buffs':
             self.shop_catalogue_help_var.set(
-                f'Buffing {self.shop_buff_target_var.get()}. '
-                'Buy a buff repeatedly to stack it up to its listed limit.'
+                f'Upgrades held by {self.shop_buff_target_var.get()}. '
+                'Upgrades are won from missions or drawn onto the shelf; '
+                'they cannot be picked from this list.'
                 if visible else
                 'Select an owned unit above. No unavailable-unit buffs are shown.'
             )
         elif category == 'Power Buffs':
             self.shop_catalogue_help_var.set(
-                f'Buffing {self.shop_buff_target_var.get()}. '
-                'Buy a buff repeatedly to add stacks up to its listed limit.'
+                f'Upgrades held by {self.shop_buff_target_var.get()}. '
+                'Upgrades are won from missions or drawn onto the shelf; '
+                'they cannot be picked from this list.'
                 if visible else
                 'Select an owned power above. No unavailable-power buffs are shown.'
             )
@@ -1012,8 +925,8 @@ class ShopPolishController(ShopArchipelagoController):
             self.shop_catalogue_help_var.set(
                 f'{len(candidates)} active purchases and starting unlocks '
                 f'({unit_count} units/buildings, '
-                f'{len(candidates) - unit_count} powers). Use Open Upgrades '
-                'to buy more buff stacks.'
+                f'{len(candidates) - unit_count} powers). Use Show Upgrades '
+                'to see what each one carries.'
             )
         elif category == 'Offers':
             power_count = sum(
@@ -1023,15 +936,14 @@ class ShopPolishController(ShopArchipelagoController):
             self.shop_catalogue_help_var.set(
                 f'{len(candidates)} current offers, including {power_count} '
                 f'powers, for mission {run.stage if run is not None else "—"}. '
-                'Stock changes after each mission victory. Buy an item, then '
-                'use its Open Upgrades button.'
+                'Units, then powers, then upgrades for what you already own. '
+                'Stock changes after each mission victory.'
             )
         elif category == 'Units':
             self.shop_catalogue_help_var.set(
                 f'{len(candidates)} units stocked for mission '
                 f'{run.stage if run is not None else "—"}. '
-                'Stock changes after each mission victory. Buy a unit, then '
-                'use its Open Upgrades button.'
+                'Stock changes after each mission victory.'
             )
         elif category == 'Powers':
             self.shop_catalogue_help_var.set(
@@ -1051,7 +963,20 @@ class ShopPolishController(ShopArchipelagoController):
         for index, (entry, detail) in enumerate(visible):
             state, price, locked, stacks = detail
             iid = f'shop-{index}'
-            buyable = state == 'Available' or state.startswith('Stacks ')
+            if buff_category:
+                # Upgrades are drawn, never chosen. This view exists to show
+                # what a unit already carries, so nothing in it is for sale
+                # and a zero-stack row says so rather than reading Available.
+                price = None
+                if not state.startswith('Stacks ') and state != 'MAX':
+                    maximum = (
+                        entry.stack_limit
+                        if entry.stack_limit is not None else '∞'
+                    )
+                    state = f'Stacks {stacks} / {maximum}'
+            buyable = not buff_category and (
+                state == 'Available' or state.startswith('Stacks ')
+            )
             row_tag = (
                 'owned' if state == 'Active / Owned'
                 else 'maxed' if state == 'MAX'
@@ -1606,6 +1531,14 @@ class ShopPolishController(ShopArchipelagoController):
             + (
                 f' | Gem Dividend: +{gem_text(dividend)}'
                 if dividend else ''
+            )
+            + (
+                ' | New unit: ' + ', '.join(paid.granted_unit_ids)
+                if paid.granted_unit_ids else ''
+            )
+            + (
+                ' | Upgrades: ' + ', '.join(paid.granted_upgrade_ids)
+                if paid.granted_upgrade_ids else ''
             )
         )
         if transition.run.status is RunStatus.COMPLETED:

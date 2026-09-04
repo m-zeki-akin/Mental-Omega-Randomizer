@@ -60,6 +60,10 @@ class CurrencyReward:
     challenge_hunter_run_coins: int = 0
     challenge_hunter_meta_coins: int = 0
     gem_dividend_meta_coins: int = 0
+    # What the victory handed over on top of the currency. Named rather than
+    # counted so the victory line can say which units and upgrades arrived.
+    granted_upgrade_ids: tuple[str, ...] = ()
+    granted_unit_ids: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -167,6 +171,9 @@ class ShopModeConfig:
     mission_offer_count: int
     unit_inventory_size: int
     power_inventory_size: int
+    upgrade_inventory_size: int
+    mission_upgrade_reward_count: int
+    mission_unit_gift_count: int
     max_selected_permanent_units: int
     starting_run_coins: int
     starting_rerolls: int
@@ -354,6 +361,10 @@ class ShopCatalogueEntry:
     tier: str | None
     stack_limit: int | None
     factions: tuple[str, ...]
+    # Which kind of upgrade this is, for buff entries only. The rotating
+    # upgrade shelf draws by type, so it has to be readable off the entry
+    # rather than fetched back out of the reward catalogue per candidate.
+    buff_type: str | None = None
 
 
 @dataclass(frozen=True)

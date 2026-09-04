@@ -149,8 +149,11 @@ def run_summary_lines(profile, run, mission_titles=None, config=SHOP_CONFIG):
         _missions_won_line(run),
         f'Ore remaining: {run.run_coins}',
         f'Persistent Gems: {profile.meta_coins}',
-        f'Run purchases: {sum(item.quantity for item in run.run_purchases)}',
-        f'Buff stacks purchased: {sum(item.stacks for item in run.run_buffs)}',
+        # Bought and won land in the same place, so the wording says
+        # "gained" rather than claiming every one of them was paid for.
+        f'Units gained this run: '
+        f'{sum(item.quantity for item in run.run_purchases)}',
+        f'Upgrade stacks gained: {sum(item.stacks for item in run.run_buffs)}',
         f'Free starting draft buffs: '
         f'{sum(item.stacks for item in run.starting_draft_buffs)}',
         f'Free Buff Tokens used: {run.free_buff_tokens_used}',

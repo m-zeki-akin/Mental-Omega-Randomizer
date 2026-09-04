@@ -4,7 +4,7 @@
   "sections": {
     "buff_effects": {
       "production": {"factor_per_stack": 0.85, "minimum_multiplier": 0.2, "stack_limit": 10},
-      "cost": {"factor_per_stack": 0.8, "minimum_multiplier": 0.0, "stack_limit": 24},
+      "cost": {"factor_per_stack": 0.85, "minimum_multiplier": 0.35, "stack_limit": 24},
       "speed": {"factor_per_stack": 1.1},
       "armor": {"factor_per_stack": 0.9, "minimum_multiplier": 0.09090909090909091, "stack_limit": 23},
       "health": {"factor_per_stack": 1.15, "maximum_multiplier": 11.0, "stack_limit": 18},

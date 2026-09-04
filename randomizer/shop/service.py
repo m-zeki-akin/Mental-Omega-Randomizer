@@ -14,12 +14,7 @@ from .archipelago_purchases import (
     reconcile_archipelago_purchases,
     validate_archipelago_purchase,
 )
-from .catalogue import (
-    canonical_reward_for_id,
-    catalogue_entry,
-    run_excluded_target_ids,
-    shop_entry_available,
-)
+from .catalogue import canonical_reward_for_id, catalogue_entry
 from .config import SHOP_CONFIG, run_shop_config
 from .economy import (
     permanent_buff_price,
@@ -36,6 +31,7 @@ from .model import RunStatus, ShopProfile, ShopRewardType
 from .modifiers import modifier_effects
 from .persistence import ShopRepository
 from .purchases import apply_validated_run_purchase, validate_run_purchase
+from .shelf import shop_shelf_reward_ids
 from .transitions import (
     ShopTransitionError,
     abandon_run,
@@ -274,17 +270,12 @@ class ShopProgressionService:
             active_tech_ids=active_shop_tech_ids(run),
             active_power_ids=active_shop_power_ids(run),
             current_stacks=stacks,
-            shop_eligible=shop_entry_available(
-                entry,
-                campaign_filter=str(
-                    run.reward_settings.get('shop_faction_filter')
-                    or run.campaign_filter
-                ),
-                reward_mode=run.reward_mode,
-                strict_faction=True,
-                excluded_target_ids=run_excluded_target_ids(
-                    run.reward_settings
-                ),
+            # The shelf is the whole permission: upgrades are drawn now
+            # rather than chosen, so "is this on the shelf" replaces the old
+            # "could this ever be sold" and closes the path that would let a
+            # stale window buy any upgrade for any owned unit.
+            shop_eligible=entry.reward_id in shop_shelf_reward_ids(
+                profile, run
             ),
         )
         if validation.allowed:

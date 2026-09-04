@@ -22,13 +22,16 @@ from .missions import (
 from .modifiers import modifier_effects, pacing_gem_scale_percent
 from .meta import validate_starting_loadout
 from .model import (
+    BuffPurchase,
     CurrencyReward,
     MissionOffer,
+    PurchaseRecord,
     RunStatus,
     ShopModeConfig,
     ShopProfile,
     ShopRun,
 )
+from .shelf import mission_unit_gift, mission_upgrade_rewards
 from .state import normalize_shop_run
 
 
@@ -533,6 +536,38 @@ def apply_mission_victory(
                 meta_coins=reward.meta_coins + dividend,
                 gem_dividend_meta_coins=dividend,
             )
+    # Winning a mission strengthens the roster actually being fielded: a
+    # couple of upgrades spread across owned units and powers, plus one unit
+    # from the lowest tier that still has anything left to give. Both are
+    # drawn from the run as it stands before the victory is banked, so the
+    # same victory reported twice grants the same thing.
+    granted_upgrades = (
+        () if final_victory
+        else mission_upgrade_rewards(run, mission_code, config=config)
+    )
+    granted_units = (
+        () if final_victory
+        else mission_unit_gift(run, mission_code, config=config)
+    )
+    granted_stacks = {item.reward_id: item.stacks for item in run.run_buffs}
+    for entry in granted_upgrades:
+        granted_stacks[entry.reward_id] = (
+            granted_stacks.get(entry.reward_id, 0) + 1
+        )
+    granted_quantities = {
+        item.reward_id: item.quantity for item in run.run_purchases
+    }
+    for entry in granted_units:
+        granted_quantities[entry.reward_id] = (
+            granted_quantities.get(entry.reward_id, 0) + 1
+        )
+    reward = replace(
+        reward,
+        granted_upgrade_ids=tuple(
+            entry.reward_id for entry in granted_upgrades
+        ),
+        granted_unit_ids=tuple(entry.reward_id for entry in granted_units),
+    )
     key = victory_key(run.run_id, run.stage, mission_code)
     updated_profile = replace(
         profile,
@@ -567,6 +602,14 @@ def apply_mission_victory(
             else run.completed_missions + (mission_code,)
         ),
         rewarded_victories=run.rewarded_victories + (key,),
+        run_buffs=tuple(
+            BuffPurchase(reward_id, stacks)
+            for reward_id, stacks in granted_stacks.items()
+        ),
+        run_purchases=tuple(
+            PurchaseRecord(reward_id, quantity)
+            for reward_id, quantity in granted_quantities.items()
+        ),
         permanent_enemy_buff_ids=(
             run.permanent_enemy_buff_ids + earned_enemy_buffs
         ),
