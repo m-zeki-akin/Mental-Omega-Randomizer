@@ -180,7 +180,7 @@ try {
         --noconfirm `
         --clean `
         --onefile `
-        --runtime-tmpdir . `
+        --runtime-tmpdir RandomizerLauncherRuntime `
         --noupx `
         --optimize 1 `
         --windowed `
@@ -260,8 +260,9 @@ if ($missingArchiveEntries.Count -gt 0) {
 }
 Copy-Item -Force $builtExe $outputPath
 
-# Remove the support folder created by older on-directory builds. Guard the
-# resolved path because this is the only recursive deletion in the build.
+# The launcher unpacks into this folder at run time, so a build machine
+# accumulates one too. Guard the resolved path because this is the only
+# recursive deletion in the build.
 if (Test-Path $runtimePath) {
     $expectedParent = [IO.Path]::GetFullPath($outputDir).TrimEnd('\') + '\'
     if (

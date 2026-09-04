@@ -8,6 +8,7 @@ import traceback
 
 from randomizer.ui.cameos import ensure_superweapon_cameos, ensure_unit_cameos
 from randomizer.core.diagnostics import event as log_event
+from randomizer.core.runtime_cleanup import sweep_stale_runtime_directories
 from randomizer.core.paths import (
     APP_DIR,
     GAME_EXE,
@@ -55,6 +56,20 @@ def run_launcher():
         log_event('launcher_already_running', detail=str(exc))
         report_already_running()
         return 0
+    # After the lock, so a second launcher that is about to bow out never
+    # touches the folder the first one is still unpacking into, and before the
+    # GUI so the disk is tidy by the time anything else runs.
+    try:
+        swept = sweep_stale_runtime_directories()
+        if swept:
+            log_event(
+                'runtime_leftovers_removed',
+                count=len(swept),
+                names=[directory.name for directory in swept],
+            )
+    except Exception:
+        # Housekeeping must never be the reason the launcher fails to open.
+        log_event('runtime_leftover_sweep_failed', traceback=traceback.format_exc())
     try:
         from randomizer.application.app import main
         main()

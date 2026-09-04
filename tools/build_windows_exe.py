@@ -189,7 +189,7 @@ def build(output: Path) -> None:
             '--clean',
             '--onefile',
             '--runtime-tmpdir',
-            '.',
+            'RandomizerLauncherRuntime',
             '--noupx',
             '--optimize',
             '1',
