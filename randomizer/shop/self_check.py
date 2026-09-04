@@ -262,8 +262,13 @@ def _requested_upgrade_modifier_checks():
         'liquid_assets_valid': bool(
             liquid.run.run_coins == liquid_reward.run_coins
         ),
+        # Treasure Hunter doubles challenge Gems on top of the configured
+        # challenge multiplier every stage-closing mission already pays.
         'treasure_hunter_valid': bool(
-            challenge_reward.meta_coins == base_reward.meta_coins * 2
+            challenge_reward.meta_coins == (
+                base_reward.meta_coins
+                * SHOP_CONFIG.challenge_reward_multiplier_percent // 100
+            ) * 2
             and normal_reward.base_run_coins
             == int(base_reward.run_coins * 0.75)
         ),
@@ -346,7 +351,10 @@ def _permanent_feature_checks(mission_pool):
     early_forced = mission_modifier_for_run_offer(
         run, offers[0], challenge_slots=1
     )
-    late_run = replace(run, stage=6)
+    unslotted = mission_modifier_for_run_offer(
+        run, offers[0], challenge_slots=0
+    )
+    late_run = replace(run, stage=SHOP_CONFIG.stage_length)
     forced = mission_modifier_for_run_offer(
         late_run, offers[0], challenge_slots=1
     )
@@ -506,7 +514,8 @@ def _permanent_feature_checks(mission_pool):
         ),
         'permanent_challenge_slots_valid': bool(
             early_forced
-            and not early_forced.challenge
+            and early_forced.challenge
+            and not (unslotted and unslotted.challenge)
             and forced
             and forced.challenge
         ),
@@ -1168,7 +1177,8 @@ def _phase_seven_checks():
         stage=with_buff.run_length,
         mission_offers=(),
         completed_missions=tuple(
-            f'SC_DONE_{index}' for index in range(1, 11)
+            f'SC_DONE_{index}'
+            for index in range(1, SHOP_CONFIG.run_length + 1)
         ),
     )
     failed = replace(
@@ -1186,13 +1196,13 @@ def _phase_seven_checks():
             and hidden == hidden_offer_codes(run)
             and hidden[0] in {offer.mission_code for offer in offers}
             and adjusted.run_coins == 14
-            and adjusted.meta_coins == 5
+            and adjusted.meta_coins == 8
             and poor_logistics_reward.run_coins == 7
             and starting_run_coins(modifiers=('poor_logistics',)) == 5
             and discounted_shop_price(
                 5, modifiers=('poor_logistics',)
             ) == 7
-            and generous_reward.meta_coins == 2
+            and generous_reward.meta_coins == 4
             and 'meta_reward_flat' not in SHOP_CONFIG.modifiers[
                 'generous_command'
             ].effects
@@ -1211,7 +1221,8 @@ def _phase_seven_checks():
         ),
         'run_summary_valid': bool(
             completion_summary[0] == 'RUN VICTORY'
-            and 'Missions won: 10 / 10' in completion_summary
+            and f'Missions won: {SHOP_CONFIG.run_length} / '
+            f'{SHOP_CONFIG.run_length}' in completion_summary
             and failure_summary[0] == 'RUN OVER'
             and any('Failed at stage 4' in line for line in failure_summary)
         ),
@@ -1344,7 +1355,7 @@ def validate_shop_domain():
         and run_buff_price('SPY') == 2
         and run_buff_price('STARDUSTB') == 6
         and (failed.run_coins, failed.meta_coins) == (0, 0)
-        and meta_rewards_by_difficulty == [1, 2, 3, 4]
+        and meta_rewards_by_difficulty == [2, 3, 5, 7]
         and discounted_shop_price(0, shop_discount_level=999) == 1
         and permanent_unit_price('SPY') == 10
         and permanent_unit_price('STARDUSTB') == 60
@@ -1367,7 +1378,7 @@ def validate_shop_domain():
             )
             for sample in range(1000)
         )
-        for stage in (3, 4, 6, 8)
+        for stage in (3, 9, 15, 24)
     }
     stage_game_difficulty_valid = bool(
         mission_difficulty_weights_for_stage(3)
@@ -1379,12 +1390,12 @@ def validate_shop_domain():
         and mission_difficulty_weights_for_stage(12)
         == {'Casual': 25, 'Normal': 65, 'Mental': 10}
         and difficulty_samples[3]['Mental'] == 0
-        and difficulty_samples[4]['Normal'] > difficulty_samples[4]['Casual']
-        and difficulty_samples[4]['Mental'] == 0
-        and all(difficulty_samples[6][name] > 0 for name in (
+        and difficulty_samples[9]['Normal'] > difficulty_samples[9]['Casual']
+        and all(difficulty_samples[9][name] > 0 for name in (
             'Casual', 'Normal', 'Mental'
         ))
-        and difficulty_samples[8]['Mental'] > difficulty_samples[8]['Casual']
+        and difficulty_samples[15]['Mental'] > difficulty_samples[15]['Casual']
+        and difficulty_samples[24]['Mental'] > difficulty_samples[24]['Normal']
         and mission_difficulty('DETERMINISTIC', 6, 'SAMPLE')
         == mission_difficulty('DETERMINISTIC', 6, 'SAMPLE')
     )
@@ -1637,8 +1648,8 @@ def validate_shop_domain():
         and mission_classes_for_stage(1) == {
             MissionEconomyClass.ACT_1
         }
-        and MissionEconomyClass.FINALE not in mission_classes_for_stage(8)
-        and MissionEconomyClass.FINALE in mission_classes_for_stage(9)
+        and MissionEconomyClass.FINALE not in mission_classes_for_stage(9)
+        and MissionEconomyClass.FINALE in mission_classes_for_stage(18)
         and offers == generate_mission_offers(
             mission_pool, run_seed='SHOP-SELF-CHECK', stage=1
         )
@@ -1682,7 +1693,8 @@ def validate_shop_domain():
         bool(item and not item.challenge) for item in late_modifier_samples
     )
     challenge = next(
-        (item for item in active_modifiers if item.challenge), None
+        (item for item in late_modifier_samples if item and item.challenge),
+        None,
     )
     challenge_reward = mission_reward(
         MissionEconomyClass.ACT_1,

@@ -206,11 +206,50 @@ def generate_mission_offers(
     for class_missions in by_class.values():
         class_missions.sort(key=lambda item: item['code'])
 
+    # Economy class decides the payout, the reviewed stage score decides
+    # whether a mission belongs this early. Drop anything above the
+    # ceiling before weighting so an operation roll cannot smuggle a
+    # late-campaign map into an early stage.
+    ceiling = maximum_stage_score_for_stage(stage, config)
+    if ceiling > 0:
+        for class_id, class_missions in by_class.items():
+            within = [
+                mission for mission in class_missions
+                if mission_stage_score(mission) <= ceiling
+            ]
+            # Never empty a class entirely on the ceiling alone; an
+            # unscored or uniformly hard class would leave no offers.
+            if within:
+                by_class[class_id] = within
+
     weights = _stage_weights(stage, run_length, config)
     eligible_classes = [
         class_id for class_id in _CLASS_ORDER
         if weights.get(class_id, 0) > 0 and by_class[class_id]
     ]
+
+    def candidate_count(classes):
+        return sum(len(by_class[class_id]) for class_id in classes)
+
+    # A narrow campaign filter or an early stage that only enables one
+    # class can run short. Widen to neighbouring classes rather than
+    # handing the player fewer choices than the run promises.
+    if candidate_count(eligible_classes) < offer_count:
+        for class_id in _CLASS_ORDER:
+            if class_id in eligible_classes or not by_class[class_id]:
+                continue
+            eligible_classes.append(class_id)
+            weights = dict(weights)
+            # Filler classes stay rare: they exist to fill the slate, not
+            # to change the stage's intended difficulty mix.
+            weights.setdefault(class_id, 0)
+            weights[class_id] = max(1, weights[class_id])
+            if candidate_count(eligible_classes) >= offer_count:
+                break
+        eligible_classes = [
+            class_id for class_id in _CLASS_ORDER
+            if class_id in eligible_classes
+        ]
     eligible_candidates = [
         mission for class_id in eligible_classes
         for mission in by_class[class_id]
@@ -221,7 +260,7 @@ def generate_mission_offers(
     selected_codes = set()
     # Early fixed-unit/hero missions provide one approachable option without
     # allowing Act 2, operations, or finales into the protected opening.
-    if stage * 100 <= 20 * run_length:
+    if difficulty_stage(stage, config) == 1:
         hero_candidates = [
             mission for mission in by_class[MissionEconomyClass.ACT_1]
             if (
