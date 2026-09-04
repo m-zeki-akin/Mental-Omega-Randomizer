@@ -28,13 +28,13 @@ from .inventory import (
     rotating_upgrade_inventory,
     weighted_upgrade_draw,
 )
-from .model import RunStatus, ShopModeConfig, ShopRewardType
+from .model import (
+    SHOP_ACCESS_REWARD_MODE,
+    RunStatus,
+    ShopModeConfig,
+    ShopRewardType,
+)
 from .modifiers import modifier_effects
-
-# Standalone Shop runs always price and filter as this mode; the reward mode
-# picker belongs to seed generation, not to the shop.
-SHOP_REWARD_MODE = 'Standard'
-
 
 def run_buff_stacks(run):
     """Return how many stacks of each upgrade a run currently holds."""
@@ -61,7 +61,7 @@ def entry_available_for_run(run, entry):
     return shop_entry_available(
         entry,
         campaign_filter=run_faction_filter(run),
-        reward_mode=SHOP_REWARD_MODE,
+        reward_mode=SHOP_ACCESS_REWARD_MODE,
         strict_faction=True,
         excluded_target_ids=run_excluded_target_ids(run.reward_settings),
     )

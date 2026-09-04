@@ -764,7 +764,15 @@ class ShopPolishController(ShopArchipelagoController):
         return state, price, locked, stacks
 
     @staticmethod
-    def _shop_catalogue_display_name(entry, state, stacks):
+    def _shop_catalogue_display_name(entry, state, stacks, *, named=False):
+        """Return the row label for one catalogue entry.
+
+        An upgrade normally shows only its effect, because the drill-down it
+        was written for names the target in the selector above it. On the
+        mixed shelf there is no such heading, and "Cost 15% cheaper" with no
+        unit attached is unreadable, so those rows are asked to name
+        themselves.
+        """
         if entry.reward_type not in {
             ShopRewardType.UNIT_BUFF,
             ShopRewardType.POWER_BUFF,
@@ -780,11 +788,12 @@ class ShopPolishController(ShopArchipelagoController):
         effect = '; '.join(effects) or reward_display_name(
             canonical_reward_for_id(entry.reward_id)
         )
+        prefix = f'{entry.reward_id}: ' if named else ''
         if state == 'MAX':
-            return f'{effect} (MAX)'
+            return f'{prefix}{effect} (MAX)'
         if stacks:
-            return f'Next stack: {effect}'
-        return effect
+            return f'{prefix}Next stack: {effect}'
+        return f'{prefix}{effect}'
 
     def refresh_shop_catalogue(self, *_args):
         if not hasattr(self, 'shop_catalogue_tree'):
@@ -1015,7 +1024,9 @@ class ShopPolishController(ShopArchipelagoController):
                 'iid': iid,
                 'tags': (row_tag,),
                 'values': (
-                self._shop_catalogue_display_name(entry, state, stacks),
+                self._shop_catalogue_display_name(
+                    entry, state, stacks, named=shelf_category
+                ),
                 (
                     'Power'
                     if entry.reward_type is ShopRewardType.POWER_ACCESS
