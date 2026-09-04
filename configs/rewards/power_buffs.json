@@ -171,6 +171,7 @@
         "NukeSpecial": {"source": "NUKE", "field": "CellSpread", "reference_key": "SW.Warhead"},
         "GreatTempestSpecial": {"source": "GreatTempestBlastWH", "field": "CellSpread", "reference_key": "SW.Warhead"},
         "RageInductorSpecial": {"source": "RageInductorWH", "field": "CellSpread", "reference_key": "SW.Warhead"},
+        "OverforgeSpecial": {"source": "OverforgeWH", "field": "CellSpread", "reference_key": "SW.Warhead"},
         "TargetPainterSpecial": {"source": "TargetPainterWH", "field": "CellSpread", "reference_key": "SW.Warhead"},
         "ChronoboostSpecial": {"source": "ChronoboostWH", "field": "CellSpread", "reference_key": "SW.Warhead"},
         "CryoshotSpecial": {"source": "CryoshotSuperWH", "field": "CellSpread", "reference_key": "SW.Warhead"},
@@ -218,6 +219,7 @@
       "warhead_fields": {
         "MaintenanceSpecial": {"source": "MaintenanceWH", "fields": ["AttachEffect.Duration"]},
         "RageInductorSpecial": {"source": "RageInductorWH", "fields": ["AttachEffect.Duration"]},
+        "OverforgeSpecial": {"source": "OverforgeWH", "fields": ["AttachEffect.Duration"]},
         "TargetPainterSpecial": {"source": "TargetPainterWH", "fields": ["AttachEffect.Duration"]},
         "ChronoboostSpecial": {"source": "ChronoboostWH", "fields": ["AttachEffect.Duration"]},
         "CryoshotSpecial": {"source": "CryoshotSuperWH", "fields": ["AttachEffect.Duration", "Sonar.Duration"]},

@@ -1059,6 +1059,22 @@
           "UIDescription": "NOSTR:* Granted by Randomizer",
           "IsPowered": "false"
         }
+      },
+      {
+        "name": "Overforge Power",
+        "description": "Grants a building-free, repeating Overforge power in future launched missions. Own units in the target area gain 1.8x firepower and armour for a time.",
+        "rules": {},
+        "factions": [
+          "Foehn"
+        ],
+        "kind": "superweapon",
+        "power_category": "secondary",
+        "superweapon": "OverforgeSpecial",
+        "superweapon_index": 135,
+        "superweapon_rules": {
+          "UIDescription": "NOSTR:* Granted by Randomizer",
+          "IsPowered": "false"
+        }
       }
     ],
     "aid_power_rewards": [

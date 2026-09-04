@@ -783,7 +783,7 @@ every buff that targets them:
 | -------------------------------------- | -------------------------------------------------- |
 | Exclude campaign-only units            | 35 story units no skirmish game can build           |
 | Exclude campaign-only support powers   | 4 powers that exist only inside scripted missions   |
-| Exclude superweapons                   | 12 game-ending superweapons                         |
+| Exclude superweapons                   | 13 game-ending superweapons                         |
 
 The groups live in `shop_mode.json` under `reward_exclusion_groups`, so a
 group is data: an id list, a display name, a description, and the
@@ -795,8 +795,18 @@ nothing would leave a checkbox claiming to hide rewards it never touches.
 Exclusion is by **target**, not reward id. An access entry and the dozen buff
 entries aimed at the same unit share a target, so hiding "Paradox Engine
 Access" while leaving "Paradox Engine Firepower I" on the shelf would hide
-nothing. Ticking all three removes 51 targets and 515 of the catalogue's 4,045
+nothing. Ticking all three removes 52 targets and 519 of the catalogue's 4,049
 shop entries.
+
+The superweapon group includes Overforge, the Blast Furnace's own power,
+which the shop had never offered. Its sibling Blasticade is retired because a
+building-free copy does nothing without owned Blast Trenches; Overforge has no
+such dependency -- it is a self-contained area buff on the firing player's own
+units, 1.8x firepower and armour for a time -- so it is modelled on Rage
+Power, which uses the same warhead shape, and carries the same access price
+and the same three buff tiers. Like every granted superweapon it is forced
+unpowered, because the Blast Furnace behind it draws 400 power that a granted
+copy does not have.
 
 Like the faction pool, the filters are read when a run starts and frozen into
 its `reward_settings`, so a saved run keeps the shelf it was played with. They

@@ -112,6 +112,7 @@
       "NUCLEARPATHSPECIAL": {"run_access": 80, "run_buff": 40},
       "NUKESPECIAL": {"run_access": 120, "run_buff": 60},
       "OVERCHARGESPECIAL": {"run_access": 70, "run_buff": 40},
+      "OVERFORGESPECIAL": {"run_access": 90, "run_buff": 50},
       "PACKATTACKSPECIAL": {"run_access": 80, "run_buff": 40},
       "PALADINAIDSPECIAL": {"run_access": 70, "run_buff": 40},
       "PSYCHICDOMINATORSPECIAL": {"run_access": 120, "run_buff": 60},
@@ -1100,7 +1101,8 @@
           "BOIDBLITZSPECIAL",
           "HARBINGERSPECIAL",
           "TECHMISSILESPECIAL",
-          "CHRONOSPHERESPECIAL"
+          "CHRONOSPHERESPECIAL",
+          "OVERFORGESPECIAL"
         ]
       }
     },
