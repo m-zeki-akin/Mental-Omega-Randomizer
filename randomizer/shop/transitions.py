@@ -13,7 +13,11 @@ from hashlib import sha256
 
 from .economy import mission_reward, starting_run_coins
 from .mission_modifiers import mission_modifier_for_run_offer
-from .missions import difficulty_stage, is_challenge_stage
+from .missions import (
+    difficulty_stage,
+    enemy_buffs_for_stage,
+    is_challenge_stage,
+)
 from .modifiers import modifier_effects, pacing_gem_scale_percent
 from .meta import validate_starting_loadout
 from .model import (
@@ -75,7 +79,7 @@ def drawn_enemy_buff_ids(
         return ()
     counts = Counter(run.permanent_enemy_buff_ids)
     drawn = []
-    wanted = max(0, int(config.permanent_enemy_buffs_per_challenge))
+    wanted = enemy_buffs_for_stage(run.stage, config)
     for index in range(wanted * 8):
         if len(drawn) >= wanted:
             break

@@ -64,6 +64,7 @@ from .inventory import (
     rotating_unit_inventory,
 )
 from .missions import (
+    enemy_buffs_for_stage,
     is_challenge_stage,
     classify_mission,
     generate_mission_offers,
@@ -868,8 +869,12 @@ def _phase_four_checks():
             challenge_victories
             == SHOP_CONFIG.run_length // SHOP_CONFIG.stage_length
             and len(final_run.permanent_enemy_buff_ids)
-            == challenge_victories
-            * SHOP_CONFIG.permanent_enemy_buffs_per_challenge
+            == sum(
+                enemy_buffs_for_stage(
+                    index * SHOP_CONFIG.stage_length, SHOP_CONFIG
+                )
+                for index in range(1, challenge_victories + 1)
+            )
         ),
         'active_shop_reward_payload_valid': bool(
             reward_names.count(unit_reward_ids[0]) == 1
@@ -1226,8 +1231,8 @@ def _phase_seven_checks():
             and 'meta_reward_flat' not in SHOP_CONFIG.modifiers[
                 'generous_command'
             ].effects
-            and any('Permanent Victory Bonus: +20' in line for line in breakdown)
-            and any('Total: +440 Ore' in line for line in breakdown)
+            and any('Permanent Victory Bonus: +50' in line for line in breakdown)
+            and any('Total: +470 Ore' in line for line in breakdown)
             and 'Persistent Gems: 42' in completion_summary
             and restored == run
         ),
@@ -1353,10 +1358,10 @@ def validate_shop_domain():
             pass
     economy_valid = bool(
         (act_one.run_coins, act_one.meta_coins) == (75, 20)
-        and operation.run_coins == 205
+        and operation.run_coins == 250
         and operation.meta_coins == 50
-        and operation.victory_bonus_run_coins == 30
-        and capped_bonus.victory_bonus_run_coins == 50
+        and operation.victory_bonus_run_coins == 75
+        and capped_bonus.victory_bonus_run_coins == 125
         and len(SHOP_CONFIG.unit_target_prices) == 310
         and len(SHOP_CONFIG.power_target_prices) == 93
         and all(

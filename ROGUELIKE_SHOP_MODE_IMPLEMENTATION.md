@@ -192,7 +192,16 @@ directly as purchases per mission.
 
 A run opens with 125 Ore, and the Starting Capital ladder adds 25 more per
 level up to a 1,250 Ore ceiling -- the same 2.5x the mission rewards carry,
-so the opening purchase keeps the weight it was designed with.
+so the opening purchase keeps the weight it was designed with. Victory Ore
+Bonus (+25 a level), Recovery Salvage (+125 a level, 625 carried), and the
+Gem Dividend rate (13 Ore a Gem) moved with them.
+
+The price side deliberately did **not** move: shop prices, the minimum
+shop price, and Coupon Book are all denominated in prices that were left
+alone precisely so the extra Ore would buy more. Scaling them was tried
+and reverted -- a 25 Ore floor sits above the cheapest item in the
+catalogue (20 Ore), so it raises that price instead of capping it and
+leaves every discount on cheap stock inert.
 
 Every Ore and Gem amount is held at ten times its natural size: rewards,
 prices, upgrade ladders, and the flat adjustments modifiers make. Percentage
@@ -236,6 +245,7 @@ Suggested config:
     "stage_income_percent_per_stage": 40,
     "challenge_reward_multiplier_percent": 250,
     "permanent_enemy_buffs_per_challenge": 2,
+  "enemy_buff_escalation_stages": 2,
     "mission_offer_count": 3
   },
   "mission_rewards": {
@@ -756,7 +766,7 @@ fixed for its whole length:
 | Setting                      | Range   | Default | Harder direction |
 | ---------------------------- | ------- | ------: | ---------------- |
 | Ore income per stage (%)     | 0-100   |      40 | lower            |
-| Enemy buffs per challenge    | 0-4     |       2 | more             |
+| Enemy buffs per challenge (stage 1) | 0-4 |    2 | more             |
 | Missions per stage           | 2-5     |       3 | fewer            |
 
 Game speed is fixed at 4 - Fast and written to the spawned mission and the
@@ -811,11 +821,26 @@ out-shop a hard one inside the run as well.
 
 ## 9.3 Permanent enemy escalation
 
-Each challenge victory draws `permanent_enemy_buffs_per_challenge` enemy buffs
-that stay for the rest of the run. Draws are deterministic from the run seed
-like every other Shop roll, and respect each buff's stack ceiling from the
-shared enemy-scaling contract, so Shop draws and Archipelago Traps cannot push
-one buff past its reviewed maximum.
+Each challenge victory draws enemy buffs that stay for the rest of the run.
+The count starts at `permanent_enemy_buffs_per_challenge` and climbs by one
+every `enemy_buff_escalation_stages` stages, so with the shipped values it
+runs 2, 2, 3, 3, 4, 4, 5 and onward without a ceiling.
+
+A flat count made a late challenge cost exactly what an early one cost while
+the Ore paid for winning it had nearly doubled, so the run's difficulty curve
+flattened just as its economy steepened. The escalation puts the two back on
+the same slope.
+
+It also shortens a run's tail. The buff pool saturates at 47 draws, which a
+flat two per challenge reached around stage 23; escalating reaches it around
+stage 11, after which challenges stop adding difficulty and only the payout
+keeps climbing. Widening the pool is the lever if runs should stay hard for
+longer.
+
+Draws are deterministic from the run seed like every other Shop roll, and
+respect each buff's stack ceiling from the shared enemy-scaling contract, so
+Shop draws and Archipelago Traps cannot push one buff past its reviewed
+maximum.
 
 Buffs unlock by stage tier so an early run cannot meet a nuclear missile:
 
@@ -1640,6 +1665,7 @@ Example:
   "stage_income_percent_per_stage": 40,
   "challenge_reward_multiplier_percent": 250,
   "permanent_enemy_buffs_per_challenge": 2,
+  "enemy_buff_escalation_stages": 2,
   "mission_offer_count": 3,
   "max_selected_permanent_units": 5,
 

@@ -10,6 +10,7 @@
       "stage_gem_income_percent_per_stage": 15,
       "challenge_reward_multiplier_percent": 250,
       "permanent_enemy_buffs_per_challenge": 2,
+      "enemy_buff_escalation_stages": 2,
       "mission_offer_count": 3,
       "unit_inventory_size": 8,
       "power_inventory_size": 4,
@@ -481,7 +482,7 @@
         "max_level": 5,
         "prices": [80, 150, 260, 410, 600],
         "effects": {
-          "run_coins_per_level": 10
+          "run_coins_per_level": 25
         }
       },
       "starting_capital": {
@@ -556,8 +557,8 @@
         "max_level": 5,
         "prices": [150, 260, 410, 600, 820],
         "effects": {
-          "ore_per_level": 50,
-          "maximum_saved_ore": 250
+          "ore_per_level": 125,
+          "maximum_saved_ore": 625
         }
       },
       "starting_buff_draft": {
@@ -614,7 +615,7 @@
         "max_level": 3,
         "prices": [260, 520, 900],
         "effects": {
-          "ore_per_gem": 5,
+          "ore_per_gem": 13,
           "maximum_gems_per_level": 10
         }
       },

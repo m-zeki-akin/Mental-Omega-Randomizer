@@ -33,7 +33,11 @@ sys.path.insert(0, str(ROOT))
 from randomizer.rewards.enemy_scaling import ENEMY_SCALING_BUFF_STACK_LIMITS
 from randomizer.shop.config import RUN_PACING_SETTINGS, SHOP_CONFIG, run_shop_config
 from randomizer.shop.economy import mission_reward, starting_run_coins
-from randomizer.shop.missions import difficulty_stage, is_challenge_stage
+from randomizer.shop.missions import (
+    difficulty_stage,
+    enemy_buffs_for_stage,
+    is_challenge_stage,
+)
 from randomizer.shop.model import MissionEconomyClass, ShopModeConfig
 from randomizer.shop.modifiers import (
     format_difficulty,
@@ -124,7 +128,10 @@ def economy_report(config: ShopModeConfig, settings, tiers: int) -> None:
             )
             ore += reward.run_coins
             gems += reward.meta_coins
-        buffs = tier * config.permanent_enemy_buffs_per_challenge
+        buffs = sum(
+            enemy_buffs_for_stage(index * length, config)
+            for index in range(1, tier + 1)
+        )
         print(f'{tier:>4} {ore:>8} {gems:>8} {buffs:>20}')
 
 
@@ -235,7 +242,7 @@ def _play_one_run(config, settings, model, rng):
                 config, stage, MissionEconomyClass.ACT_2, challenge, settings
             ).meta_coins
             if challenge:
-                buffs += config.permanent_enemy_buffs_per_challenge
+                buffs += enemy_buffs_for_stage(stage, config)
             stage += 1
         else:
             lives -= 1
@@ -276,7 +283,7 @@ def simulate_runs(config, settings, model, runs, seed, cap_missions):
                 gems += reward.meta_coins
                 ore += reward.run_coins
                 if challenge:
-                    buffs += config.permanent_enemy_buffs_per_challenge
+                    buffs += enemy_buffs_for_stage(stage, config)
                 stage += 1
             else:
                 lives -= 1
@@ -362,7 +369,7 @@ def _run_depth(config, model, rng):
         challenge = is_challenge_stage(stage, config)
         if rng.random() < model.chance(buffs, challenge):
             if challenge:
-                buffs += config.permanent_enemy_buffs_per_challenge
+                buffs += enemy_buffs_for_stage(stage, config)
             stage += 1
         else:
             lives -= 1
@@ -416,7 +423,8 @@ def main():
           f'Ore/tier=+{config.stage_income_percent_per_stage}%  '
           f'Gem/tier=+{config.stage_gem_income_percent_per_stage}%  '
           f'challenge x{config.challenge_reward_multiplier_percent / 100:g}  '
-          f'buff/challenge={config.permanent_enemy_buffs_per_challenge}')
+          f'buff/challenge={config.permanent_enemy_buffs_per_challenge}'
+          f'+1 her {config.enemy_buff_escalation_stages} stage')
     print(f'zorluk {format_difficulty(pacing_difficulty(settings))}  '
           f'Gem olcegi %{pacing_gem_scale_percent(settings)}')
     print(f'kalici buff havuzu: stage 1 icin '

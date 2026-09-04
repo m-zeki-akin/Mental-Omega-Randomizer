@@ -744,7 +744,7 @@ def _build_right_panel(self, main_frame):
         pacing_frame.columnconfigure(column, weight=1)
     pacing_labels = {
         'shop_stage_income_percent': 'Ore income per stage (%)',
-        'shop_enemy_buffs_per_challenge': 'Enemy buffs per challenge',
+        'shop_enemy_buffs_per_challenge': 'Enemy buffs per challenge (stage 1)',
         'shop_stage_length': 'Missions per stage',
     }
     for index, (key, (_field, low, high)) in enumerate(

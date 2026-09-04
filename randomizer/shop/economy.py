@@ -16,8 +16,9 @@ def stage_income_multiplier(stage, config: ShopModeConfig = SHOP_CONFIG):
     """Return the Ore multiplier for the tier a mission sits in.
 
     An endless run gets harder every tier: each challenge victory hands the AI
-    two permanent buffs that never come off. Ore has to climb with that or the
-    run shop falls behind what the missions demand. Gems are deliberately not
+    permanent buffs that never come off, and hands out more of them the deeper
+    the run goes. Ore has to climb with that or the run shop falls behind what
+    the missions demand. Gems are deliberately not
     scaled here; see mission_reward.
     """
     from .missions import difficulty_stage

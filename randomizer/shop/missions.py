@@ -64,6 +64,20 @@ def is_challenge_stage(stage, config: ShopModeConfig = SHOP_CONFIG):
     return max(1, int(stage)) % length == 0
 
 
+def enemy_buffs_for_stage(stage, config: ShopModeConfig = SHOP_CONFIG):
+    """Return how many permanent enemy buffs a challenge here hands out.
+
+    A flat two per challenge meant a stage 12 challenge cost exactly what a
+    stage 1 challenge cost, while the Ore paid for winning it had nearly
+    doubled. The count now climbs one every
+    ``enemy_buff_escalation_stages`` tiers, so stages 1-2 give the
+    configured base, stages 3-4 give one more, and so on without ceiling.
+    """
+    base = max(0, int(config.permanent_enemy_buffs_per_challenge))
+    step = max(1, int(config.enemy_buff_escalation_stages))
+    return base + (difficulty_stage(stage, config) - 1) // step
+
+
 def _profile_for_stage(profiles, tier):
     """Pick the first profile covering a tier; 0 saturates for the rest."""
     for profile in profiles:

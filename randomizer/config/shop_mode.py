@@ -142,6 +142,7 @@ def validate_shop_mode_config(sections, path, invalid):
         'stage_gem_income_percent_per_stage': (0, 200),
         'challenge_reward_multiplier_percent': (100, 1000),
         'permanent_enemy_buffs_per_challenge': (0, 5),
+        'enemy_buff_escalation_stages': (1, 100),
         'mission_offer_count': (1, 10),
         'unit_inventory_size': (1, 100),
         'power_inventory_size': (1, 100),

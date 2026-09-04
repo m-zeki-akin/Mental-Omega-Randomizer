@@ -108,6 +108,9 @@ def load_shop_mode_config() -> ShopModeConfig:
         permanent_enemy_buffs_per_challenge=int(
             settings['permanent_enemy_buffs_per_challenge']
         ),
+        enemy_buff_escalation_stages=int(
+            settings['enemy_buff_escalation_stages']
+        ),
         mission_offer_count=int(settings['mission_offer_count']),
         unit_inventory_size=int(settings['unit_inventory_size']),
         power_inventory_size=int(settings['power_inventory_size']),

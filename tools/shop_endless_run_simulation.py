@@ -82,8 +82,8 @@ for step in range(12):
 
 check('challenge tam olarak 3, 6, 9, 12de',
       [s for s, _t, c, *_ in log if c] == [3, 6, 9, 12])
-check('her challenge zaferi 2 kalici buff verdi',
-      all(b == 2 for _s, _t, c, _g, b, _h, _o in log if c))
+check('challenge buff sayisi her 2 stagede 1 artti',
+      [b for _s, _t, c, _g, b, _h, _o in log if c] == [2, 2, 3, 3])
 check('challenge disi gorev buff vermedi',
       all(b == 0 for _s, _t, c, _g, b, _h, _o in log if not c))
 check('tier atlayinca gorev gecmisi sifirlandi',
@@ -105,7 +105,7 @@ check('Gem artisi Ore artisindan yavas',
       < (challenge_ore[-1] / challenge_ore[0]))
 check('challenge Gem >= normalin 2 kati',
       log[2][3] >= log[1][3] * 2)
-check('toplam 8 kalici buff birikti', len(run.permanent_enemy_buff_ids) == 8)
+check('toplam 10 kalici buff birikti', len(run.permanent_enemy_buff_ids) == 10)
 check('buff stack tavani asilmadi',
       all(run.permanent_enemy_buff_ids.count(b) <= 5
           for b in set(run.permanent_enemy_buff_ids)))
