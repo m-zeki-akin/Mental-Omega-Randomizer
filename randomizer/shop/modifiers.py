@@ -63,6 +63,62 @@ def modifier_difficulty(modifier_ids):
     return len(tuple(dict.fromkeys(str(item) for item in modifier_ids or ())))
 
 
+# How far each pacing choice moves the run's difficulty score, per step away
+# from the configured baseline. Signs are chosen so a harder run scores higher:
+# fewer lives, slower income, more permanent enemy buffs, and shorter stages
+# (which means more challenges) all raise it.
+PACING_DIFFICULTY_WEIGHTS = {
+    'starting_lives': -2,
+    'stage_income_percent_per_stage': -1,
+    'permanent_enemy_buffs_per_challenge': 3,
+    'stage_length': -2,
+}
+# Income moves in larger units than the others, so score it per ten percent.
+PACING_DIFFICULTY_STEPS = {'stage_income_percent_per_stage': 10}
+GEM_SCALE_PER_DIFFICULTY_PERCENT = 10
+MINIMUM_GEM_SCALE_PERCENT = 50
+MAXIMUM_GEM_SCALE_PERCENT = 200
+
+
+def pacing_difficulty(reward_settings, config: ShopModeConfig = SHOP_CONFIG):
+    """Return the difficulty points a run's pacing choices are worth.
+
+    Zero means the configured baseline. Positive means the player made the run
+    harder than default and negative means easier.
+    """
+    from .config import run_pacing_overrides
+
+    score = 0
+    overrides = run_pacing_overrides(reward_settings, config)
+    for field, value in overrides.items():
+        weight = PACING_DIFFICULTY_WEIGHTS.get(field, 0)
+        step = PACING_DIFFICULTY_STEPS.get(field, 1)
+        score += weight * ((value - getattr(config, field)) // step)
+    return score
+
+
+def run_difficulty(modifier_ids, reward_settings=None, config=SHOP_CONFIG):
+    """Return the run's total visible difficulty: modifiers plus pacing."""
+    return modifier_difficulty(modifier_ids) + pacing_difficulty(
+        reward_settings, config
+    )
+
+
+def pacing_gem_scale_percent(reward_settings, config: ShopModeConfig = SHOP_CONFIG):
+    """Return the Gem payout scale a run's pacing choices earn.
+
+    Making a run harder pays more and making it easier pays less, so a player
+    cannot farm permanent upgrades by turning the difficulty down. Clamped so
+    neither direction can trivialise or erase progression.
+    """
+    percent = 100 + GEM_SCALE_PER_DIFFICULTY_PERCENT * pacing_difficulty(
+        reward_settings, config
+    )
+    return max(
+        MINIMUM_GEM_SCALE_PERCENT, min(MAXIMUM_GEM_SCALE_PERCENT, percent)
+    )
+
+
 def modifier_mission_offer_count(
     modifier_ids, config: ShopModeConfig = SHOP_CONFIG
 ):

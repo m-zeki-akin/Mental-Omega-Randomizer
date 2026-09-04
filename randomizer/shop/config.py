@@ -1,5 +1,7 @@
 """Typed adapter for editable Shop Mode balance configuration."""
 
+from dataclasses import replace
+
 from randomizer.config.static import load_static_config
 
 from .model import (
@@ -153,3 +155,52 @@ def load_shop_mode_config() -> ShopModeConfig:
 
 
 SHOP_CONFIG = load_shop_mode_config()
+
+# Player-adjustable run pacing. Each entry is the reward_settings key, the
+# ShopModeConfig field it overrides, and the inclusive range the launcher
+# offers. The configured value is the baseline every run is measured against.
+RUN_PACING_SETTINGS = {
+    'shop_starting_lives': ('starting_lives', 1, 5),
+    'shop_stage_income_percent': ('stage_income_percent_per_stage', 0, 100),
+    'shop_enemy_buffs_per_challenge': (
+        'permanent_enemy_buffs_per_challenge', 0, 4
+    ),
+    'shop_stage_length': ('stage_length', 2, 5),
+}
+
+
+def _bounded_setting(value, minimum, maximum, fallback):
+    try:
+        number = int(value)
+    except (TypeError, ValueError):
+        return fallback
+    return max(minimum, min(maximum, number))
+
+
+def run_pacing_overrides(reward_settings, config: ShopModeConfig = SHOP_CONFIG):
+    """Return the pacing fields a run overrides, clamped to their range."""
+    settings = reward_settings or {}
+    overrides = {}
+    for key, (field, minimum, maximum) in RUN_PACING_SETTINGS.items():
+        if key not in settings:
+            continue
+        baseline = getattr(config, field)
+        value = _bounded_setting(settings.get(key), minimum, maximum, baseline)
+        if value != baseline:
+            overrides[field] = value
+    return overrides
+
+
+def run_shop_config(run, config: ShopModeConfig = SHOP_CONFIG):
+    """Return the config a run actually plays under.
+
+    Pacing choices live in reward_settings, which is already persisted per run
+    and snapshotted at creation, so a run keeps the rules it started with even
+    if the launcher defaults change underneath it.
+    """
+    if run is None:
+        return config
+    overrides = run_pacing_overrides(
+        getattr(run, 'reward_settings', None), config
+    )
+    return replace(config, **overrides) if overrides else config

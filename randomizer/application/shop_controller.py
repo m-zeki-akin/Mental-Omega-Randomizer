@@ -40,7 +40,8 @@ from randomizer.shop.catalogue import (
     shop_catalogue,
     shop_entry_available,
 )
-from randomizer.shop.config import SHOP_CONFIG
+from randomizer.core.diagnostics import event as log_event
+from randomizer.shop.config import RUN_PACING_SETTINGS, SHOP_CONFIG
 from randomizer.shop.summary import shop_run_progress_text
 from randomizer.shop.economy import (
     permanent_buff_price,
@@ -54,6 +55,8 @@ from randomizer.shop.missions import (
 )
 from randomizer.shop.mission_modifiers import active_mission_modifier
 from randomizer.shop.modifiers import (
+    pacing_gem_scale_percent,
+    run_difficulty,
     modifier_difficulty,
     modifier_effects,
     modifier_mission_offer_count,
@@ -129,6 +132,14 @@ class ShopController(ShopPolishController):
             for modifier_id in self.shop_config.modifiers
         }
         for variable in self.shop_modifier_vars.values():
+            variable.trace_add('write', self._refresh_shop_modifier_difficulty)
+        # Run pacing the player picks before starting. Defaults are the
+        # configured baseline, which scores zero difficulty.
+        self.shop_pacing_vars = {
+            key: tk.IntVar(value=getattr(self.shop_config, field))
+            for key, (field, _low, _high) in RUN_PACING_SETTINGS.items()
+        }
+        for variable in self.shop_pacing_vars.values():
             variable.trace_add('write', self._refresh_shop_modifier_difficulty)
         catalogue = shop_catalogue()
         self._shop_entry_by_reward_id = {
@@ -1525,7 +1536,22 @@ class ShopController(ShopPolishController):
         enemy_scaling = dict(settings.get('enemy_scaling') or {})
         enemy_scaling['maximum_total_buffs'] = 0
         settings['enemy_scaling'] = enemy_scaling
+        settings.update(self.shop_pacing_settings())
         return settings
+
+    def shop_pacing_settings(self):
+        """Return the pacing values selected for the next run."""
+        chosen = {}
+        for key, (field, low, high) in RUN_PACING_SETTINGS.items():
+            variable = self.shop_pacing_vars.get(key)
+            if variable is None:
+                continue
+            try:
+                value = int(variable.get())
+            except (tk.TclError, TypeError, ValueError):
+                value = getattr(self.shop_config, field)
+            chosen[key] = max(low, min(high, value))
+        return chosen
 
     def start_shop_run(self):
         if not self.missions:
@@ -1897,6 +1923,14 @@ class ShopController(ShopPolishController):
             ]
             details.extend(record['buff_lines'] or ('None',))
             self._shop_loadout_details[iid] = '\n'.join(details)
+        log_event(
+            'shop_loadout_refreshed',
+            starters=len(active_shop_starter_unit_ids(run)),
+            defenses=len(active_shop_starter_defense_ids(run)),
+            records=len(records),
+            rows=len(visible),
+            search_filtered=len(rows) - len(visible),
+        )
         self._rebuild_shop_loadout_upgrade_buttons()
         unit_upgrade_count = len({
             target for target, is_power
@@ -1961,6 +1995,23 @@ class ShopController(ShopPolishController):
             ),
             key=lambda entry: entry.reward_id.casefold(),
         )
+        if not entries:
+            # An empty tree reads as a broken list. Say why it is empty: this
+            # selector only offers permanently unlocked units, which are
+            # bought with Gems, and a fresh profile owns none.
+            searching = bool(self.shop_setup_search_var.get().strip())
+            tree.insert('', 'end', iid='loadout-empty', values=(
+                '',
+                'No matching permanent units.' if searching
+                else 'No permanent units owned yet.',
+                '',
+                'Buy them with Gems on the Permanent tab.',
+            ))
+            log_event(
+                'shop_loadout_selector_empty',
+                owned=len(owned),
+                searching=searching,
+            )
         cameo_images = self._prepare_shop_unit_cameos(
             entry.reward_id for entry in entries
             if entry.reward_id not in ap_owned
@@ -2041,11 +2092,20 @@ class ShopController(ShopPolishController):
                 if variable.get()
             )
         )
-        score = modifier_difficulty(modifiers)
-        self.shop_difficulty_var.set(f'Difficulty: +{score}')
+        active = (
+            self.shop_run is not None
+            and self.shop_run.status is RunStatus.ACTIVE
+        )
+        settings = (
+            self.shop_run.reward_settings if active
+            else self.shop_pacing_settings()
+        )
+        score = run_difficulty(modifiers, settings)
+        gem_scale = pacing_gem_scale_percent(settings)
+        self.shop_difficulty_var.set(f'Difficulty: {score:+d}')
         if hasattr(self, 'shop_modifier_difficulty_var'):
             self.shop_modifier_difficulty_var.set(
-                f'Run difficulty +{score}'
+                f'Run difficulty {score:+d} — Gems x{gem_scale / 100:g}'
             )
 
     def _refresh_permanent_shop(self):

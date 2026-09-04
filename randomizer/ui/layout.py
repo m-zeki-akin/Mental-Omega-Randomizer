@@ -1,5 +1,7 @@
 """Main window shell, side panel, and information tabs."""
 
+from randomizer.shop.config import RUN_PACING_SETTINGS
+
 from ._builder_dependencies import (
     APP_VERSION,
     CAMPAIGN_FILTERS,
@@ -15,6 +17,7 @@ from ._builder_dependencies import (
     tk,
     ttk,
 )
+from .scrolling import scroll_owner
 from .shop import _tree
 
 def _build_window_shell(self):
@@ -274,6 +277,7 @@ def _build_right_panel(self, main_frame):
     )
     settings_frame.bind('<Configure>', self.on_settings_content_configure, add='+')
     settings_canvas.bind('<Configure>', self.on_settings_canvas_configure, add='+')
+    scroll_owner(settings_canvas)
     self.bind_all('<MouseWheel>', self.on_settings_mousewheel, add='+')
 
     seed_settings_frame = ttk.LabelFrame(
@@ -691,11 +695,55 @@ def _build_right_panel(self, main_frame):
         '<ButtonRelease-1>', self.toggle_shop_setup_unit
     )
 
+    pacing_frame = ttk.LabelFrame(
+        shop_settings_frame, text='Run Pacing', padding=8
+    )
+    pacing_frame.grid(
+        row=15, column=0, columnspan=2, sticky='ew', pady=(10, 0)
+    )
+    ttk.Label(
+        pacing_frame,
+        text=(
+            'Chosen before a run starts and fixed for its whole length. '
+            'Harder settings raise the run difficulty and pay more Gems; '
+            'easier settings pay fewer.'
+        ),
+        style='Shop.Help.TLabel',
+        wraplength=720,
+    ).grid(row=0, column=0, columnspan=4, sticky='w', pady=(0, 6))
+    for column in range(4):
+        pacing_frame.columnconfigure(column, weight=1)
+    pacing_labels = {
+        'shop_starting_lives': 'Starting lives',
+        'shop_stage_income_percent': 'Income per stage (%)',
+        'shop_enemy_buffs_per_challenge': 'Enemy buffs per challenge',
+        'shop_stage_length': 'Missions per stage',
+    }
+    for index, (key, (_field, low, high)) in enumerate(
+        RUN_PACING_SETTINGS.items()
+    ):
+        cell = ttk.Frame(pacing_frame)
+        cell.grid(row=1, column=index, sticky='ew', padx=(0, 12))
+        ttk.Label(
+            cell, text=pacing_labels.get(key, key),
+            style='Shop.Help.TLabel',
+        ).pack(anchor='w')
+        step = 10 if key == 'shop_stage_income_percent' else 1
+        ttk.Spinbox(
+            cell,
+            from_=low,
+            to=high,
+            increment=step,
+            width=6,
+            textvariable=self.shop_pacing_vars[key],
+            state='readonly',
+        ).pack(anchor='w', pady=(2, 0))
+
     modifier_frame = ttk.LabelFrame(
         shop_settings_frame, text='Optional Run Modifiers', padding=8
     )
     modifier_frame.grid(
-        row=15, column=0, columnspan=2, sticky='ew', pady=(10, 0)
+        row=16, column=0, columnspan=2, sticky='ew', pady=(10, 0)
     )
     self.shop_modifier_status_var = tk.StringVar(value='')
     self.shop_modifier_difficulty_var = tk.StringVar(value='Difficulty +0')

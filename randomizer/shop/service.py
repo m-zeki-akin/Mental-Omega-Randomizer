@@ -19,7 +19,7 @@ from .catalogue import (
     catalogue_entry,
     shop_entry_available,
 )
-from .config import SHOP_CONFIG
+from .config import SHOP_CONFIG, run_shop_config
 from .economy import (
     permanent_buff_price,
     permanent_unit_price,
@@ -401,7 +401,7 @@ class ShopProgressionService:
                 # A run modifier that disables revivals leaves exactly one
                 # life: the next defeat ends the run.
                 1 if effects['disable_revivals']
-                else maximum_run_lives(profile)
+                else maximum_run_lives(profile, run_shop_config(run))
             ),
             revival_offers=revival_offers,
             salvage_run_coins=(

@@ -3,7 +3,7 @@
 from .config import SHOP_CONFIG
 from .economy import mission_reward
 from .model import RunStatus
-from .modifiers import modifier_difficulty
+from .modifiers import run_difficulty
 from .text import gem_text
 
 
@@ -140,7 +140,7 @@ def run_summary_lines(profile, run, mission_titles=None, config=SHOP_CONFIG):
         f'Free Buff Tokens used: {run.free_buff_tokens_used}',
         _lives_line(run, profile),
         _permanent_enemy_buff_line(run),
-        f'Run difficulty: +{modifier_difficulty(run.modifiers)}',
+        f'Run difficulty: {run_difficulty(run.modifiers, run.reward_settings):+d}',
         'Modifiers: ' + (
             ', '.join(
                 config.modifiers[item].display_name for item in run.modifiers

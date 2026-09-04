@@ -49,6 +49,7 @@ def mission_reward(
     mission_modifier=None,
     challenge_hunter_level=0,
     stage=1,
+    gem_scale_percent=100,
     config: ShopModeConfig = SHOP_CONFIG,
 ):
     """Return configured victory currency; failures always return zero."""
@@ -88,6 +89,10 @@ def mission_reward(
         )
     base_run_coins = max(0, base_run_coins + effects['run_reward_flat'])
     meta_coins = max(0, meta_coins + effects['meta_reward_flat'])
+    # Pacing chosen at run start scales Gems only. Ore is the run's own
+    # currency and is already governed by the stage multiplier; scaling it
+    # twice would let an easy run out-shop a hard one inside the run too.
+    meta_coins = _scaled(meta_coins, Fraction(int(gem_scale_percent), 100))
     level = _bounded_upgrade_level(
         config, 'victory_run_coin_bonus', victory_coin_bonus_level
     )

@@ -3,7 +3,7 @@
 from dataclasses import dataclass, replace
 from collections import Counter
 
-from .config import SHOP_CONFIG
+from .config import SHOP_CONFIG, run_shop_config
 from .catalogue import (
     canonical_reward_for_id,
     catalogue_entry,
@@ -14,7 +14,7 @@ from hashlib import sha256
 from .economy import mission_reward, starting_run_coins
 from .mission_modifiers import mission_modifier_for_run_offer
 from .missions import difficulty_stage, is_challenge_stage
-from .modifiers import modifier_effects
+from .modifiers import modifier_effects, pacing_gem_scale_percent
 from .meta import validate_starting_loadout
 from .model import (
     CurrencyReward,
@@ -430,6 +430,7 @@ def apply_mission_victory(
     next_offers=(),
     config: ShopModeConfig = SHOP_CONFIG,
 ):
+    config = run_shop_config(run, config)
     mission_code = str(mission_code or '').upper()
     if _victory_already_rewarded(run, mission_code):
         existing_key = next(
@@ -498,6 +499,7 @@ def apply_mission_victory(
         ),
         challenge_hunter_level=profile.upgrade_level('challenge_hunter'),
         stage=run.stage,
+        gem_scale_percent=pacing_gem_scale_percent(run.reward_settings),
         config=config,
     )
     # A challenge victory permanently strengthens the AI for the rest of
@@ -579,6 +581,7 @@ def apply_mission_failure(
     salvage_run_coins=0,
     maximum_salvaged_run_coins=0,
 ):
+    config = run_shop_config(run)
     mission_code = str(mission_code or '').upper()
     if run.status is RunStatus.FAILED:
         if run.failed_mission_code == mission_code:
