@@ -962,7 +962,7 @@
       },
       "black_market": {
         "display_name": "Black Market",
-        "description": "Each stage has 4 extra Shop offers, but run-shop prices are 25% higher.",
+        "description": "Each mission has 4 extra Shop offers, but run-shop prices are 25% higher.",
         "effects": {
           "unit_inventory_flat": 2,
           "power_inventory_flat": 2,
@@ -1005,7 +1005,7 @@
       },
       "narrow_intelligence": {
         "display_name": "Narrow Intelligence",
-        "description": "Mission victories give 30% more Ore, but each stage offers only 2 missions.",
+        "description": "Mission victories give 30% more Ore, but you are offered only 2 missions to choose from.",
         "effects": {
           "run_reward_percent": 130,
           "mission_offer_count_flat": -1
@@ -1013,7 +1013,7 @@
       },
       "liquid_assets": {
         "display_name": "Liquid Assets",
-        "description": "Run-shop prices are 20% lower, but unused Ore disappears after each stage.",
+        "description": "Run-shop prices are 20% lower, but unused Ore disappears after each mission victory.",
         "effects": {
           "shop_price_percent": 80,
           "liquidate_ore_after_victory": 1

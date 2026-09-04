@@ -31,7 +31,11 @@ from randomizer.shop.inventory import (
 from randomizer.shop.mission_modifiers import (
     mission_modifier_for_run_offer,
 )
-from randomizer.shop.summary import reward_breakdown_lines, run_summary_lines
+from randomizer.shop.summary import (
+    reward_breakdown_lines,
+    run_summary_lines,
+    shop_run_progress_text,
+)
 from randomizer.shop.transitions import ShopTransitionError
 
 from .shop_archipelago_controller import ShopArchipelagoController
@@ -283,7 +287,7 @@ class ShopPolishController(ShopArchipelagoController):
                 'Current Shop Loadout',
                 '====================',
                 f'Seed: {run.seed}',
-                f'Stage: {run.stage}/{run.run_length}',
+                shop_run_progress_text(run, self.shop_profile),
                 '',
                 'Active Units and Defenses',
                 '-------------------------',
@@ -315,7 +319,7 @@ class ShopPolishController(ShopArchipelagoController):
         else:
             self.progress_label.config(text=(
                 f'Seed: {run.seed} | Shop Mode | {run.reward_mode}\n'
-                f'Stage: {run.stage}/{run.run_length} | '
+                f'{shop_run_progress_text(run, self.shop_profile)} | '
                 f'Completed: {len(run.completed_missions)} | '
                 f'Ore: {run.run_coins} | '
                 f'Status: {run.status.value.title()}'
@@ -988,13 +992,13 @@ class ShopPolishController(ShopArchipelagoController):
             )
             self.shop_catalogue_help_var.set(
                 f'{len(candidates)} current offers, including {power_count} '
-                f'powers, for stage {run.stage if run is not None else "—"}. '
+                f'powers, for mission {run.stage if run is not None else "—"}. '
                 'Stock changes after each mission victory. Buy an item, then '
                 'use its Open Upgrades button.'
             )
         elif category == 'Units':
             self.shop_catalogue_help_var.set(
-                f'{len(candidates)} units stocked for stage '
+                f'{len(candidates)} units stocked for mission '
                 f'{run.stage if run is not None else "—"}. '
                 'Stock changes after each mission victory. Buy a unit, then '
                 'use its Open Upgrades button.'
@@ -1002,7 +1006,7 @@ class ShopPolishController(ShopArchipelagoController):
         elif category == 'Powers':
             self.shop_catalogue_help_var.set(
                 f'{len(candidates)} random superweapons and aid powers stocked '
-                f'for stage {run.stage if run is not None else "—"}. '
+                f'for mission {run.stage if run is not None else "—"}. '
                 'Stock changes after each mission victory.'
             )
         else:
@@ -1368,11 +1372,12 @@ class ShopPolishController(ShopArchipelagoController):
             ),
             'permanent_challenge_slots': (
                 f'Each level guarantees +{effects.get("slots_per_level", 0)} '
-                'special mission choice. Stages 1-5 grant player support; '
-                'stages 6+ become AI challenges with bonus rewards.'
+                'special mission choice. Stage-closing missions are always '
+                'challenges, so this only adds one to the missions between '
+                'them.'
             ),
             'coupon_book': (
-                f'First paid shop purchase each stage costs '
+                f'First paid shop purchase each mission costs '
                 f'{effects.get("ore_per_level", 0)} less Ore per level.'
             ),
             'stock_lock': (
