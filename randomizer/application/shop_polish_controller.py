@@ -492,9 +492,15 @@ class ShopPolishController(ShopArchipelagoController):
             card['reward'].set(
                 'Exact reward hidden until mission launch'
                 if reward_hidden else
-                f'Base +{definition.run_coins} Ore / '
-                f'+{gem_text(definition.meta_coins)}  •  '
-                f'Estimated +{reward.run_coins} / +{reward.meta_coins}'
+                f'Reward +{reward.run_coins} Ore / '
+                f'+{gem_text(reward.meta_coins)} total'
+                + (
+                    f'  •  includes base +{definition.run_coins} / '
+                    f'+{definition.meta_coins}'
+                    if (reward.run_coins, reward.meta_coins)
+                    != (definition.run_coins, definition.meta_coins)
+                    else ''
+                )
                 + ('  •  Full reward retained' if assisted else '')
             )
             card['effect'].set(
