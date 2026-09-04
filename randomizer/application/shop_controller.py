@@ -55,6 +55,7 @@ from randomizer.shop.missions import (
 )
 from randomizer.shop.mission_modifiers import active_mission_modifier
 from randomizer.shop.modifiers import (
+    format_difficulty,
     pacing_gem_scale_percent,
     run_difficulty,
     modifier_difficulty,
@@ -2107,7 +2108,8 @@ class ShopController(ShopPolishController):
         gem_scale = pacing_gem_scale_percent(settings)
         if hasattr(self, 'shop_pacing_difficulty_var'):
             self.shop_pacing_difficulty_var.set(
-                f'Run difficulty {score:+d} — Gems x{gem_scale / 100:g}'
+                f'Run difficulty {format_difficulty(score)} — '
+                f'Gems x{gem_scale / 100:g}'
             )
         active = (
             self.shop_run is not None
@@ -2117,7 +2119,9 @@ class ShopController(ShopPolishController):
             run_difficulty((), self.shop_run.reward_settings) if active
             else score
         )
-        self.shop_difficulty_var.set(f'Difficulty: {current:+d}')
+        self.shop_difficulty_var.set(
+            'Difficulty: ' + format_difficulty(current)
+        )
         if hasattr(self, 'shop_modifier_status_var'):
             chosen = sum(
                 1 for variable in self.shop_modifier_vars.values()

@@ -735,9 +735,29 @@ rules and not merely a label.
 
 Each step away from the configured baseline scores difficulty points, signed so
 that a harder run scores higher. Pacing is the **only** contributor to run
-difficulty — see section 9.1 for why modifiers are excluded. The score scales
-**Gem** payouts between 50% and 200%, so permanent progression cannot be farmed
-by turning the difficulty down.
+difficulty — see section 9.1 for why modifiers are excluded.
+
+Weights are deliberately uneven. Opening resources are spent once, so a head
+start is worth a fraction of a point; lives, escalation, income growth, and
+stage length shape the whole run and are worth whole points:
+
+| Step                     | Difficulty |
+| ------------------------ | ---------: |
+| One life                 |       ∓2   |
+| 10% income per stage     |       ∓1   |
+| One buff per challenge   |       ±3   |
+| One mission per stage    |       ∓2   |
+| One starting reroll      |      −0.7  |
+| 5 starting Gems          |      −0.5  |
+| 5 starting Ore           |      −0.3  |
+
+The score scales **Gem** payouts from 200% down to **0%**, and the score itself
+is floored where that reaches zero (−10). Easing past that point pays nothing,
+so there is nothing further to trade away and the readout stops moving rather
+than showing a number that no longer means anything.
+
+At the floor the starting Gem grant is also scaled to zero, so a setup made
+maximally easy cannot mint Gems at all.
 
 Ore is deliberately **not** scaled by pacing. It is the run's own currency and
 the stage multiplier already governs it; scaling it twice would let an easy run

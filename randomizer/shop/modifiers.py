@@ -3,6 +3,8 @@
 from fractions import Fraction
 from hashlib import sha256
 
+from fractions import Fraction
+
 from .config import SHOP_CONFIG
 from .model import ShopModeConfig
 
@@ -67,14 +69,18 @@ def modifier_difficulty(modifier_ids):
 # from the configured baseline. Signs are chosen so a harder run scores higher:
 # fewer lives, slower income, more permanent enemy buffs, and shorter stages
 # (which means more challenges) all raise it.
+# Difficulty points per step away from the configured baseline, signed so a
+# harder run scores higher. Head starts are worth noticeably less than the
+# rules that shape the whole run: opening resources are spent once, while
+# lives, escalation, and stage length are felt for its entire length.
 PACING_DIFFICULTY_WEIGHTS = {
-    'starting_lives': -2,
-    'stage_income_percent_per_stage': -1,
-    'permanent_enemy_buffs_per_challenge': 3,
-    'stage_length': -2,
-    'starting_run_coins': -1,
-    'starting_meta_coins': -2,
-    'starting_rerolls': -2,
+    'starting_lives': Fraction(-2),
+    'stage_income_percent_per_stage': Fraction(-1),
+    'permanent_enemy_buffs_per_challenge': Fraction(3),
+    'stage_length': Fraction(-2),
+    'starting_run_coins': Fraction(-3, 10),
+    'starting_meta_coins': Fraction(-1, 2),
+    'starting_rerolls': Fraction(-7, 10),
 }
 # Currencies move in larger units than the counts, so score them per five.
 PACING_DIFFICULTY_STEPS = {
@@ -83,25 +89,37 @@ PACING_DIFFICULTY_STEPS = {
     'starting_meta_coins': 5,
 }
 GEM_SCALE_PER_DIFFICULTY_PERCENT = 10
-MINIMUM_GEM_SCALE_PERCENT = 50
+MINIMUM_GEM_SCALE_PERCENT = 0
 MAXIMUM_GEM_SCALE_PERCENT = 200
+# Easing past this stops paying Gems at all, so there is nothing further to
+# give up. Clamping the score here keeps the readout honest instead of showing
+# a number that no longer changes anything.
+MINIMUM_PACING_DIFFICULTY = Fraction(
+    MINIMUM_GEM_SCALE_PERCENT - 100, GEM_SCALE_PER_DIFFICULTY_PERCENT
+)
 
 
 def pacing_difficulty(reward_settings, config: ShopModeConfig = SHOP_CONFIG):
     """Return the difficulty points a run's pacing choices are worth.
 
     Zero means the configured baseline. Positive means the player made the run
-    harder than default and negative means easier.
+    harder than default and negative means easier. Easing is floored where
+    Gems stop paying entirely; past that there is nothing left to trade away.
     """
     from .config import run_pacing_overrides
 
-    score = 0
+    score = Fraction(0)
     overrides = run_pacing_overrides(reward_settings, config)
     for field, value in overrides.items():
-        weight = PACING_DIFFICULTY_WEIGHTS.get(field, 0)
+        weight = PACING_DIFFICULTY_WEIGHTS.get(field, Fraction(0))
         step = PACING_DIFFICULTY_STEPS.get(field, 1)
-        score += weight * ((value - getattr(config, field)) // step)
-    return score
+        score += weight * Fraction(value - getattr(config, field), step)
+    return max(MINIMUM_PACING_DIFFICULTY, score)
+
+
+def format_difficulty(score):
+    """Render a difficulty score with a sign and no trailing noise."""
+    return f'{float(score):+.4g}'
 
 
 def run_difficulty(modifier_ids, reward_settings=None, config=SHOP_CONFIG):
@@ -127,9 +145,9 @@ def pacing_gem_scale_percent(reward_settings, config: ShopModeConfig = SHOP_CONF
     percent = 100 + GEM_SCALE_PER_DIFFICULTY_PERCENT * pacing_difficulty(
         reward_settings, config
     )
-    return max(
+    return int(max(
         MINIMUM_GEM_SCALE_PERCENT, min(MAXIMUM_GEM_SCALE_PERCENT, percent)
-    )
+    ))
 
 
 def modifier_mission_offer_count(
