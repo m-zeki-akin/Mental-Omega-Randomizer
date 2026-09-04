@@ -31,6 +31,7 @@ from .catalogue import (
     shop_catalogue,
     shop_catalogue_by_reward_id,
     shop_entry_available,
+    unit_access_tier,
 )
 from .active import (
     active_shop_power_ids,
@@ -107,6 +108,12 @@ from .model import (
     ShopRun,
 )
 from .purchases import apply_validated_run_purchase, validate_run_purchase
+from .unit_pricing import (
+    UNIQUE_INFANTRY_CATEGORIES,
+    UNIQUE_UNIT_CATEGORIES,
+    unit_access_gem_price_report,
+    unit_pricing_traits,
+)
 from .shelf import (
     shop_shelf,
     shop_shelf_reward_ids,
@@ -1497,6 +1504,107 @@ def _upgrade_reward_checks():
     }
 
 
+def _gem_pricing_checks():
+    """Prove Gem prices follow tier and uniqueness, not the old cost table.
+
+    Four things have to hold at once, and each of them has already been got
+    wrong once: every access target must resolve a price, a tier must set the
+    band, a hero must ignore the band, and a Cloning Vat must not be mistaken
+    for a hero just because only one of it can be built.
+    """
+    pricing = SHOP_CONFIG.unit_access_gem_pricing
+    report = unit_access_gem_price_report()
+    access_targets = {
+        entry.target_id for entry in shop_catalogue()
+        if entry.reward_type is ShopRewardType.UNIT_ACCESS
+    }
+    coverage_valid = bool(
+        report
+        and set(report) == access_targets
+        and all(price > 0 for price in report.values())
+    )
+    flat_prices = {
+        pricing.unique_infantry_gems,
+        pricing.unique_unit_gems,
+        pricing.stolen_tech_gems,
+    }
+    banded = {}
+    unique_infantry = []
+    unique_units = []
+    limited_buildings = []
+    for target, price in report.items():
+        traits = unit_pricing_traits(target)
+        category = traits.get('category')
+        if traits.get('unique') and category in UNIQUE_INFANTRY_CATEGORIES:
+            unique_infantry.append((target, price))
+        elif traits.get('unique') and category in UNIQUE_UNIT_CATEGORIES:
+            unique_units.append((target, price))
+        elif traits.get('stolen_tech'):
+            pass
+        else:
+            if traits.get('unique'):
+                limited_buildings.append((target, price))
+            banded[target] = price
+    def in_band(tier, price):
+        band = pricing.tier_gems[tier]
+        return (
+            band + pricing.cost_adjustment_minimum
+            <= price
+            <= band + pricing.cost_adjustment_maximum
+        )
+    band_valid = bool(
+        banded
+        and all(
+            in_band(unit_access_tier(target), price)
+            for target, price in banded.items()
+        )
+        and not flat_prices.intersection(banded.values())
+    )
+    # Tier has to be the dominant term: no tier 1 unit may cost more than the
+    # cheapest tier 3 one, or cost would be deciding the price after all.
+    by_tier = {}
+    for target, price in banded.items():
+        by_tier.setdefault(unit_access_tier(target), []).append(price)
+    tier_order_valid = bool(
+        len(by_tier) == 3
+        and max(by_tier['tier_1']) <= min(by_tier['tier_3'])
+        and max(by_tier['tier_2']) <= min(by_tier['tier_3'])
+    )
+    # Cost still has to do something, or the band collapses to one number.
+    cost_spread_valid = all(
+        len(set(prices)) > 1 for prices in by_tier.values()
+    )
+    unique_valid = bool(
+        unique_infantry
+        and unique_units
+        and all(
+            price == pricing.unique_infantry_gems
+            for _target, price in unique_infantry
+        )
+        and all(
+            price == pricing.unique_unit_gems
+            for _target, price in unique_units
+        )
+    )
+    # A one-of-a-kind building is limited for balance, not because it is a
+    # hero, and pricing an Ore Purifier as one would be absurd.
+    limited_building_valid = bool(
+        limited_buildings
+        and all(
+            in_band(unit_access_tier(target), price)
+            for target, price in limited_buildings
+        )
+    )
+    return {
+        'gem_price_coverage_valid': coverage_valid,
+        'gem_price_tier_band_valid': band_valid,
+        'gem_price_tier_dominates_cost_valid': tier_order_valid,
+        'gem_price_cost_spread_valid': cost_spread_valid,
+        'gem_price_unique_flat_valid': unique_valid,
+        'gem_price_limited_building_valid': limited_building_valid,
+    }
+
+
 def validate_shop_domain():
     malformed_config = load_static_config('shop_mode.json')
     malformed_config['settings']['run_length'] = 0
@@ -1625,8 +1733,8 @@ def validate_shop_domain():
         and (failed.run_coins, failed.meta_coins) == (0, 0)
         and meta_rewards_by_difficulty == [20, 30, 50, 70]
         and discounted_shop_price(0, shop_discount_level=999) == 10
-        and permanent_unit_price('SPY') == 100
-        and permanent_unit_price('STARDUSTB') == 600
+        and 280 <= permanent_unit_price('SPY') <= 380
+        and permanent_unit_price('STARDUSTB') == 750
         and permanent_buff_price('SPY') == 50
         and permanent_buff_price('STARDUSTB') == 120
         and unavailable_price_valid
@@ -2297,6 +2405,7 @@ def validate_shop_domain():
     details.update(_permanent_feature_checks(mission_pool))
     details.update(_requested_upgrade_modifier_checks())
     details.update(_upgrade_reward_checks())
+    details.update(_gem_pricing_checks())
     details['valid'] = all(
         value for key, value in details.items()
         if key.endswith('_valid')

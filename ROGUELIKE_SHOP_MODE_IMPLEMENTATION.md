@@ -409,6 +409,22 @@ the target:
 Both draws are restricted to targets the player already owns, and both skip
 anything already at its stack limit, so a slot is never spent on nothing.
 
+**One purchase per offer per rotation.** An upgrade stacks, so without a limit
+a player could spend a whole stage buying the same offer over and over --
+exactly the concentration the design exists to prevent, reached through the
+shop meant to prevent it. A run records what it has taken off the shelf in
+front of it and clears the record when the stage advances and the stock
+rotates. A defeat replays the same stage against the same shelf, so it does
+not clear there, and a Free Buff Token spends the slot too: the offer is the
+limit, not the Ore.
+
+**The shelf holds still.** The draw is over what the player owns, so buying
+anything would otherwise change the pool and reshuffle the offers not yet
+bought -- buy a unit and the four upgrade slots become four different
+upgrades. Every input to the draw is read from the run as it stood when the
+stage opened, reconstructed by rolling this stage's purchases back off it, so
+nothing has to be stored and a replayed stage finds the shelf it left.
+
 The draw is weighted. Four upgrade types -- Veteran Training, Stealth Systems,
 Sensor Suite, Recon Package -- are a single decisive switch rather than a
 curve, and appearing as often as the stacking kinds made them far too easy to
@@ -843,6 +859,23 @@ group is data: an id list, a display name, a description, and the
 target the shop actually prices, forbids the same target appearing in two
 groups, and forbids two groups sharing a settings key -- a group that matched
 nothing would leave a checkbox claiming to hide rewards it never touches.
+
+### What a unit costs in Gems
+
+Tier sets the price; cost only decides where inside the tier a unit sits.
+Tier 1 opens at 100 Gems, Tier 2 at 200, Tier 3 at 300, and the unit's credit
+cost moves it by -20 to +80 within that band, interpolated across the costs of
+its own tier. Units nobody can build more than one of are priced on their own
+terms and ignore the band: 500 Gems for a hero infantryman, 750 for a hero
+vehicle, 600 for anything gated behind stolen tech, and the higher of the two
+when a unit is both. Unique *buildings* keep their band -- an Ore Purifier is
+limited for balance, not because it is a hero.
+
+This replaced a hand-written column scaled off in-game cost with an 80 Gem
+floor. Cost answers what a unit is worth to build once you have it, which the
+game already prices every match; the shop is asking what it is worth to have
+at all. Everything but the tier is read from the live roster, so a submod that
+reprices a unit reprices its Gem cost with it.
 
 The permanent Gem shop is the deliberate exception: it keeps selling a hidden
 target, at `excluded_target_gem_price_multiplier` times the normal price. The

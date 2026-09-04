@@ -128,6 +128,60 @@ def _validate_enemy_buff_tiers(sections, path, invalid):
         )
 
 
+def _validate_unit_access_gem_pricing(sections, path, invalid):
+    """Check the block that decides what owning a unit costs in Gems.
+
+    Every field is load-bearing: a missing tier band silently reprices a
+    third of the catalogue, and an inverted cost adjustment would make
+    expensive units cheaper than cheap ones.
+    """
+    pricing = sections['unit_access_gem_pricing']
+    tier_gems = pricing.get('tier_gems') if isinstance(pricing, dict) else None
+    if (
+        not isinstance(pricing, dict)
+        or not isinstance(tier_gems, dict)
+        or set(tier_gems) != {'tier_1', 'tier_2', 'tier_3'}
+        or any(
+            not isinstance(value, int)
+            or isinstance(value, bool)
+            or value < 1
+            for value in tier_gems.values()
+        )
+    ):
+        invalid('Invalid Shop Mode unit_access_gem_pricing tier bands', path)
+    positive_fields = (
+        'unique_infantry_gems', 'unique_unit_gems', 'stolen_tech_gems',
+        'rounding_step',
+    )
+    if any(
+        not isinstance(pricing.get(key), int)
+        or isinstance(pricing.get(key), bool)
+        or pricing[key] < 1
+        for key in positive_fields
+    ):
+        invalid('Invalid Shop Mode unit_access_gem_pricing flat prices', path)
+    low = pricing.get('cost_adjustment_minimum')
+    high = pricing.get('cost_adjustment_maximum')
+    trim = pricing.get('cost_window_trim_percent')
+    if (
+        not isinstance(low, int) or isinstance(low, bool)
+        or not isinstance(high, int) or isinstance(high, bool)
+        or low >= high
+        or not isinstance(trim, int) or isinstance(trim, bool)
+        or not 0 <= trim <= 40
+    ):
+        invalid(
+            'Invalid Shop Mode unit_access_gem_pricing cost adjustment', path
+        )
+    smallest_band = min(tier_gems.values()) if isinstance(tier_gems, dict) else 0
+    if smallest_band + low < 1:
+        invalid(
+            'Shop Mode unit_access_gem_pricing would price a unit below '
+            '1 Gem',
+            path,
+        )
+
+
 def validate_shop_mode_config(sections, path, invalid):
     mission_classes = {'act_1', 'act_2', 'operation', 'finale'}
     settings = sections['settings']
@@ -303,7 +357,6 @@ def validate_shop_mode_config(sections, path, invalid):
     price_fields = {
         'run_access',
         'run_buff',
-        'permanent_access',
         'permanent_buff',
     }
     target_prices = sections['unit_target_prices']
@@ -323,8 +376,6 @@ def validate_shop_mode_config(sections, path, invalid):
                 )
                 for value in prices.values()
             )
-            or (prices.get('run_access') is None)
-            != (prices.get('permanent_access') is None)
             or (prices.get('run_buff') is None)
             != (prices.get('permanent_buff') is None)
             or all(value is None for value in prices.values())
@@ -332,6 +383,8 @@ def validate_shop_mode_config(sections, path, invalid):
             invalid(
                 f'Invalid Shop Mode unit_target_prices.{target_id}', path
             )
+
+    _validate_unit_access_gem_pricing(sections, path, invalid)
 
     required_upgrades = {
         'mission_reroll': ('rerolls_per_level',),

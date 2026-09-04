@@ -10,6 +10,7 @@ from .model import (
     ShopRewardType,
 )
 from .modifiers import modifier_effects
+from .unit_pricing import unit_access_gem_price
 
 
 def stage_income_multiplier(stage, config: ShopModeConfig = SHOP_CONFIG):
@@ -315,8 +316,14 @@ def excluded_target_gem_price(
 def permanent_unit_price(
     target_id, *, excluded_target_ids=(), config: ShopModeConfig = SHOP_CONFIG
 ):
+    """Return what owning a unit outright costs in Gems.
+
+    Derived from tier, uniqueness and the live roster cost rather than read
+    from a table -- see randomizer/shop/unit_pricing.py for why cost alone was
+    the wrong axis.
+    """
     return excluded_target_gem_price(
-        _unit_target_price(config, target_id, 'permanent_access'),
+        unit_access_gem_price(target_id, config=config),
         target_id,
         excluded_target_ids,
         config,

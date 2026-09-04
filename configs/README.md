@@ -168,23 +168,48 @@ power still receives a useful mission-only upgrade. The three visible mission
 cards resolve duplicate effects to other entries of the same boon/challenge
 kind without consuming gameplay RNG.
 
-`unit_target_prices` is the complete Shop price table for units, aircraft,
-naval units, defenses, and special buildings. Every Shop target ID must appear
-exactly once. Each entry has `run_access`, `run_buff`, `permanent_access`, and
-`permanent_buff`. Prices are positive integers; use `null` only when that
-target has no corresponding access or buff offer. Run and permanent fields for
-the same offer kind must either both be priced or both be `null`. This table is
-deliberately target-specific: TechLevel still supplies the displayed tier but
-never determines a unit or targeted-buff price.
+`unit_target_prices` is the complete Ore price table for units, aircraft,
+naval units, defenses, and special buildings, plus the Gem price of a
+permanent buff. Every Shop target ID must appear exactly once. Each entry has
+`run_access`, `run_buff`, and `permanent_buff`. Prices are positive integers;
+use `null` only when that target has no corresponding access or buff offer.
+`run_buff` and `permanent_buff` must either both be priced or both be `null`.
 
 ```json
 "E1": {
   "run_access": 2,
   "run_buff": 2,
-  "permanent_access": 8,
   "permanent_buff": 5
 }
 ```
+
+`unit_access_gem_pricing` replaces the per-target `permanent_access` column
+this table used to carry. What a unit costs in Gems is now derived rather than
+tabulated, because the old column was scaled off the unit's in-game credit
+cost and cost is the wrong axis: it says what a unit is worth to build once
+you have it, while the shop is asking what it is worth to *have* at all, for
+this run and every run after.
+
+`tier_gems` sets a band per arsenal tier. `cost_adjustment_minimum` and
+`cost_adjustment_maximum` bound how far the unit's credit cost may move it
+inside that band, interpolated across the costs of the units in the *same*
+tier -- a single global window would push every Tier 1 unit to the bottom of
+its band, since they are all cheap. `cost_window_trim_percent` trims the
+extremes of that per-tier window so one superunit cannot flatten its tier.
+`rounding_step` rounds the result.
+
+`unique_infantry_gems` and `unique_unit_gems` price units nobody can build
+more than one of, and `stolen_tech_gems` prices units gated behind
+`Prerequisite.StolenTechs`; a unit that is both takes the higher. These
+ignore the tier band entirely, because what makes them worth having is that
+no one else can field one. **Unique buildings and defenses are not heroes** --
+an Ore Purifier is limited for balance -- so they keep their tier band.
+
+Cost, category, build limit, and stolen-tech status are all read from the live
+roster data, so a submod that reprices a unit reprices its Gem cost with it.
+Tiers stay in configuration: they are not in the unit data, and reconstructing
+them from tech-building prerequisites is a great deal of work for a number
+that rarely moves.
 
 `power_target_prices` is the complete target-specific table for aid powers and
 superweapons. Every Shop power target must appear exactly once with positive

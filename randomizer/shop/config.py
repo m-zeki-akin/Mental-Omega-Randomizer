@@ -14,6 +14,7 @@ from .model import (
     ShopModeConfig,
     ShopPowerPriceDefinition,
     ShopTargetPriceDefinition,
+    UnitAccessGemPricing,
     StageDifficultyProfile,
     StageScoreCeiling,
     StageWeightProfile,
@@ -176,11 +177,29 @@ def load_shop_mode_config() -> ShopModeConfig:
             str(target_id): ShopTargetPriceDefinition(
                 run_access=definition['run_access'],
                 run_buff=definition['run_buff'],
-                permanent_access=definition['permanent_access'],
                 permanent_buff=definition['permanent_buff'],
             )
             for target_id, definition in sections['unit_target_prices'].items()
         },
+        unit_access_gem_pricing=UnitAccessGemPricing(
+            tier_gems={
+                str(tier): int(gems)
+                for tier, gems
+                in sections['unit_access_gem_pricing']['tier_gems'].items()
+            },
+            **{
+                key: int(sections['unit_access_gem_pricing'][key])
+                for key in (
+                    'cost_adjustment_minimum',
+                    'cost_adjustment_maximum',
+                    'cost_window_trim_percent',
+                    'unique_infantry_gems',
+                    'unique_unit_gems',
+                    'stolen_tech_gems',
+                    'rounding_step',
+                )
+            },
+        ),
         permanent_upgrades=upgrades,
         modifiers=modifiers,
     )

@@ -96,6 +96,7 @@ REQUIRED_SECTIONS = {
         'stage_difficulty_weights': list,
         'power_target_prices': dict,
         'unit_target_prices': dict,
+        'unit_access_gem_pricing': dict,
         'permanent_upgrades': dict,
         'mission_effects': dict,
         'modifiers': dict,

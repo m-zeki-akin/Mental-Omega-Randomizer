@@ -44,6 +44,16 @@ def _unit_tiers():
     return tiers
 
 
+def unit_access_tier(target_id):
+    """Return the configured arsenal tier for one unit id.
+
+    Tiers are not in the unit data; they come from the roster's TechLevel and
+    stay that way deliberately. Reconstructing them from tech-building
+    prerequisites is a lot of work for a number that rarely moves.
+    """
+    return _unit_tiers().get(str(target_id).upper(), 'tier_1')
+
+
 def _root_access_unit(reward):
     tech_ids = sorted(tech_ids_for_rewards([reward]))
     return next((unit_id for unit_id in tech_ids if unit_id in BUFF_TARGETS), '')

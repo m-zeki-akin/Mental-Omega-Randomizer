@@ -145,8 +145,25 @@ class RewardExclusionGroup:
 class ShopTargetPriceDefinition:
     run_access: int | None
     run_buff: int | None
-    permanent_access: int | None
     permanent_buff: int | None
+
+
+@dataclass(frozen=True)
+class UnitAccessGemPricing:
+    """How much owning a unit outright costs in Gems.
+
+    Tier sets the band and cost only decides where inside it a unit sits.
+    Unique and stolen-tech units ignore the band for a flat price, because
+    what makes them worth having is that no one else can field one.
+    """
+    tier_gems: Mapping[str, int]
+    cost_adjustment_minimum: int
+    cost_adjustment_maximum: int
+    cost_window_trim_percent: int
+    unique_infantry_gems: int
+    unique_unit_gems: int
+    stolen_tech_gems: int
+    rounding_step: int
 
 
 @dataclass(frozen=True)
@@ -193,6 +210,7 @@ class ShopModeConfig:
     enemy_buff_stage_tiers: tuple[EnemyBuffTier, ...]
     power_target_prices: Mapping[str, ShopPowerPriceDefinition]
     unit_target_prices: Mapping[str, ShopTargetPriceDefinition]
+    unit_access_gem_pricing: UnitAccessGemPricing
     permanent_upgrades: Mapping[str, PermanentUpgradeDefinition]
     modifiers: Mapping[str, ModifierDefinition]
 
