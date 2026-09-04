@@ -781,7 +781,7 @@ every buff that targets them:
 
 | Filter                                 | Hides                                              |
 | -------------------------------------- | -------------------------------------------------- |
-| Exclude campaign-only units            | 35 story units no skirmish game can build           |
+| Exclude campaign-only units            | 44 story units no skirmish game can build           |
 | Exclude campaign-only support powers   | 4 powers that exist only inside scripted missions   |
 | Exclude superweapons                   | 13 game-ending superweapons                         |
 
@@ -795,7 +795,7 @@ nothing would leave a checkbox claiming to hide rewards it never touches.
 Exclusion is by **target**, not reward id. An access entry and the dozen buff
 entries aimed at the same unit share a target, so hiding "Paradox Engine
 Access" while leaving "Paradox Engine Firepower I" on the shelf would hide
-nothing. Ticking all three removes 52 targets and 519 of the catalogue's 4,049
+nothing. Ticking all three removes 61 targets and 629 of the catalogue's 4,049
 shop entries.
 
 The superweapon group includes Overforge, the Blast Furnace's own power,
