@@ -70,22 +70,15 @@ def modifier_difficulty(modifier_ids):
 # fewer lives, slower income, more permanent enemy buffs, and shorter stages
 # (which means more challenges) all raise it.
 # Difficulty points per step away from the configured baseline, signed so a
-# harder run scores higher. Head starts are worth noticeably less than the
-# rules that shape the whole run: opening resources are spent once, while
-# lives, escalation, and stage length are felt for its entire length.
+# harder run scores higher. Only the rules that shape the whole run are
+# adjustable; opening resources keep their configured values.
 PACING_DIFFICULTY_WEIGHTS = {
-    'starting_lives': Fraction(-2),
     'stage_income_percent_per_stage': Fraction(-1),
     'permanent_enemy_buffs_per_challenge': Fraction(3),
     'stage_length': Fraction(-2),
-    'starting_run_coins': Fraction(-3, 10),
-    'starting_rerolls': Fraction(-7, 10),
 }
-# Currencies move in larger units than the counts, so score them per five.
-PACING_DIFFICULTY_STEPS = {
-    'stage_income_percent_per_stage': 10,
-    'starting_run_coins': 5,
-}
+# Income moves in larger units than the counts, so score it per ten percent.
+PACING_DIFFICULTY_STEPS = {'stage_income_percent_per_stage': 10}
 GEM_SCALE_PER_DIFFICULTY_PERCENT = 10
 MINIMUM_GEM_SCALE_PERCENT = 0
 MAXIMUM_GEM_SCALE_PERCENT = 200

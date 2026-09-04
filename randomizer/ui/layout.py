@@ -737,12 +737,9 @@ def _build_right_panel(self, main_frame):
     for column in range(4):
         pacing_frame.columnconfigure(column, weight=1)
     pacing_labels = {
-        'shop_starting_lives': 'Starting lives',
         'shop_stage_income_percent': 'Income per stage (%)',
         'shop_enemy_buffs_per_challenge': 'Enemy buffs per challenge',
         'shop_stage_length': 'Missions per stage',
-        'shop_starting_ore': 'Starting Ore',
-        'shop_starting_rerolls': 'Starting rerolls',
     }
     for index, (key, (_field, low, high)) in enumerate(
         RUN_PACING_SETTINGS.items()
@@ -759,11 +756,7 @@ def _build_right_panel(self, main_frame):
             cell, text=pacing_labels.get(key, key),
             style='Shop.Help.TLabel',
         ).pack(anchor='w')
-        step = (
-            10 if key == 'shop_stage_income_percent'
-            else 5 if key == 'shop_starting_ore'
-            else 1
-        )
+        step = 10 if key == 'shop_stage_income_percent' else 1
         ttk.Spinbox(
             cell,
             from_=low,

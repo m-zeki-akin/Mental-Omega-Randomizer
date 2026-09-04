@@ -161,14 +161,11 @@ SHOP_CONFIG = load_shop_mode_config()
 # ShopModeConfig field it overrides, and the inclusive range the launcher
 # offers. The configured value is the baseline every run is measured against.
 RUN_PACING_SETTINGS = {
-    'shop_starting_lives': ('starting_lives', 1, 5),
     'shop_stage_income_percent': ('stage_income_percent_per_stage', 0, 100),
     'shop_enemy_buffs_per_challenge': (
         'permanent_enemy_buffs_per_challenge', 0, 4
     ),
     'shop_stage_length': ('stage_length', 2, 5),
-    'shop_starting_ore': ('starting_run_coins', 0, 50),
-    'shop_starting_rerolls': ('starting_rerolls', 0, 5),
 }
 
 

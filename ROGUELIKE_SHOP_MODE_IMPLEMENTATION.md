@@ -708,19 +708,18 @@ fixed for its whole length:
 
 | Setting                      | Range   | Default | Harder direction |
 | ---------------------------- | ------- | ------: | ---------------- |
-| Starting lives               | 1-5     |       3 | fewer            |
 | Income per stage (%)         | 0-100   |      40 | lower            |
 | Enemy buffs per challenge    | 0-4     |       2 | more             |
 | Missions per stage           | 2-5     |       3 | fewer            |
-| Starting Ore                 | 0-50    |       5 | less             |
-| Starting rerolls             | 0-5     |       2 | fewer            |
 
-Starting rerolls are a baseline every run receives; the Mission Reroll upgrade
-adds to it rather than being the only source.
+Only the rules that shape the whole run are adjustable. Opening resources keep
+their configured values and are not player-facing settings: three lives, five
+Ore, and two rerolls. The Extra Life, Starting Capital, and Mission Reroll
+upgrades still add to those baselines, which is where a player changes them.
 
-Runs always begin with zero Gems and there is no setting for it. A grant paid
-at run start is paid whether or not a mission is played, so it can be farmed by
-starting a run and giving up; Gems are only ever earned by winning missions.
+Runs always begin with zero Gems. A grant paid at run start is paid whether or
+not a mission is played, so it could be farmed by starting a run and giving up;
+Gems are only ever earned by winning missions.
 
 A `Reset` button beside the readout restores the configured defaults and
 clears every optional modifier, so a player who has experimented can get back
@@ -738,18 +737,14 @@ Each step away from the configured baseline scores difficulty points, signed so
 that a harder run scores higher. Pacing is the **only** contributor to run
 difficulty — see section 9.1 for why modifiers are excluded.
 
-Weights are deliberately uneven. Opening resources are spent once, so a head
-start is worth a fraction of a point; lives, escalation, income growth, and
-stage length shape the whole run and are worth whole points:
+Each adjustable rule applies for the run's whole length, so all three are
+worth whole points:
 
 | Step                     | Difficulty |
 | ------------------------ | ---------: |
-| One life                 |       ∓2   |
 | 10% income per stage     |       ∓1   |
 | One buff per challenge   |       ±3   |
 | One mission per stage    |       ∓2   |
-| One starting reroll      |      −0.7  |
-| 5 starting Ore           |      −0.3  |
 
 The score scales **Gem** payouts from 200% down to **0%**, and the score itself
 is floored where that reaches zero (−10). Easing past that point pays nothing,
