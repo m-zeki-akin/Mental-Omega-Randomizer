@@ -617,6 +617,9 @@ def apply_mission_failure(
         status=RunStatus.FAILED,
         failed_mission_code=mission_code,
         failed_stage=run.stage,
+        # The defeat that ends the run spends the last life as well, so the
+        # readout reaches zero instead of resting on one.
+        emergency_revivals_used=run.emergency_revivals_used + 1,
     )
     salvage = min(
         max(0, int(maximum_salvaged_run_coins)),

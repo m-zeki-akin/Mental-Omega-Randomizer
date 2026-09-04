@@ -8,6 +8,7 @@ from ._builder_dependencies import (
     DEFAULT_MISSION_GOAL,
     DIFFICULTIES,
     GAME_SPEEDS,
+    LOCKED_GAME_SPEED_LABEL,
     MAX_REWARDS_PER_CHECK,
     PROGRESSION_MODES,
     REWARD_MODES,
@@ -324,10 +325,15 @@ def _build_right_panel(self, main_frame):
     ttk.Label(options_row, text='Game speed').grid(row=1, column=0, sticky='w', pady=(6, 0), padx=(0, 8))
     self.game_speed_combo = ttk.Combobox(
         options_row,
-        state='readonly',
+        state='disabled',
         textvariable=self.game_speed_var,
-        values=[name for name, _ in GAME_SPEEDS],
+        values=[LOCKED_GAME_SPEED_LABEL],
         width=10,
+    )
+    WidgetTooltip(
+        self.game_speed_combo,
+        'Fixed. Missions, rewards, and enemy scaling are tuned at this '
+        'speed, and it is written to the game options as well.',
     )
     self.game_speed_combo.grid(row=1, column=1, sticky='ew', pady=(6, 0))
 
@@ -583,7 +589,7 @@ def _build_right_panel(self, main_frame):
             self.shop_faction_pool_var, self.shop_faction_pool_options,
         ),
         ('Game speed', 'shop_game_speed_combo', self.game_speed_var,
-         [name for name, _ in GAME_SPEEDS]),
+         [LOCKED_GAME_SPEED_LABEL]),
     )
     for row, (label, attribute, variable, values) in enumerate(
         shop_run_options, start=5
@@ -737,7 +743,7 @@ def _build_right_panel(self, main_frame):
     for column in range(4):
         pacing_frame.columnconfigure(column, weight=1)
     pacing_labels = {
-        'shop_stage_income_percent': 'Income per stage (%)',
+        'shop_stage_income_percent': 'Ore income per stage (%)',
         'shop_enemy_buffs_per_challenge': 'Enemy buffs per challenge',
         'shop_stage_length': 'Missions per stage',
     }

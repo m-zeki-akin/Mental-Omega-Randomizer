@@ -13,11 +13,12 @@ from .modifiers import modifier_effects
 
 
 def stage_income_multiplier(stage, config: ShopModeConfig = SHOP_CONFIG):
-    """Return the payout multiplier for the tier a mission sits in.
+    """Return the Ore multiplier for the tier a mission sits in.
 
-    An endless run gets harder every tier: each challenge victory hands
-    the AI two permanent buffs that never come off. Payouts have to climb
-    with that or later tiers cost more than they return.
+    An endless run gets harder every tier: each challenge victory hands the AI
+    two permanent buffs that never come off. Ore has to climb with that or the
+    run shop falls behind what the missions demand. Gems are deliberately not
+    scaled here; see mission_reward.
     """
     from .missions import difficulty_stage
 
@@ -76,9 +77,10 @@ def mission_reward(
     base_run_coins = _scaled(
         base_run_coins, stage_multiplier * challenge_multiplier
     )
-    meta_coins = _scaled(
-        meta_coins, stage_multiplier * challenge_multiplier
-    )
+    # The stage multiplier is Ore only. Gems take the challenge multiplier
+    # alone, so permanent progression tracks what the player took on rather
+    # than how long the run has been going.
+    meta_coins = _scaled(meta_coins, challenge_multiplier)
     if challenge:
         meta_coins = int(
             meta_coins * effects['challenge_meta_reward_percent']

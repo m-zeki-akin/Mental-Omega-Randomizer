@@ -44,6 +44,7 @@ from randomizer.ui.config import (
     DIFFICULTIES,
     EVA_VOICE_CHOICES,
     GAME_SPEEDS,
+    LOCKED_GAME_SPEED_LABEL,
     PLAYER_COLORS,
     PROGRESSION_MODES,
     REWARD_MODES,

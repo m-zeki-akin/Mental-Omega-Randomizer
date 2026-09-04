@@ -1343,8 +1343,9 @@ class ShopPolishController(ShopArchipelagoController):
                 'permanent/AP unit slot to the starting loadout.'
             ),
             'emergency_revival': (
-                f'Each level grants {effects.get("revivals_per_run", 0)} '
-                'automatic mission-failure rescue per run. Same stage, new offers.'
+                f'Each level adds +{effects.get("lives_per_level", 0)} life on '
+                'top of the lives every run starts with. Losing a mission '
+                'spends one: same stage, new offers.'
             ),
             'free_buff_token': (
                 f'Each level grants +{effects.get("tokens_per_level", 0)} '

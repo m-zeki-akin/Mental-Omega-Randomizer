@@ -184,11 +184,13 @@ Suggested default economy ranking:
 | Operation |                   3 |                       7 |                  5 |
 | Finale    |                   4 |                      10 |                  7 |
 
-These are the **stage 1** values. Every later stage multiplies both currencies
-by `1 + stage_income_percent_per_stage/100 x (tier - 1)`, because each stage is
-permanently harder than the one before it. A challenge additionally pays
-`challenge_reward_multiplier_percent` (250% by default), which is what the two
-permanent enemy buffs it grants are priced against.
+These are the **stage 1** values. Every later stage multiplies **Ore** by
+`1 + stage_income_percent_per_stage/100 x (tier - 1)`, because the run shop
+must keep pace with permanently harder missions. Gems are deliberately not
+scaled by the stage: permanent progression tracks what the player took on, not
+how long the run has been going. A challenge pays
+`challenge_reward_multiplier_percent` (250% by default) in both currencies,
+which is what the two permanent enemy buffs it grants are priced against.
 
 Economy class decides the payout and says nothing about difficulty: eleven of
 the twenty-five `operation` missions are ordinary base-building maps and the
@@ -708,9 +710,13 @@ fixed for its whole length:
 
 | Setting                      | Range   | Default | Harder direction |
 | ---------------------------- | ------- | ------: | ---------------- |
-| Income per stage (%)         | 0-100   |      40 | lower            |
+| Ore income per stage (%)     | 0-100   |      40 | lower            |
 | Enemy buffs per challenge    | 0-4     |       2 | more             |
 | Missions per stage           | 2-5     |       3 | fewer            |
+
+Game speed is fixed at 4 - Fast and written to the spawned mission and the
+in-game options alike: missions, rewards, and enemy scaling are all tuned at
+that speed.
 
 Only the rules that shape the whole run are adjustable. Opening resources keep
 their configured values and are not player-facing settings: three lives, five
@@ -742,7 +748,7 @@ worth whole points:
 
 | Step                     | Difficulty |
 | ------------------------ | ---------: |
-| 10% income per stage     |       ∓1   |
+| 10% Ore income per stage |       ∓1   |
 | One buff per challenge   |       ±3   |
 | One mission per stage    |       ∓2   |
 

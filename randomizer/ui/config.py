@@ -7,6 +7,15 @@ _UI_CONFIG = load_static_config('ui.json')
 
 DIFFICULTIES = [tuple(item) for item in _UI_CONFIG['difficulties']]
 GAME_SPEEDS = [tuple(item) for item in _UI_CONFIG['game_speeds']]
+# Missions are balanced and verified at one speed. Leaving it adjustable
+# meant a run could be paced differently from the one its rewards and
+# enemy scaling were tuned against, so it is fixed here and written to
+# both the spawned mission and the in-game options.
+LOCKED_GAME_SPEED_VALUE = 4
+LOCKED_GAME_SPEED_LABEL = next(
+    (name for name, value in GAME_SPEEDS if value == LOCKED_GAME_SPEED_VALUE),
+    GAME_SPEEDS[0][0],
+)
 CAMPAIGN_FILTERS = list(_UI_CONFIG['campaign_filters'])
 REWARD_MODES = list(_UI_CONFIG['reward_modes'])
 PROGRESSION_MODES = list(_UI_CONFIG['progression_modes'])

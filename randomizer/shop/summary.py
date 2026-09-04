@@ -76,10 +76,15 @@ def shop_run_progress_text(run, profile=None, config=SHOP_CONFIG):
     tier = difficulty_stage(run.stage, config)
     if not run.endless:
         return f'Run {run.stage} / {run.run_length}'
-    lives = max(
-        0, maximum_run_lives(profile, config) - run.emergency_revivals_used
+    from .config import run_shop_config
+
+    lives = max(0, maximum_run_lives(
+        profile, run_shop_config(run, config)
+    ) - run.emergency_revivals_used)
+    return (
+        f'Mission {run.stage} — Stage {tier} — '
+        f'{lives} {"life" if lives == 1 else "lives"}'
     )
-    return f'Mission {run.stage} — Stage {tier} — {lives} lives'
 
 
 def _missions_won_line(run, config=SHOP_CONFIG):
@@ -93,9 +98,10 @@ def _missions_won_line(run, config=SHOP_CONFIG):
 
 
 def _lives_line(run, profile, config=SHOP_CONFIG):
+    from .config import run_shop_config
     from .transitions import maximum_run_lives
 
-    total = maximum_run_lives(profile, config)
+    total = maximum_run_lives(profile, run_shop_config(run, config))
     return (
         f'Lives: {max(0, total - run.emergency_revivals_used)} / {total}'
     )

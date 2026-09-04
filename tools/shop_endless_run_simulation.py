@@ -75,7 +75,7 @@ for step in range(12):
     cursor += 5
     log.append((stage, tier, was_challenge, reward.meta_coins,
                 len(run.permanent_enemy_buff_ids) - before_buffs,
-                len(run.completed_missions)))
+                len(run.completed_missions), reward.run_coins))
     print(f'   gorev {stage:>2} tier {tier}  challenge={str(was_challenge):5} '
           f'{reward.meta_coins:>3} Gem  +{log[-1][4]} buff  '
           f'gecmis={log[-1][5]}')
@@ -83,16 +83,24 @@ for step in range(12):
 check('challenge tam olarak 3, 6, 9, 12de',
       [s for s, _t, c, *_ in log if c] == [3, 6, 9, 12])
 check('her challenge zaferi 2 kalici buff verdi',
-      all(b == 2 for _s, _t, c, _g, b, _h in log if c))
+      all(b == 2 for _s, _t, c, _g, b, _h, _o in log if c))
 check('challenge disi gorev buff vermedi',
-      all(b == 0 for _s, _t, c, _g, b, _h in log if not c))
+      all(b == 0 for _s, _t, c, _g, b, _h, _o in log if not c))
 check('tier atlayinca gorev gecmisi sifirlandi',
-      [h for s, _t, _c, _g, _b, h in log if s % 3 == 0] == [0, 0, 0, 0])
+      [h for s, _t, _c, _g, _b, h, _o in log if s % 3 == 0] == [0, 0, 0, 0])
 check('run hala aktif (sonsuz)', run.status is RunStatus.ACTIVE)
-challenge_gems = [g for _s, _t, c, g, _b, _h in log if c]
-check('challenge Gem geliri her tierde artti',
-      challenge_gems == sorted(challenge_gems)
-      and challenge_gems[0] < challenge_gems[-1])
+# Ore carries the stage multiplier; Gems deliberately do not, so permanent
+# progression does not accelerate just because the run has run long.
+challenge_ore = [item[6] for item in log if item[2]]
+challenge_gems = [item[3] for item in log if item[2]]
+check('challenge Ore geliri her tierde artti',
+      challenge_ore == sorted(challenge_ore)
+      and challenge_ore[0] < challenge_ore[-1])
+# Boon modifiers still add a little Gem variance; what must not happen is
+# Gems tracking the tier the way Ore does.
+check('Gem geliri tier ile olceklenmedi',
+      challenge_gems[-1] <= challenge_gems[0] * 1.25
+      and challenge_ore[-1] >= challenge_ore[0] * 2)
 check('challenge Gem >= normalin 2 kati',
       log[2][3] >= log[1][3] * 2)
 check('toplam 8 kalici buff birikti', len(run.permanent_enemy_buff_ids) == 8)

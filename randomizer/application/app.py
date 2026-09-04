@@ -18,6 +18,7 @@ from ._dependencies import (
     ENEMY_BUFF_DEFINITIONS,
     ENEMY_BUFF_GROUP_DEFINITIONS,
     GAME_SPEEDS,
+    LOCKED_GAME_SPEED_LABEL,
     MAIN_REWARD_WEIGHT_TYPES,
     MAX_REWARDS_PER_CHECK,
     PLAYER_COLORS,
@@ -190,11 +191,9 @@ class LauncherApp(
             [name for name, _ in DIFFICULTIES],
             self.read_spawn_difficulty(),
         )
-        game_speed_default = valid_choice(
-            self.config.get('game_speed'),
-            [name for name, _ in GAME_SPEEDS],
-            self.read_spawn_game_speed(),
-        )
+        # Locked: neither the stored config nor spawn.ini may reopen the
+        # launcher on a speed the missions were not verified at.
+        game_speed_default = LOCKED_GAME_SPEED_LABEL
         campaign_default = valid_choice(
             self.state.get('campaign_filter', self.config.get('campaign_filter')),
             CAMPAIGN_FILTERS,

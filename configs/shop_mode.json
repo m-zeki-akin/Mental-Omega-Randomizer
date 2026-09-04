@@ -461,8 +461,8 @@
     "permanent_upgrades": {
       "mission_reroll": {
         "display_name": "Mission Reroll",
-        "max_level": 3,
-        "prices": [11, 22, 45],
+        "max_level": 5,
+        "prices": [11, 22, 45, 75, 115],
         "effects": {
           "rerolls_per_level": 1
         }

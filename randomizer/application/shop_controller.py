@@ -41,7 +41,11 @@ from randomizer.shop.catalogue import (
     shop_entry_available,
 )
 from randomizer.core.diagnostics import event as log_event
-from randomizer.shop.config import RUN_PACING_SETTINGS, SHOP_CONFIG
+from randomizer.shop.config import (
+    RUN_PACING_SETTINGS,
+    SHOP_CONFIG,
+    run_shop_config,
+)
 from randomizer.shop.summary import shop_run_progress_text
 from randomizer.shop.economy import (
     permanent_buff_price,
@@ -54,6 +58,7 @@ from randomizer.shop.missions import (
     mission_classes_for_stage,
 )
 from randomizer.shop.mission_modifiers import active_mission_modifier
+from randomizer.shop.transitions import maximum_run_lives
 from randomizer.shop.modifiers import (
     format_difficulty,
     pacing_gem_scale_percent,
@@ -663,11 +668,13 @@ class ShopController(ShopPolishController):
             run.modifiers
         )['disable_rerolls']:
             return 0
+        config = run_shop_config(run, self.shop_config)
         level = self.shop_profile.upgrade_level('mission_reroll')
-        per_level = self.shop_config.permanent_upgrades[
+        per_level = config.permanent_upgrades[
             'mission_reroll'
         ].effects['rerolls_per_level']
-        return level * int(per_level)
+        # Every run receives a baseline allowance; the upgrade adds to it.
+        return int(config.starting_rerolls) + level * int(per_level)
 
     def _shop_difficulty_assist_capacity(self):
         run = self.__dict__.get('shop_run')
@@ -1410,17 +1417,16 @@ class ShopController(ShopPolishController):
         ):
             return False
         try:
-            revival_definition = self.shop_config.permanent_upgrades[
-                'emergency_revival'
-            ]
-            revival_capacity = (
-                0
-                if modifier_effects(run.modifiers)['disable_revivals']
-                else self.shop_profile.upgrade_level('emergency_revival')
-                * int(revival_definition.effects['revivals_per_run'])
+            # Mirror apply_mission_failure: the run survives while a life
+            # remains after this defeat.
+            maximum_lives = (
+                1 if modifier_effects(run.modifiers)['disable_revivals']
+                else maximum_run_lives(
+                    self.shop_profile, run_shop_config(run)
+                )
             )
             revival_offers = ()
-            if run.emergency_revivals_used < revival_capacity:
+            if run.emergency_revivals_used + 1 < maximum_lives:
                 revival_offers = generate_mission_offers(
                     self._shop_launch_mission_pool,
                     run_seed=run.seed,

@@ -11,6 +11,7 @@ from ._dependencies import (
     GAME_LAUNCHER_EXE,
     GAME_ROOT,
     GAME_SPEEDS,
+    LOCKED_GAME_SPEED_VALUE,
     GRID_COMPLETED,
     GRID_UNLOCKED,
     HOOK_POLL_MS,
@@ -99,7 +100,9 @@ class LaunchController:
         return dict(DIFFICULTIES).get(self.difficulty_var.get(), 1)
 
     def get_selected_game_speed_value(self):
-        return dict(GAME_SPEEDS).get(self.game_speed_var.get(), 3)
+        # Fixed, not read from the control: the control is disabled and a
+        # preserved launcher config may still hold an older choice.
+        return LOCKED_GAME_SPEED_VALUE
 
     def read_spawn_difficulty(self):
         return choice_label_from_ini(
