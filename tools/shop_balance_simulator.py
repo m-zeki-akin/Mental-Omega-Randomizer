@@ -129,26 +129,37 @@ def economy_report(config: ShopModeConfig, settings, tiers: int) -> None:
 
 
 def purchasing_power_report(config, settings, tiers: int) -> None:
-    """How much of the run shop a tier's income can actually buy.
+    """What share of the offered shop a tier's Ore can actually buy.
 
-    Fact, not a model: it divides the Ore a tier pays by what the shop
-    charges. A flat column means Ore keeps pace with prices; a rising one
-    means later tiers drown in money, a falling one that they starve.
+    Fact, not a model. Measured against the whole slate on offer -- every
+    stocked unit and power plus one buff each -- rather than a single median
+    item, because the shop stocks many things at once and buffs stack. A
+    figure under 100% means Ore is still a real constraint and the player has
+    to choose; over 100% means a tier can clear the shelves.
     """
-    unit_prices = sorted(
+    def median(values):
+        values = sorted(values)
+        return values[len(values) // 2] if values else 0
+
+    unit = median(
         price.run_access for price in config.unit_target_prices.values()
         if price.run_access
     )
-    buff_prices = sorted(
+    unit_buff = median(
         price.run_buff for price in config.unit_target_prices.values()
         if price.run_buff
     )
-    median_unit = unit_prices[len(unit_prices) // 2]
-    median_buff = buff_prices[len(buff_prices) // 2]
+    power = median(
+        price.run_access for price in config.power_target_prices.values()
+        if price.run_access
+    )
+    slate = config.unit_inventory_size * (unit + unit_buff)
+    slate += config.power_inventory_size * power
     print()
-    print(f'== Satin alma gucu (medyan birim {median_unit}o, '
-          f'buff {median_buff}o) ==')
-    print(f'{"tier":>4} {"tier Ore":>9} {"birim":>8} {"buff":>8}')
+    print(f'== Satin alma gucu (bir turluk stok ~{slate}o: '
+          f'{config.unit_inventory_size} birim + buff, '
+          f'{config.power_inventory_size} guc) ==')
+    print(f'{"tier":>4} {"tier Ore":>9} {"stogun %":>10}')
     for tier in range(1, tiers + 1):
         ore = sum(
             _reward(
@@ -162,8 +173,9 @@ def purchasing_power_report(config, settings, tiers: int) -> None:
             ).run_coins
             for offset in range(config.stage_length)
         )
-        print(f'{tier:>4} {ore:>9} {ore / median_unit:>8.1f} '
-              f'{ore / median_buff:>8.1f}')
+        print(f'{tier:>4} {ore:>9} {100 * ore / slate:>9.0f}%')
+    print('   not: stok her gorevde yenilenir ve buff lar ust uste binebilir,'
+          ' yani gercek harcama tavani bundan yuksek')
 
 
 def career_report(config, settings, model, careers, runs_each, seed):
