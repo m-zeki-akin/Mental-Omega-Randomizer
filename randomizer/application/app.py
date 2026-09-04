@@ -40,6 +40,8 @@ from ._dependencies import (
     valid_choice,
 )
 
+from randomizer.shop.config import SHOP_CONFIG
+
 from .window import WindowController
 from .state_controller import StateController
 from .reward_controller import RewardController
@@ -343,6 +345,14 @@ class LauncherApp(
         self.include_no_build_missions_var = tk.BooleanVar(
             value=bool(generation_config.get('include_no_build_missions', True))
         )
+        # Optional Shop shelf filters, one per configured exclusion group.
+        # Default off, so an untouched launcher keeps the full catalogue.
+        self.shop_exclusion_vars = {
+            group.setting_key: tk.BooleanVar(
+                value=bool(generation_config.get(group.setting_key, False))
+            )
+            for group in SHOP_CONFIG.reward_exclusion_groups
+        }
         self.include_no_build_production_missions_var = tk.BooleanVar(
             value=bool(generation_config.get('include_no_build_production_missions', True))
         )

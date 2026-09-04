@@ -23,7 +23,12 @@ from randomizer.ui.cameos import (
     ensure_unit_cameos,
 )
 
-from .catalogue import canonical_reward_for_id, shop_catalogue
+from .catalogue import (
+    canonical_reward_for_id,
+    run_excluded_target_ids,
+    shop_catalogue,
+    shop_entry_available,
+)
 from .active import (
     active_shop_power_ids,
     active_shop_rewards,
@@ -1894,6 +1899,28 @@ def validate_shop_domain():
         and invalid_state_rejected
     )
 
+    # Exclusion groups are measured against the whole catalogue, so the
+    # count proves each one also removes the buffs that target its units,
+    # not just the access entry a reader would notice missing.
+    def visible_entries(settings):
+        excluded = run_excluded_target_ids(settings)
+        return sum(
+            1 for entry in shop_catalogue()
+            if shop_entry_available(
+                entry,
+                campaign_filter='All Campaigns',
+                reward_mode=SHOP_ACCESS_REWARD_MODE,
+                strict_faction=True,
+                excluded_target_ids=excluded,
+            )
+        )
+
+    _all_visible = visible_entries({})
+    hidden_by_group = {
+        group.id: _all_visible - visible_entries({group.setting_key: True})
+        for group in SHOP_CONFIG.reward_exclusion_groups
+    }
+
     details = {
         'config_validation_valid': config_validation_valid,
         'economy_valid': economy_valid,
@@ -1925,6 +1952,29 @@ def validate_shop_domain():
             and all(
                 entry.reward_id != 'Foehn Blast Trench Access'
                 for entry in catalogue
+            )
+        ),
+        # A group whose ids match nothing would leave the checkbox claiming
+        # to hide rewards it never touches, and a group that only hides the
+        # access entry would leave the unit's buffs on the shelf.
+        'shop_exclusion_groups_valid': bool(
+            SHOP_CONFIG.reward_exclusion_groups
+            and all(
+                group.target_ids
+                and hidden_by_group[group.id] > len(group.target_ids)
+                and not run_excluded_target_ids({}).intersection(
+                    group.target_ids
+                )
+                and run_excluded_target_ids(
+                    {group.setting_key: True}
+                ) == group.target_ids
+                for group in SHOP_CONFIG.reward_exclusion_groups
+            )
+            and sum(hidden_by_group.values()) == visible_entries({}) - (
+                visible_entries({
+                    group.setting_key: True
+                    for group in SHOP_CONFIG.reward_exclusion_groups
+                })
             )
         ),
         'shop_exact_access_mode_valid': SHOP_ACCESS_REWARD_MODE == 'Chaos',

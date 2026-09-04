@@ -1030,6 +1030,80 @@
         }
       }
     },
+    "reward_exclusion_groups": {
+      "campaign_units": {
+        "setting_key": "shop_exclude_campaign_units",
+        "display_name": "Exclude campaign-only units",
+        "description": "Hide story units that no skirmish game can build: prototypes, boss brutes, retired Red Alert 2 hardware, and one-off heroes.",
+        "target_ids": [
+          "ARND",
+          "AHVYBOT",
+          "ARTY",
+          "LONGBO",
+          "RANGER",
+          "JACKALP",
+          "STARDUSTB",
+          "MECHA",
+          "STLN",
+          "SHINBOT",
+          "STHOR",
+          "MAMUP",
+          "TARCHIAP",
+          "CYCOM",
+          "CYBO",
+          "GHTNKP",
+          "ITNK",
+          "BIKE",
+          "TERROR",
+          "PROMEP",
+          "OTRK",
+          "KSNK",
+          "MADU",
+          "MAMU",
+          "V2",
+          "PERUN",
+          "ICBM",
+          "HEPH",
+          "YAHCRE",
+          "BRUTS",
+          "GRAV",
+          "DHANDL",
+          "BRUTM",
+          "RHAD",
+          "BRUTV"
+        ]
+      },
+      "campaign_powers": {
+        "setting_key": "shop_exclude_campaign_powers",
+        "display_name": "Exclude campaign-only support powers",
+        "description": "Hide support powers that exist only inside scripted missions.",
+        "target_ids": [
+          "STRATOSPECIAL",
+          "MORENGINEERINGTEAMSPECIAL",
+          "KNIGHTFALLSPAWN",
+          "TIMEFREEZESPECIAL"
+        ]
+      },
+      "superweapons": {
+        "setting_key": "shop_exclude_superweapons",
+        "display_name": "Exclude superweapons",
+        "description": "Hide game-ending superweapons and keep the run on ordinary support powers.",
+        "target_ids": [
+          "LIGHTNINGSTORMSPECIAL",
+          "EMPULSSPECIAL",
+          "PALADINAIDSPECIAL",
+          "IRONCURTAINSPECIAL",
+          "NUKESPECIAL",
+          "RAGEINDUCTORSPECIAL",
+          "PSYCHICDOMINATORSPECIAL",
+          "GREATTEMPESTSPECIAL",
+          "BOIDBLITZSPECIAL",
+          "HARBINGERSPECIAL",
+          "TECHMISSILESPECIAL",
+          "CHRONOSPHERESPECIAL"
+        ]
+      }
+    },
     "stage_class_weights": [
       {
         "through_stage": 1,

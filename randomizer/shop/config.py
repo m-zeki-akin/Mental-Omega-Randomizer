@@ -10,6 +10,7 @@ from .model import (
     ModifierDefinition,
     PermanentUpgradeDefinition,
     EnemyBuffTier,
+    RewardExclusionGroup,
     ShopModeConfig,
     ShopPowerPriceDefinition,
     ShopTargetPriceDefinition,
@@ -133,6 +134,20 @@ def load_shop_mode_config() -> ShopModeConfig:
         ),
         excluded_reward_ids=tuple(
             str(reward_id) for reward_id in settings['excluded_reward_ids']
+        ),
+        reward_exclusion_groups=tuple(
+            RewardExclusionGroup(
+                id=str(group_id),
+                setting_key=str(definition['setting_key']),
+                display_name=str(definition['display_name']),
+                description=str(definition['description']),
+                target_ids=frozenset(
+                    str(target_id).upper()
+                    for target_id in definition['target_ids']
+                ),
+            )
+            for group_id, definition
+            in sections['reward_exclusion_groups'].items()
         ),
         mission_rewards=mission_rewards,
         stage_class_weights=stage_weights,

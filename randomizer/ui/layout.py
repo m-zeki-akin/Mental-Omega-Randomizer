@@ -641,6 +641,46 @@ def _build_right_panel(self, main_frame):
         self.shop_include_no_build_production_missions_check,
         'Include missions without normal base building but with limited production.',
     )
+
+    shop_reward_filters = ttk.LabelFrame(
+        shop_settings_frame, text='Reward Pool', padding=8
+    )
+    shop_reward_filters.grid(
+        row=8, column=0, columnspan=2, sticky='ew', pady=(8, 0)
+    )
+    ttk.Label(
+        shop_reward_filters,
+        text=(
+            'Optional shelf filters. Each one hides its rewards from the run '
+            'shop, the permanent loadout, and every buff that targets them. '
+            'Chosen before a run starts and fixed for its whole length; they '
+            'do not change the run difficulty.'
+        ),
+        style='Shop.Help.TLabel',
+        wraplength=560,
+        justify='left',
+    ).grid(row=0, column=0, sticky='w', pady=(0, 6))
+    self.shop_exclusion_checks = {}
+    for index, group in enumerate(
+        self.shop_config.reward_exclusion_groups, start=1
+    ):
+        variable = self.shop_exclusion_vars.get(group.setting_key)
+        if variable is None:
+            continue
+        check = ttk.Checkbutton(
+            shop_reward_filters,
+            text=group.display_name,
+            variable=variable,
+            command=self.on_shop_reward_filter_changed,
+        )
+        check.grid(row=index, column=0, sticky='w', pady=(0, 2))
+        WidgetTooltip(
+            check,
+            f'{group.description} '
+            f'Hides {len(group.target_ids)} targets.',
+        )
+        self.shop_exclusion_checks[group.setting_key] = check
+
     ttk.Label(
         shop_settings_frame,
         text=(

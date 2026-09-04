@@ -538,3 +538,36 @@ def validate_shop_mode_config(sections, path, invalid):
             or mixes_percent_and_flat
         ):
             invalid(f'Invalid Shop Mode modifier {modifier_id!r}', path)
+
+    # Optional shelf filters the player ticks before a run. Every id has to
+    # name something the shop could otherwise sell, or a group silently
+    # excludes nothing and the checkbox lies.
+    priced_targets = set(power_prices) | set(target_prices)
+    group_settings = set()
+    claimed_targets = set()
+    for group_id, definition in sections['reward_exclusion_groups'].items():
+        target_ids = (
+            definition.get('target_ids') if isinstance(definition, dict) else None
+        )
+        setting_key = (
+            definition.get('setting_key') if isinstance(definition, dict) else None
+        )
+        if (
+            not _is_nonempty_string(group_id)
+            or not isinstance(definition, dict)
+            or not _is_nonempty_string(setting_key)
+            or setting_key in group_settings
+            or not _is_nonempty_string(definition.get('display_name'))
+            or not _is_nonempty_string(definition.get('description'))
+            or not isinstance(target_ids, list)
+            or not target_ids
+            or any(not _is_nonempty_string(item) for item in target_ids)
+            or len(target_ids) != len(set(target_ids))
+            or not set(target_ids).issubset(priced_targets)
+            or claimed_targets.intersection(target_ids)
+        ):
+            invalid(
+                f'Invalid Shop Mode reward exclusion group {group_id!r}', path
+            )
+        group_settings.add(setting_key)
+        claimed_targets.update(target_ids)

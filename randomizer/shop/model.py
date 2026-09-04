@@ -127,6 +127,17 @@ class ModifierDefinition:
 
 
 @dataclass(frozen=True)
+class RewardExclusionGroup:
+    """One optional shelf filter the player ticks before a run starts."""
+
+    id: str
+    setting_key: str
+    display_name: str
+    description: str
+    target_ids: frozenset[str]
+
+
+@dataclass(frozen=True)
 class ShopTargetPriceDefinition:
     run_access: int | None
     run_buff: int | None
@@ -166,6 +177,7 @@ class ShopModeConfig:
     archipelago_purchase_meta_coin_cost: int
     archipelago_mission_victories_are_locations: bool
     excluded_reward_ids: tuple[str, ...]
+    reward_exclusion_groups: tuple[RewardExclusionGroup, ...]
     mission_rewards: Mapping[MissionEconomyClass, MissionRewardDefinition]
     stage_class_weights: tuple[StageWeightProfile, ...]
     stage_difficulty_weights: tuple[StageDifficultyProfile, ...]

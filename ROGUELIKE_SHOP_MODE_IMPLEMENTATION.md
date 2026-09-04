@@ -773,6 +773,46 @@ Game speed is fixed at 4 - Fast and written to the spawned mission and the
 in-game options alike: missions, rewards, and enemy scaling are all tuned at
 that speed.
 
+## Reward Pool
+
+Three optional filters sit under Mission Pool on the setup screen. Each hides
+a configured group of targets from the run shop, the permanent loadout, and
+every buff that targets them:
+
+| Filter                                 | Hides                                              |
+| -------------------------------------- | -------------------------------------------------- |
+| Exclude campaign-only units            | 35 story units no skirmish game can build           |
+| Exclude campaign-only support powers   | 4 powers that exist only inside scripted missions   |
+| Exclude superweapons                   | 12 game-ending superweapons                         |
+
+The groups live in `shop_mode.json` under `reward_exclusion_groups`, so a
+group is data: an id list, a display name, a description, and the
+`reward_settings` key it writes. The validator requires every id to name a
+target the shop actually prices, forbids the same target appearing in two
+groups, and forbids two groups sharing a settings key -- a group that matched
+nothing would leave a checkbox claiming to hide rewards it never touches.
+
+Exclusion is by **target**, not reward id. An access entry and the dozen buff
+entries aimed at the same unit share a target, so hiding "Paradox Engine
+Access" while leaving "Paradox Engine Firepower I" on the shelf would hide
+nothing. Ticking all three removes 51 targets and 515 of the catalogue's 4,045
+shop entries.
+
+Like the faction pool, the filters are read when a run starts and frozen into
+its `reward_settings`, so a saved run keeps the shelf it was played with. They
+carry no difficulty weight: removing options is not the same as making the run
+harder, and the pros and cons do not balance the way a run modifier's do. They
+are also outside the Run Pacing `Reset` button, which restores pacing and
+modifiers only.
+
+Enabling a filter drops any matching unit out of the pending permanent
+loadout as well. Without that, a selection the tree no longer displays would
+still reach `start_new_run` and abort the run as an ineligible loadout.
+
+Archipelago entitlements are deliberately untouched: an item the server has
+already sent stays usable, because filtering it locally would waste a real
+multiworld item.
+
 Only the rules that shape the whole run are adjustable. Opening resources keep
 their configured values and are not player-facing settings: three lives, 125
 Ore, and two rerolls. The Extra Life, Starting Capital, and Mission Reroll

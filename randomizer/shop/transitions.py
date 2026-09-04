@@ -7,6 +7,7 @@ from .config import SHOP_CONFIG, run_shop_config
 from .catalogue import (
     canonical_reward_for_id,
     catalogue_entry,
+    run_excluded_target_ids,
     shop_entry_available,
 )
 from hashlib import sha256
@@ -208,6 +209,9 @@ def start_new_run(
             campaign_filter=faction_filter,
             reward_mode=reward_mode,
             strict_faction=bool(reward_settings.get('shop_faction_filter')),
+            excluded_target_ids=run_excluded_target_ids(
+                reward_settings, config
+            ),
         )
     ]
     if unavailable_loadout:

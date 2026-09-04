@@ -13,7 +13,7 @@ from randomizer.rewards.catalogue import (
 from randomizer.rewards.roster import randomizer_unit_template_values
 from randomizer.rewards.rules import tech_ids_for_rewards
 
-from .model import ShopCatalogueEntry, ShopRewardType
+from .model import ShopCatalogueEntry, ShopModeConfig, ShopRewardType
 from .config import SHOP_CONFIG
 
 
@@ -204,10 +204,39 @@ def shop_catalogue_by_reward_id():
     return {entry.reward_id: entry for entry in shop_catalogue()}
 
 
+def run_excluded_target_ids(reward_settings, config: ShopModeConfig = SHOP_CONFIG):
+    """Return the targets a run's optional shelf filters remove.
+
+    The filters are ticked before a run starts and frozen into its
+    reward_settings, so a saved run keeps the shelf it was played with even
+    after the launcher's boxes change. Exclusion is by target, not reward id:
+    an access entry and its dozen buff entries share a target, and hiding the
+    unit while leaving its Firepower upgrades on the shelf hides nothing.
+    """
+    settings = reward_settings or {}
+    excluded = set()
+    for group in config.reward_exclusion_groups:
+        if settings.get(group.setting_key):
+            excluded.update(group.target_ids)
+    return frozenset(excluded)
+
+
 def shop_entry_available(
-    entry, *, campaign_filter, reward_mode, strict_faction=False
+    entry,
+    *,
+    campaign_filter,
+    reward_mode,
+    strict_faction=False,
+    excluded_target_ids=(),
 ):
     """Return whether current mode can use entry's canonical faction scope."""
+    # Checked before the reward-mode escape below, which answers True for
+    # every entry and would otherwise wave the excluded ones straight through.
+    if (
+        excluded_target_ids
+        and str(entry.target_id).upper() in excluded_target_ids
+    ):
+        return False
     if strict_faction and str(campaign_filter) != 'All Campaigns':
         allowed = {str(campaign_filter), 'Neutral'}
         return bool(

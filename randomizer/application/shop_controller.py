@@ -38,6 +38,8 @@ from randomizer.shop.catalogue import (
     canonical_reward_for_id,
     catalogue_entry,
     shop_catalogue,
+    run_excluded_target_ids,
+    shop_catalogue_by_reward_id,
     shop_entry_available,
 )
 from randomizer.core.diagnostics import event as log_event
@@ -210,6 +212,15 @@ class ShopController(ShopPolishController):
         )
 
     def on_shop_faction_pool_changed(self, _event=None):
+        self.save_current_launcher_config()
+        self.refresh_shop_mode()
+
+    def on_shop_reward_filter_changed(self, _event=None):
+        """Persist the filter and redraw the setup screen around it.
+
+        The redraw is what drops a newly filtered unit out of the loadout
+        tree and out of the pending selection behind it.
+        """
         self.save_current_launcher_config()
         self.refresh_shop_mode()
 
@@ -740,18 +751,33 @@ class ShopController(ShopPolishController):
     def _shop_mission(self, code):
         return self._mission_by_code.get(str(code).upper(), {})
 
+    def shop_pending_reward_exclusions(self):
+        """Return the shelf filters the entry screen currently has ticked."""
+        return run_excluded_target_ids({
+            group.setting_key: bool(variable.get())
+            for group, variable in (
+                (group, self.shop_exclusion_vars.get(group.setting_key))
+                for group in self.shop_config.reward_exclusion_groups
+            )
+            if variable is not None
+        })
+
     def _shop_entry_available(self, entry, run=None):
+        reward_mode = SHOP_REWARD_MODE
         if run is None:
-            reward_mode = SHOP_REWARD_MODE
             campaign_filter = self.shop_campaign_filter()
+            # No run yet: the loadout tree has to answer for the boxes as
+            # they stand, or a player selects a unit the run would refuse.
+            excluded = self.shop_pending_reward_exclusions()
         else:
-            reward_mode = SHOP_REWARD_MODE
             campaign_filter = self.shop_run_faction_filter(run)
+            excluded = run_excluded_target_ids(run.reward_settings)
         return shop_entry_available(
             entry,
             campaign_filter=campaign_filter,
             reward_mode=reward_mode,
             strict_faction=True,
+            excluded_target_ids=excluded,
         )
 
     def _set_shop_message(self, message, *, error=False):
@@ -1640,6 +1666,13 @@ class ShopController(ShopPolishController):
         effects = modifier_effects(modifiers)
         faction_filter = self.shop_campaign_filter()
         settings['shop_faction_filter'] = faction_filter
+        # Frozen like the faction pool: a run keeps the shelf it started
+        # with, whatever the launcher's boxes say afterwards.
+        for group in self.shop_config.reward_exclusion_groups:
+            variable = self.shop_exclusion_vars.get(group.setting_key)
+            settings[group.setting_key] = bool(
+                variable is not None and variable.get()
+            )
         previous_context = self.__dict__.get('_seed_generation_context')
         self._seed_generation_context = {
             'campaign_filter': faction_filter,
@@ -2028,6 +2061,20 @@ class ShopController(ShopPolishController):
                 ) & local_owned
                 self._shop_loadout_selection_initialized = True
             self._shop_pending_loadout_selection.intersection_update(local_owned)
+            # A unit a reward filter hides has to leave the pending
+            # selection as well. The tree stops showing it either way, but
+            # a selection the player can no longer see would still reach
+            # start_new_run and abort the run as an ineligible loadout.
+            excluded = self.shop_pending_reward_exclusions()
+            if excluded:
+                by_reward_id = shop_catalogue_by_reward_id()
+                self._shop_pending_loadout_selection = {
+                    reward_id
+                    for reward_id in self._shop_pending_loadout_selection
+                    if str(getattr(
+                        by_reward_id.get(reward_id), 'target_id', ''
+                    )).upper() not in excluded
+                }
             selected = set(self._shop_pending_loadout_selection)
         if active_run:
             selected.update(ap_owned)

@@ -1032,6 +1032,8 @@ class StateController:
         self.config['generation']['include_no_build_missions'] = bool(
             self.include_no_build_missions_var.get()
         )
+        for setting_key, variable in self.shop_exclusion_vars.items():
+            self.config['generation'][setting_key] = bool(variable.get())
         self.config['generation']['include_no_build_production_missions'] = bool(
             self.include_no_build_production_missions_var.get()
         )
@@ -1252,6 +1254,8 @@ class StateController:
         self.include_no_build_missions_var.set(bool(
             generation.get('include_no_build_missions', True)
         ))
+        for setting_key, variable in self.shop_exclusion_vars.items():
+            variable.set(bool(generation.get(setting_key, False)))
         self.include_no_build_production_missions_var.set(bool(
             generation.get('include_no_build_production_missions', True)
         ))
