@@ -709,8 +709,17 @@ def _build_right_panel(self, main_frame):
             'easier settings pay fewer.'
         ),
         style='Shop.Help.TLabel',
-        wraplength=720,
-    ).grid(row=0, column=0, columnspan=4, sticky='w', pady=(0, 6))
+        wraplength=560,
+    ).grid(row=0, column=0, columnspan=3, sticky='w', pady=(0, 6))
+    self.shop_pacing_difficulty_var = tk.StringVar(
+        value='Run difficulty +0 — Gems x1'
+    )
+    ttk.Label(
+        pacing_frame,
+        textvariable=self.shop_pacing_difficulty_var,
+        font=('Segoe UI', 10, 'bold'),
+        style='Shop.Reward.TLabel',
+    ).grid(row=0, column=3, sticky='e', pady=(0, 6))
     for column in range(4):
         pacing_frame.columnconfigure(column, weight=1)
     pacing_labels = {
@@ -746,19 +755,12 @@ def _build_right_panel(self, main_frame):
         row=16, column=0, columnspan=2, sticky='ew', pady=(10, 0)
     )
     self.shop_modifier_status_var = tk.StringVar(value='')
-    self.shop_modifier_difficulty_var = tk.StringVar(value='Difficulty +0')
     ttk.Label(
         modifier_frame,
         textvariable=self.shop_modifier_status_var,
         style='Shop.Help.TLabel',
         wraplength=720,
     ).grid(row=0, column=0, columnspan=2, sticky='w', pady=(0, 6))
-    ttk.Label(
-        modifier_frame,
-        textvariable=self.shop_modifier_difficulty_var,
-        font=('Segoe UI', 10, 'bold'),
-        style='Shop.Reward.TLabel',
-    ).grid(row=0, column=1, sticky='e', pady=(0, 6))
     self.shop_modifier_buttons = []
     for column in range(2):
         modifier_frame.columnconfigure(column, weight=1)

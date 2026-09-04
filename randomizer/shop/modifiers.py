@@ -98,10 +98,16 @@ def pacing_difficulty(reward_settings, config: ShopModeConfig = SHOP_CONFIG):
 
 
 def run_difficulty(modifier_ids, reward_settings=None, config=SHOP_CONFIG):
-    """Return the run's total visible difficulty: modifiers plus pacing."""
-    return modifier_difficulty(modifier_ids) + pacing_difficulty(
-        reward_settings, config
-    )
+    """Return the run's difficulty, which is its pacing alone.
+
+    Optional run modifiers deliberately do not count. Each one pairs an
+    advantage with a drawback and is meant to read as a trade rather than a
+    difficulty step, so folding them in here would overstate how hard a run
+    with several balanced modifiers actually is. modifier_difficulty() remains
+    for the per-modifier count shown beside the modifier list itself.
+    """
+    del modifier_ids
+    return pacing_difficulty(reward_settings, config)
 
 
 def pacing_gem_scale_percent(reward_settings, config: ShopModeConfig = SHOP_CONFIG):

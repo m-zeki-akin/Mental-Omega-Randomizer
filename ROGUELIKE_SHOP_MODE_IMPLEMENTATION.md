@@ -89,7 +89,19 @@ Gems are **not lost on run failure**.
 
 # 3. Core game loop
 
-A Shop Mode run consists of exactly **10 successful missions** by default.
+A Shop Mode run is **endless**. It is paced in **stages of 3 missions**
+(`stage_length`) and ends only when the player runs out of lives.
+
+Every third mission — the one that closes a stage — is a **challenge**, on all
+three offers, so the player meets exactly one per stage whichever they pick.
+Winning it hands the AI two **permanent enemy buffs** that stay for the rest of
+the run, and opens the next stage.
+
+`run_length` still exists but is **Archipelago-only**. An AP slot needs a finite
+location count and a goal condition — the APWorld builds one location per stage
+and validates 5..20 — so an AP run stops after `run_length` missions (9 by
+default, a whole number of stages). `endless` is persisted per run and set from
+whether the run has an AP identity, so a run keeps its own rules.
 
 The run sequence is:
 
@@ -107,19 +119,23 @@ The run sequence is:
 12. Launch selected mission.
 13. If victory:
     - mark the mission slot complete
-    - award Ore Coins based on mission difficulty/class
-    - award Gems according to configured policy
+    - award Ore Coins based on mission difficulty/class, scaled by the stage
+    - award Gems according to configured policy, scaled by the stage and by the
+      run's pacing difficulty
     - apply permanent victory coin bonus
     - process Archipelago checks/items if connected
+    - if this mission closed a stage, draw the configured number of permanent
+      enemy buffs and clear the per-stage offer history
     - generate the next set of three mission offers
 14. If failure:
-    - the current run ends immediately
-    - no further mission may be launched from that run
-    - preserve permanent/meta profile
-    - preserve AP-received permanent entitlements
-    - display Run Over summary
-    - require New Run / Restart Run
-15. After victory 10:
+    - spend one life
+    - if a life remains, discard the failed mission, offer a fresh slate, and
+      keep the run on the same stage
+    - if it was the last life, the run ends: preserve the permanent/meta
+      profile and AP-received entitlements, display the Run Over summary, and
+      require New Run / Restart Run
+15. An endless run has no completion. An Archipelago run completes after
+    `run_length` victories:
     - mark the run completed
     - display Run Victory summary
     - award any finale/run-completion bonus
@@ -129,7 +145,8 @@ The run sequence is:
 
 The final mission is still one of the offered/chosen missions unless later balancing defines a dedicated finale pool.
 
-The implementation must support replacing the default `10` with a future config value without rewriting the state model.
+Pacing values are config defaults, and four of them are chosen per run on the
+entry screen (see section 9.2). Nothing in the state model may hardcode them.
 
 ---
 
@@ -160,12 +177,23 @@ Prefer data in `configs/missions.json` or another focused config if classificati
 
 Suggested default economy ranking:
 
-| Class     | Relative difficulty | Default Run Coin reward | Default Gem reward |
-| --------- | ------------------: | ----------------------: | -----------------------: |
-| Act 1     |                   1 |                       3 |                        1 |
-| Act 2     |                   2 |                       5 |                        2 |
-| Operation |                   3 |                       7 |                        3 |
-| Finale    |                   4 |                      10 |                        4 |
+| Class     | Relative difficulty | Stage 1 Run Coin reward | Stage 1 Gem reward |
+| --------- | ------------------: | ----------------------: | -----------------: |
+| Act 1     |                   1 |                       3 |                  2 |
+| Act 2     |                   2 |                       5 |                  3 |
+| Operation |                   3 |                       7 |                  5 |
+| Finale    |                   4 |                      10 |                  7 |
+
+These are the **stage 1** values. Every later stage multiplies both currencies
+by `1 + stage_income_percent_per_stage/100 x (tier - 1)`, because each stage is
+permanently harder than the one before it. A challenge additionally pays
+`challenge_reward_multiplier_percent` (250% by default), which is what the two
+permanent enemy buffs it grants are priced against.
+
+Economy class decides the payout and says nothing about difficulty: eleven of
+the twenty-five `operation` missions are ordinary base-building maps and the
+rest are late no-build set pieces. `stage_score_ceilings` therefore gates which
+missions may be offered at all, using the reviewed mission stage score.
 
 These are **initial balance values only** and must be configurable.
 
@@ -175,15 +203,20 @@ Suggested config:
 
 ```json
 {
-  "shop_mode": {
-    "run_length": 10,
-    "mission_offer_count": 3,
-    "mission_rewards": {
-      "act_1": { "run_coins": 3, "meta_coins": 1 },
-      "act_2": { "run_coins": 5, "meta_coins": 2 },
-      "operation": { "run_coins": 7, "meta_coins": 3 },
-      "finale": { "run_coins": 10, "meta_coins": 4 }
-    }
+  "settings": {
+    "run_length": 9,
+    "stage_length": 3,
+    "starting_lives": 3,
+    "stage_income_percent_per_stage": 40,
+    "challenge_reward_multiplier_percent": 250,
+    "permanent_enemy_buffs_per_challenge": 2,
+    "mission_offer_count": 3
+  },
+  "mission_rewards": {
+    "act_1": { "run_coins": 3, "meta_coins": 2 },
+    "act_2": { "run_coins": 5, "meta_coins": 3 },
+    "operation": { "run_coins": 7, "meta_coins": 5 },
+    "finale": { "run_coins": 10, "meta_coins": 7 }
   }
 }
 ```
@@ -193,16 +226,20 @@ Suggested config:
 Use stage-based weights so later stages trend harder. A zero weight is a hard
 exclusion, including during rerolls.
 
-Implemented ten-stage profile:
+Weights key off the absolute **stage tier**, not a percentage through a
+fixed-length run, and the last profile saturates for every tier beyond it. An
+endless run has no final stage to interpolate towards.
 
-- stages 1–2: Act 1 only, with one fixed-unit/hero offer when available
-- stages 3–4: Act 1 / Act 2
-- stages 5–6: Act 1 / Act 2 / Operation
-- stages 7–8: Act 1 / Act 2 / Operation, weighted toward harder missions
-- stage 9: Act 2 / Operation / Finale
-- stage 10: Act 2 / Operation / Finale, strongly favor Finale
+Implemented profile (tier = `ceil(mission / stage_length)`):
 
-Do not make mission 10 impossible to generate because all finale missions were previously consumed.
+- tier 1: Act 1 only, with one fixed-unit/hero offer when available
+- tier 2: Act 1 / Act 2
+- tier 3: Act 1 / Act 2 / Operation
+- tiers 4–5: Act 1 / Act 2 / Operation, weighted toward harder missions
+- tiers 6–8: Act 2 / Operation / Finale
+- tier 9+: Act 2 / Operation / Finale, strongly favor Finale
+
+Game difficulty (Casual / Normal / Mental) follows the same tier ladder.
 
 The mission offer generator must handle exhausted pools safely.
 
@@ -210,9 +247,19 @@ The mission offer generator must handle exhausted pools safely.
 
 Default rule:
 
-- do not offer a mission already successfully completed during the same run
+- do not offer a mission already successfully completed during the **open
+  stage**; the history clears when a stage closes, so an endless run cannot
+  exhaust the campaign and be left with whatever missions happened to remain
 - avoid duplicate missions within the same three-card offer
 - after reroll, avoid reproducing the exact same three-card set when alternatives exist
+
+Because a mission can legitimately come round again in a later stage, victory
+idempotency is scoped to the open stage and the one before it: a repeated
+victory report still pays once, but a genuine replay pays again.
+
+If the enabled classes cannot fill the three-card slate — a narrow campaign
+filter, or an early stage that enables one class — neighbouring classes are
+pulled in at minimal weight. The slate is never shortened.
 
 Whether missions may repeat across **different runs** is unrestricted.
 
@@ -232,9 +279,12 @@ Persist the generated current offer so reopening the launcher does not silently 
 
 # 5. Run failure and run completion
 
-A mission failure is fatal to the run.
+A run starts with `starting_lives` lives (3 by default) and the Extra Life
+upgrade sells more. A mission failure spends one. The run survives while a life
+remains: the failed mission is discarded, a fresh slate is offered, and the
+stage does not advance. The defeat that spends the last life is fatal.
 
-After failure:
+After the final failure:
 
 - set `status = "failed"`
 - store `failed_mission_code`
@@ -250,11 +300,11 @@ Any existing mission failure detection should be reused.
 
 Do not create a second independent game-log parser just for Shop Mode.
 
-A completed run uses:
+Only an Archipelago run completes. It uses:
 
 `status = "completed"`
 
-After stage 10 victory:
+After the `run_length` victory:
 
 - stop generating offers
 - preserve final run summary
@@ -391,6 +441,11 @@ They do not automatically all become active in a run.
 At new-run setup, the player may choose **up to 5 extra units** from their permanent unlock pool.
 
 Mandatory starting Tier 1 units are separate and do not consume those 5 slots.
+
+The selector therefore lists nothing on a profile that has never spent Gems.
+An empty tree reads as a broken list, so it must say why it is empty rather
+than render blank. This is distinct from the Current Loadout tab, which always
+lists the mandatory Tier 1 starters and defenses for the active run.
 
 For newly generated AP Shop seeds, received unit entitlements are rolled
 deterministically into remaining extra-unit slots when a run starts. Manually
@@ -565,13 +620,15 @@ Do not implement unless the first Shop uses rotating offers.
 - Gem Dividend: completed runs convert remaining Ore into a level-capped Gem bonus.
 - Premium Supplier: later stages guarantee one higher-tier access offer.
 
-### Second Chance
+### Extra Life
 
-This is potentially powerful and conflicts with the core "one failure ends the run" identity.
+Surviving a defeat is no longer an upgrade-only privilege: every run starts
+with `starting_lives` lives. The upgrade sells more on top, one per level, and
+is priced so a full ladder is a real investment rather than an assumed
+purchase.
 
-Do **not** include in version 1.
-
-If added later, make it expensive and explicit.
+This replaces the original "one failure ends the run" identity, which made
+early runs end before the shop economy could start.
 
 ---
 
@@ -608,13 +665,23 @@ Example modifiers:
 Implemented additions are Glass Cannon, Overclocked Factories, Black Market,
 Elite Force, No Safety Net, Support Doctrine, War Economy, Narrow Intelligence,
 Liquid Assets, and Treasure Hunter. Combat modifiers reuse isolated player
-clones and existing weapon-clone paths. Each distinct active modifier adds one
-displayed difficulty point. Percentages compose multiplicatively and flat
-effects add, so enabling several modifiers cannot overwrite an earlier hook.
+clones and existing weapon-clone paths. Percentages compose multiplicatively
+and flat effects add, so enabling several modifiers cannot overwrite an earlier
+hook.
+
+Modifiers deliberately do **not** contribute to the run difficulty figure. Each
+one pairs an advantage with a drawback and is meant to read as a trade, so
+counting them would overstate how hard a run with several balanced modifiers
+actually is. The modifier list shows its own selected count instead.
 
 ## 9.1 Modifier selection
 
-Provide a section in the Shop Mode new-run setup:
+Provide two independent sections in the Shop Mode new-run setup:
+
+`Run Pacing` (section 9.2) owns the difficulty figure and displays it with its
+Gem consequence: `Run difficulty +4 - Gems x1.4`. The readout always describes
+the pacing controls, which always describe the next run; an active run cannot
+have its pacing changed and reports its own figure in the run summary.
 
 `Run Modifiers`
 
@@ -631,6 +698,64 @@ Modifiers can use a reward multiplier:
 and/or direct effect hooks.
 
 Clamp final currency rewards to non-negative integers.
+
+---
+
+## 9.2 Run pacing
+
+Four pacing values are chosen on the entry screen before a run starts and are
+fixed for its whole length:
+
+| Setting                      | Range   | Default | Harder direction |
+| ---------------------------- | ------- | ------: | ---------------- |
+| Starting lives               | 1-5     |       3 | fewer            |
+| Income per stage (%)         | 0-100   |      40 | lower            |
+| Enemy buffs per challenge    | 0-4     |       2 | more             |
+| Missions per stage           | 2-5     |       3 | fewer            |
+
+They are stored in `reward_settings`, which is already snapshotted per run, so
+a run keeps the rules it started with even if the launcher defaults change
+underneath it. `run_shop_config()` resolves them into the config the run
+actually plays under, clamped to the ranges above; victory, defeat, offer
+pacing, and payouts all read that resolved config, so the choices change the
+rules and not merely a label.
+
+Each step away from the configured baseline scores difficulty points, signed so
+that a harder run scores higher. Pacing is the **only** contributor to run
+difficulty — see section 9.1 for why modifiers are excluded. The score scales
+**Gem** payouts between 50% and 200%, so permanent progression cannot be farmed
+by turning the difficulty down.
+
+Ore is deliberately **not** scaled by pacing. It is the run's own currency and
+the stage multiplier already governs it; scaling it twice would let an easy run
+out-shop a hard one inside the run as well.
+
+## 9.3 Permanent enemy escalation
+
+Each challenge victory draws `permanent_enemy_buffs_per_challenge` enemy buffs
+that stay for the rest of the run. Draws are deterministic from the run seed
+like every other Shop roll, and respect each buff's stack ceiling from the
+shared enemy-scaling contract, so Shop draws and Archipelago Traps cannot push
+one buff past its reviewed maximum.
+
+Buffs unlock by stage tier so an early run cannot meet a nuclear missile:
+
+| From stage tier | Pool                                                        |
+| --------------: | ----------------------------------------------------------- |
+|               1 | infantry/vehicle/aircraft/defense armour and production      |
+|               4 | AI paratroopers, AI bloodhounds                              |
+|               7 | moon reinforcements, lightning storm, nuclear missile, psychic dominator, great tempest |
+
+Tiers live in `shop_mode.json`, not `enemy_scaling.json`: that file is the
+Archipelago Trap contract, this is Shop Mode pacing. At launch the earned buffs
+are appended to the active enemy-scaling entries as their own source and are
+exempt from the seed's Trap allowance — the player took them on by winning
+challenges, and the stage payout multiplier is priced against them. Missions
+that disable enemy scaling drop them with everything else.
+
+Saturation is expected and acceptable: eight stackable buffs at five stacks
+each plus seven one-shot unlocks is 47 draws, roughly stage 24, after which
+challenges stop adding escalation.
 
 ---
 
@@ -663,12 +788,17 @@ Recommended vertical structure:
 
 Show:
 
-- `Run 4 / 10`
+- progress. An endless run has no denominator to count towards, so it reports
+  the mission number, the tier pacing its difficulty, and the lives left:
+  `Mission 7 - Stage 3 - 2 lives`. An Archipelago run keeps `Run 4 / 9`.
 - Run status: `Active`, `Failed`, `Completed`
 - `Ore Coins: 14`
 - `Gems: 37`
 - `Rerolls: 1 / 2`
 - AP connection badge when applicable
+
+The run summary additionally lists lives remaining and the permanent enemy
+buffs the run's challenges have handed out.
 
 ### Mission Choices
 
@@ -808,7 +938,9 @@ Suggested schema:
   "seed": "stable seed",
   "status": "active",
   "stage": 3,
-  "run_length": 10,
+  "run_length": 9,
+  "endless": true,
+  "permanent_enemy_buff_ids": ["infantry_armor", "vehicle_production"],
   "run_coins": 11,
   "rerolls_used": 1,
   "selected_permanent_units": ["GI Access", "Grizzly Tank Access"],
@@ -1205,7 +1337,7 @@ Suggested options:
 ```yaml
 progression_mode: shop
 
-shop_run_length: 10
+shop_run_length: 9
 
 shop_mission_victories_are_locations: true
 
@@ -1423,7 +1555,12 @@ Example:
 ```json
 {
   "schema_version": 1,
-  "run_length": 10,
+  "run_length": 9,
+  "stage_length": 3,
+  "starting_lives": 3,
+  "stage_income_percent_per_stage": 40,
+  "challenge_reward_multiplier_percent": 250,
+  "permanent_enemy_buffs_per_challenge": 2,
   "mission_offer_count": 3,
   "max_selected_permanent_units": 5,
 

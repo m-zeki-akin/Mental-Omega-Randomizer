@@ -2082,30 +2082,33 @@ class ShopController(ShopPolishController):
     def _refresh_shop_modifier_difficulty(self, *_args):
         if not hasattr(self, 'shop_difficulty_var'):
             return
-        modifiers = (
-            self.shop_run.modifiers
-            if self.shop_run is not None
-            and self.shop_run.status is RunStatus.ACTIVE
-            else tuple(
-                modifier_id
-                for modifier_id, variable in self.shop_modifier_vars.items()
-                if variable.get()
+        # The pacing controls always describe the next run, so they are what
+        # the difficulty readout follows. An active run cannot have its pacing
+        # changed, and its own figure is in the run summary.
+        settings = self.shop_pacing_settings()
+        score = run_difficulty((), settings)
+        gem_scale = pacing_gem_scale_percent(settings)
+        if hasattr(self, 'shop_pacing_difficulty_var'):
+            self.shop_pacing_difficulty_var.set(
+                f'Run difficulty {score:+d} — Gems x{gem_scale / 100:g}'
             )
-        )
         active = (
             self.shop_run is not None
             and self.shop_run.status is RunStatus.ACTIVE
         )
-        settings = (
-            self.shop_run.reward_settings if active
-            else self.shop_pacing_settings()
+        current = (
+            run_difficulty((), self.shop_run.reward_settings) if active
+            else score
         )
-        score = run_difficulty(modifiers, settings)
-        gem_scale = pacing_gem_scale_percent(settings)
-        self.shop_difficulty_var.set(f'Difficulty: {score:+d}')
-        if hasattr(self, 'shop_modifier_difficulty_var'):
-            self.shop_modifier_difficulty_var.set(
-                f'Run difficulty {score:+d} — Gems x{gem_scale / 100:g}'
+        self.shop_difficulty_var.set(f'Difficulty: {current:+d}')
+        if hasattr(self, 'shop_modifier_status_var'):
+            chosen = sum(
+                1 for variable in self.shop_modifier_vars.values()
+                if variable.get()
+            )
+            self.shop_modifier_status_var.set(
+                f'{chosen} selected. Each modifier trades an advantage for a '
+                'drawback, so they do not change the run difficulty.'
             )
 
     def _refresh_permanent_shop(self):
