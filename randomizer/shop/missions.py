@@ -47,12 +47,52 @@ def classify_mission(mission):
     return MissionEconomyClass.ACT_2
 
 
+def difficulty_stage(stage, config: ShopModeConfig = SHOP_CONFIG):
+    """Return the difficulty tier a mission index belongs to.
+
+    ``stage`` stays the 1-based mission counter that Archipelago maps to
+    one location each. Every ``stage_length`` victories opens the next
+    tier, which is what actually paces offers, payouts, and enemy buffs.
+    """
+    length = max(1, int(config.stage_length))
+    return ((max(1, int(stage)) - 1) // length) + 1
+
+
+def is_challenge_stage(stage, config: ShopModeConfig = SHOP_CONFIG):
+    """Return whether this mission index closes a tier."""
+    length = max(1, int(config.stage_length))
+    return max(1, int(stage)) % length == 0
+
+
+def _profile_for_stage(profiles, tier):
+    """Pick the first profile covering a tier; 0 saturates for the rest."""
+    for profile in profiles:
+        if profile.through_stage and tier <= profile.through_stage:
+            return profile
+    return profiles[-1]
+
+
 def _stage_weights(stage, run_length, config):
-    progress_percent = min(100, max(1, stage) * 100 // max(1, run_length))
-    for profile in config.stage_class_weights:
-        if progress_percent <= profile.through_percent:
-            return profile.weights
-    return config.stage_class_weights[-1].weights
+    return _profile_for_stage(
+        config.stage_class_weights, difficulty_stage(stage, config)
+    ).weights
+
+
+def maximum_stage_score_for_stage(
+    stage, config: ShopModeConfig = SHOP_CONFIG
+):
+    """Return the hardest reviewed mission score offerable at a stage.
+
+    Economy class pays; this gates. Eleven of the twenty-five operation
+    missions are ordinary base-building maps and the rest are late no-build
+    set pieces, so an operation roll alone says nothing about difficulty.
+    A ceiling of 0 means no limit.
+    """
+    return int(
+        _profile_for_stage(
+            config.stage_score_ceilings, difficulty_stage(stage, config)
+        ).maximum_stage_score
+    )
 
 
 def mission_classes_for_stage(
@@ -71,14 +111,12 @@ def mission_difficulty_weights_for_stage(
     stage, run_length=None, config: ShopModeConfig = SHOP_CONFIG
 ):
     """Return configured game-difficulty weights for one Shop stage."""
-    run_length = config.run_length if run_length is None else int(run_length)
-    progress_percent = (
-        min(100, max(1, int(stage)) * 100 // max(1, run_length))
+    return dict(
+        _profile_for_stage(
+            config.stage_difficulty_weights,
+            difficulty_stage(stage, config),
+        ).weights
     )
-    for profile in config.stage_difficulty_weights:
-        if progress_percent <= profile.through_percent:
-            return dict(profile.weights)
-    return dict(config.stage_difficulty_weights[-1].weights)
 
 
 def mission_difficulty(

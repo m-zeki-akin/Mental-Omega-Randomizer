@@ -5,11 +5,142 @@ def _is_nonempty_string(value):
     return isinstance(value, str) and bool(value)
 
 
+def _validate_stage_profiles(
+    profiles, expected_keys, profile_message, coverage_message, path, invalid
+):
+    """Check an absolute-stage weight ladder that saturates at the end.
+
+    Profiles are ordered by ascending through_stage and the last one uses
+    0, meaning it applies to every stage beyond the numbered ones. An
+    endless run has no final stage to interpolate towards, so that
+    saturating profile is what makes the ladder total.
+    """
+    previous_stage = 0
+    for index, profile in enumerate(profiles):
+        saturating = index == len(profiles) - 1
+        if not isinstance(profile, dict):
+            invalid(profile_message, path)
+            continue
+        through_stage = profile.get('through_stage')
+        weights = profile.get('weights')
+        if (
+            not isinstance(through_stage, int)
+            or isinstance(through_stage, bool)
+            or (
+                through_stage != 0
+                if saturating
+                else not previous_stage < through_stage
+            )
+            or not isinstance(weights, dict)
+            or set(weights) != expected_keys
+            or any(
+                not isinstance(value, int)
+                or isinstance(value, bool)
+                or value < 0
+                for value in weights.values()
+            )
+            or not any(weights.values())
+        ):
+            invalid(profile_message, path)
+        if not saturating and isinstance(through_stage, int):
+            previous_stage = through_stage
+    if not profiles or not isinstance(profiles[-1], dict) or profiles[
+        -1
+    ].get('through_stage') != 0:
+        invalid(coverage_message, path)
+
+
+def _validate_stage_score_ceilings(sections, path, invalid):
+    ceilings = sections['stage_score_ceilings']
+    if not ceilings:
+        invalid('Shop Mode stage score ceilings cannot be empty', path)
+    previous_stage = 0
+    previous_score = 0
+    for index, profile in enumerate(ceilings):
+        saturating = index == len(ceilings) - 1
+        if not isinstance(profile, dict):
+            invalid('Invalid Shop Mode stage score ceiling', path)
+            continue
+        through_stage = profile.get('through_stage')
+        maximum = profile.get('maximum_stage_score')
+        if (
+            not isinstance(through_stage, int)
+            or isinstance(through_stage, bool)
+            or (
+                through_stage != 0
+                if saturating
+                else not previous_stage < through_stage
+            )
+            or not isinstance(maximum, int)
+            or isinstance(maximum, bool)
+            or maximum < 0
+            # A ceiling that drops would make a later stage offer easier
+            # missions than the stage before it.
+            or (not saturating and maximum < previous_score)
+        ):
+            invalid('Invalid Shop Mode stage score ceiling', path)
+        if not saturating and isinstance(through_stage, int):
+            previous_stage = through_stage
+            if isinstance(maximum, int):
+                previous_score = maximum
+    if not ceilings or not isinstance(ceilings[-1], dict) or ceilings[
+        -1
+    ].get('through_stage') != 0:
+        invalid(
+            'Shop Mode stage score ceilings must end with a saturating '
+            'profile',
+            path,
+        )
+
+
+def _validate_enemy_buff_tiers(sections, path, invalid):
+    tiers = sections['enemy_buff_stage_tiers']
+    if not tiers:
+        invalid('Shop Mode enemy buff tiers cannot be empty', path)
+    seen_ids = set()
+    previous_stage = 0
+    for tier in tiers:
+        if not isinstance(tier, dict):
+            invalid('Invalid Shop Mode enemy buff tier', path)
+            continue
+        minimum_stage = tier.get('minimum_stage')
+        buff_ids = tier.get('buff_ids')
+        if (
+            not isinstance(minimum_stage, int)
+            or isinstance(minimum_stage, bool)
+            or minimum_stage < 1
+            or minimum_stage < previous_stage
+            or not isinstance(buff_ids, list)
+            or not buff_ids
+            or any(not _is_nonempty_string(item) for item in buff_ids)
+            or seen_ids.intersection(buff_ids)
+        ):
+            invalid('Invalid Shop Mode enemy buff tier', path)
+            continue
+        seen_ids.update(buff_ids)
+        previous_stage = minimum_stage
+    if not any(
+        isinstance(tier, dict) and tier.get('minimum_stage') == 1
+        for tier in tiers
+    ):
+        invalid(
+            'Shop Mode enemy buff tiers must open at stage 1', path
+        )
+
+
 def validate_shop_mode_config(sections, path, invalid):
     mission_classes = {'act_1', 'act_2', 'operation', 'finale'}
     settings = sections['settings']
     integer_settings = {
-        'run_length': (1, 100),
+        # Archipelago-only run length. The APWorld builds one location per
+        # stage and validates 5..20, so keep this inside that window even
+        # though standalone runs never end.
+        'run_length': (5, 20),
+        'stage_length': (1, 20),
+        'starting_lives': (1, 10),
+        'stage_income_percent_per_stage': (0, 200),
+        'challenge_reward_multiplier_percent': (100, 1000),
+        'permanent_enemy_buffs_per_challenge': (0, 5),
         'mission_offer_count': (1, 10),
         'unit_inventory_size': (1, 100),
         'power_inventory_size': (1, 100),
@@ -28,6 +159,20 @@ def validate_shop_mode_config(sections, path, invalid):
             or not minimum <= value <= maximum
         ):
             invalid(f'Invalid Shop Mode setting {key!r}', path)
+    stage_length = settings.get('stage_length')
+    run_length = settings.get('run_length')
+    if (
+        isinstance(stage_length, int)
+        and not isinstance(stage_length, bool)
+        and stage_length > 0
+        and isinstance(run_length, int)
+        and not isinstance(run_length, bool)
+        and run_length % stage_length
+    ):
+        invalid(
+            'Shop Mode run_length must be a whole number of stages',
+            path,
+        )
     if settings.get('reroll_policy') != 'per_run':
         invalid('Shop Mode reroll_policy must be "per_run"', path)
     if not isinstance(
@@ -88,65 +233,42 @@ def validate_shop_mode_config(sections, path, invalid):
     profiles = sections['stage_class_weights']
     if not profiles:
         invalid('Shop Mode stage class weights cannot be empty', path)
-    previous_percent = 0
-    for profile in profiles:
-        if not isinstance(profile, dict):
-            invalid('Invalid Shop Mode stage weight profile', path)
-        through_percent = profile.get('through_percent')
-        weights = profile.get('weights')
-        if (
-            not isinstance(through_percent, int)
-            or isinstance(through_percent, bool)
-            or not previous_percent < through_percent <= 100
-            or not isinstance(weights, dict)
-            or set(weights) != mission_classes
-            or any(
-                not isinstance(value, int)
-                or isinstance(value, bool)
-                or value < 0
-                for value in weights.values()
-            )
-            or not any(weights.values())
-        ):
-            invalid('Invalid Shop Mode stage weight profile', path)
-        previous_percent = through_percent
-    if previous_percent != 100:
-        invalid('Shop Mode stage weights must cover 100 percent', path)
+    _validate_stage_profiles(
+        profiles,
+        mission_classes,
+        'Invalid Shop Mode stage weight profile',
+        'Shop Mode stage weights must end with a saturating profile',
+        path,
+        invalid,
+    )
 
     difficulty_names = {'Casual', 'Normal', 'Mental'}
     difficulty_profiles = sections['stage_difficulty_weights']
     if not difficulty_profiles:
         invalid('Shop Mode stage difficulty weights cannot be empty', path)
-    previous_percent = 0
-    mental_available = False
-    for profile in difficulty_profiles:
-        if not isinstance(profile, dict):
-            invalid('Invalid Shop Mode stage difficulty profile', path)
-        through_percent = profile.get('through_percent')
-        weights = profile.get('weights')
-        if (
-            not isinstance(through_percent, int)
-            or isinstance(through_percent, bool)
-            or not previous_percent < through_percent <= 100
-            or not isinstance(weights, dict)
-            or set(weights) != difficulty_names
-            or any(
-                not isinstance(value, int)
-                or isinstance(value, bool)
-                or value < 0
-                for value in weights.values()
-            )
-            or not any(weights.values())
-        ):
-            invalid('Invalid Shop Mode stage difficulty profile', path)
-        mental_available |= bool(weights['Mental'])
-        previous_percent = through_percent
-    if previous_percent != 100 or not mental_available:
+    _validate_stage_profiles(
+        difficulty_profiles,
+        difficulty_names,
+        'Invalid Shop Mode stage difficulty profile',
+        'Shop Mode stage difficulty weights must end with a saturating '
+        'profile',
+        path,
+        invalid,
+    )
+    if not any(
+        isinstance(profile, dict)
+        and isinstance(profile.get('weights'), dict)
+        and profile['weights'].get('Mental')
+        for profile in difficulty_profiles
+    ):
         invalid(
-            'Shop Mode stage difficulty weights must cover 100 percent and '
-            'enable Mental difficulty',
+            'Shop Mode stage difficulty weights must enable Mental '
+            'difficulty',
             path,
         )
+
+    _validate_stage_score_ceilings(sections, path, invalid)
+    _validate_enemy_buff_tiers(sections, path, invalid)
 
     power_prices = sections['power_target_prices']
     if not power_prices:
@@ -213,7 +335,7 @@ def validate_shop_mode_config(sections, path, invalid):
         'shop_discount': ('ore_per_level',),
         'extra_shop_stock': ('units_per_level', 'powers_per_level'),
         'expanded_loadout': ('slots_per_level',),
-        'emergency_revival': ('revivals_per_run',),
+        'emergency_revival': ('lives_per_level',),
         'free_buff_token': ('tokens_per_level',),
         'challenge_hunter': (
             'run_coins_per_level', 'meta_coins_every_levels'

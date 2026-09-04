@@ -7,10 +7,12 @@ from .model import (
     MissionRewardDefinition,
     ModifierDefinition,
     PermanentUpgradeDefinition,
+    EnemyBuffTier,
     ShopModeConfig,
     ShopPowerPriceDefinition,
     ShopTargetPriceDefinition,
     StageDifficultyProfile,
+    StageScoreCeiling,
     StageWeightProfile,
 )
 
@@ -30,7 +32,7 @@ def load_shop_mode_config() -> ShopModeConfig:
     }
     stage_weights = tuple(
         StageWeightProfile(
-            through_percent=int(profile['through_percent']),
+            through_stage=int(profile['through_stage']),
             weights={
                 MissionEconomyClass(class_id): int(weight)
                 for class_id, weight in profile['weights'].items()
@@ -40,13 +42,27 @@ def load_shop_mode_config() -> ShopModeConfig:
     )
     stage_difficulty_weights = tuple(
         StageDifficultyProfile(
-            through_percent=int(profile['through_percent']),
+            through_stage=int(profile['through_stage']),
             weights={
                 str(difficulty): int(weight)
                 for difficulty, weight in profile['weights'].items()
             },
         )
         for profile in sections['stage_difficulty_weights']
+    )
+    stage_score_ceilings = tuple(
+        StageScoreCeiling(
+            through_stage=int(profile['through_stage']),
+            maximum_stage_score=int(profile['maximum_stage_score']),
+        )
+        for profile in sections['stage_score_ceilings']
+    )
+    enemy_buff_stage_tiers = tuple(
+        EnemyBuffTier(
+            minimum_stage=int(tier['minimum_stage']),
+            buff_ids=tuple(str(buff_id) for buff_id in tier['buff_ids']),
+        )
+        for tier in sections['enemy_buff_stage_tiers']
     )
     upgrades = {
         upgrade_id: PermanentUpgradeDefinition(
@@ -76,6 +92,17 @@ def load_shop_mode_config() -> ShopModeConfig:
     }
     return ShopModeConfig(
         run_length=int(settings['run_length']),
+        stage_length=int(settings['stage_length']),
+        starting_lives=int(settings['starting_lives']),
+        stage_income_percent_per_stage=int(
+            settings['stage_income_percent_per_stage']
+        ),
+        challenge_reward_multiplier_percent=int(
+            settings['challenge_reward_multiplier_percent']
+        ),
+        permanent_enemy_buffs_per_challenge=int(
+            settings['permanent_enemy_buffs_per_challenge']
+        ),
         mission_offer_count=int(settings['mission_offer_count']),
         unit_inventory_size=int(settings['unit_inventory_size']),
         power_inventory_size=int(settings['power_inventory_size']),
@@ -101,6 +128,8 @@ def load_shop_mode_config() -> ShopModeConfig:
         mission_rewards=mission_rewards,
         stage_class_weights=stage_weights,
         stage_difficulty_weights=stage_difficulty_weights,
+        stage_score_ceilings=stage_score_ceilings,
+        enemy_buff_stage_tiers=enemy_buff_stage_tiers,
         power_target_prices={
             str(target_id): ShopPowerPriceDefinition(
                 run_access=definition['run_access'],

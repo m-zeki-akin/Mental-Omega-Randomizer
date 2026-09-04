@@ -9,7 +9,7 @@ from typing import Any, Mapping
 
 
 SHOP_PROFILE_SCHEMA_VERSION = 1
-SHOP_RUN_SCHEMA_VERSION = 1
+SHOP_RUN_SCHEMA_VERSION = 2
 SHOP_ACCESS_REWARD_MODE = 'Chaos'
 
 
@@ -73,14 +73,39 @@ class MissionRewardDefinition:
 
 @dataclass(frozen=True)
 class StageWeightProfile:
-    through_percent: int
+    # A through_stage of 0 marks the saturating final profile: it applies
+    # to every stage past the last numbered one.
+    through_stage: int
     weights: Mapping[MissionEconomyClass, int]
 
 
 @dataclass(frozen=True)
 class StageDifficultyProfile:
-    through_percent: int
+    through_stage: int
     weights: Mapping[str, int]
+
+
+@dataclass(frozen=True)
+class StageScoreCeiling:
+    """Hardest mission that may be offered at a stage.
+
+    Economy class decides the payout, not the difficulty: eleven of the
+    twenty-five "operation" missions let the player build a base while
+    others are late-campaign no-build set pieces. Gate offers on the
+    reviewed stage score so an early operation roll cannot hand out a
+    mission the run is not ready for. A maximum of 0 means no ceiling.
+    """
+
+    through_stage: int
+    maximum_stage_score: int
+
+
+@dataclass(frozen=True)
+class EnemyBuffTier:
+    """Permanent enemy buffs unlocked for challenge draws from a stage."""
+
+    minimum_stage: int
+    buff_ids: tuple[str, ...]
 
 
 @dataclass(frozen=True)
@@ -117,7 +142,15 @@ class ShopPowerPriceDefinition:
 
 @dataclass(frozen=True)
 class ShopModeConfig:
+    # Archipelago only. An AP slot needs a finite location count and a
+    # goal, so AP runs still end after this many stages. Standalone runs
+    # are endless and paced by stage_length.
     run_length: int
+    stage_length: int
+    starting_lives: int
+    stage_income_percent_per_stage: int
+    challenge_reward_multiplier_percent: int
+    permanent_enemy_buffs_per_challenge: int
     mission_offer_count: int
     unit_inventory_size: int
     power_inventory_size: int
@@ -133,6 +166,8 @@ class ShopModeConfig:
     mission_rewards: Mapping[MissionEconomyClass, MissionRewardDefinition]
     stage_class_weights: tuple[StageWeightProfile, ...]
     stage_difficulty_weights: tuple[StageDifficultyProfile, ...]
+    stage_score_ceilings: tuple[StageScoreCeiling, ...]
+    enemy_buff_stage_tiers: tuple[EnemyBuffTier, ...]
     power_target_prices: Mapping[str, ShopPowerPriceDefinition]
     unit_target_prices: Mapping[str, ShopTargetPriceDefinition]
     permanent_upgrades: Mapping[str, PermanentUpgradeDefinition]
@@ -210,6 +245,11 @@ class ShopRun:
     stage: int
     run_length: int
     run_coins: int
+    # Endless runs ignore run_length and end only when lives run out.
+    # Persisted at creation rather than inferred from ap_identity, which
+    # can be cleared while a run is still in progress.
+    endless: bool = True
+    permanent_enemy_buff_ids: tuple[str, ...] = ()
     schema_version: int = SHOP_RUN_SCHEMA_VERSION
     campaign_filter: str = 'All Campaigns'
     reward_mode: str = 'Standard'
@@ -250,6 +290,10 @@ class ShopRun:
             'stage': self.stage,
             'run_length': self.run_length,
             'run_coins': self.run_coins,
+            'endless': self.endless,
+            'permanent_enemy_buff_ids': list(
+                self.permanent_enemy_buff_ids
+            ),
             'campaign_filter': self.campaign_filter,
             'reward_mode': self.reward_mode,
             'reward_settings': deepcopy(dict(self.reward_settings)),
