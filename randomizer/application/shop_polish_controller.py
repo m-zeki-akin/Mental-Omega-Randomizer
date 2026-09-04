@@ -734,6 +734,14 @@ class ShopPolishController(ShopArchipelagoController):
         )
         if access_active:
             state = 'Active / Owned'
+        elif (
+            run is not None
+            and entry.reward_id in run.stage_shelf_purchases
+        ):
+            # One per rotation. Saying which rotation matters: the same offer
+            # can come back, and the player should know it is a wait rather
+            # than a refusal.
+            state = 'Bought this mission'
         elif locked:
             state = 'Requires unit or power access'
         elif entry.stack_limit is not None and stacks >= entry.stack_limit:
@@ -979,7 +987,7 @@ class ShopPolishController(ShopArchipelagoController):
                 state == 'Available' or state.startswith('Stacks ')
             )
             row_tag = (
-                'owned' if state == 'Active / Owned'
+                'owned' if state in {'Active / Owned', 'Bought this mission'}
                 else 'maxed' if state == 'MAX'
                 else 'stacked' if state.startswith('Stacks ')
                 else 'available' if buyable

@@ -277,6 +277,7 @@ class ShopProgressionService:
             shop_eligible=entry.reward_id in shop_shelf_reward_ids(
                 profile, run
             ),
+            stage_shelf_purchases=run.stage_shelf_purchases,
         )
         if validation.allowed:
             updated = apply_validated_run_purchase(

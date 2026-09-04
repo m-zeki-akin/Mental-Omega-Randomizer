@@ -1395,6 +1395,73 @@ def _upgrade_reward_checks():
     unit_gift_tier_valid = all(
         entry.tier == 'tier_1' for entry in gift_entries
     )
+    # One purchase per rotation, and the rest of the shelf must not move
+    # underneath it. Both are easy to lose: the limit to a missing parameter
+    # at one call site, the stability the moment anything in the draw's pool
+    # is read from the live run instead of the stage's opening state.
+    stocked = tuple(entry for entry in upgrades if (entry.stack_limit or 1) > 1)
+    shelf_before = shop_shelf_reward_ids(profile, run)
+    repeat_run = run
+    repeat_results = []
+    if stocked:
+        repeat_entry = stocked[0]
+        repeat_reward = canonical_reward_for_id(repeat_entry.reward_id)
+        for _attempt in range(2):
+            validation = validate_run_purchase(
+                repeat_reward,
+                price=0,
+                run_coins=repeat_run.run_coins,
+                active_tech_ids=tuple(owned_tech),
+                shop_eligible=(
+                    repeat_entry.reward_id
+                    in shop_shelf_reward_ids(profile, repeat_run)
+                ),
+                stage_shelf_purchases=repeat_run.stage_shelf_purchases,
+            )
+            repeat_results.append(validation.result)
+            if validation.allowed:
+                repeat_run = apply_validated_run_purchase(
+                    repeat_run, repeat_reward, validation
+                )
+    one_per_stock_valid = bool(
+        stocked
+        and repeat_results == [
+            PurchaseResult.OK, PurchaseResult.ALREADY_PURCHASED_THIS_STAGE
+        ]
+        and shop_shelf_reward_ids(profile, repeat_run) == shelf_before
+    )
+    # Buying a unit is the sharpest version of the problem: it hands the
+    # player a new upgrade target, so the pool the upgrade slots are drawn
+    # from grows by a dozen entries and every one of them would land
+    # somewhere else. The shelf has to be the one the stage opened with.
+    stable_run = repeat_run
+    if units:
+        access_reward = canonical_reward_for_id(units[0].reward_id)
+        access_purchase = validate_run_purchase(
+            access_reward,
+            price=0,
+            run_coins=stable_run.run_coins,
+            active_tech_ids=tuple(owned_tech),
+            shop_eligible=(
+                units[0].reward_id
+                in shop_shelf_reward_ids(profile, stable_run)
+            ),
+            stage_shelf_purchases=stable_run.stage_shelf_purchases,
+        )
+        if access_purchase.allowed:
+            stable_run = apply_validated_run_purchase(
+                stable_run, access_reward, access_purchase
+            )
+    # Clearing the record is what the shelf would see without the rollback,
+    # so this both proves the purchase really does move the pool and fails
+    # loudly if the rollback is ever removed.
+    unfrozen_pool = upgradeable_entries(
+        replace(stable_run, stage_shelf_purchases=())
+    )
+    shelf_stable_valid = bool(
+        len(unfrozen_pool) > len(upgradeable_entries(stable_run))
+        and shop_shelf_reward_ids(profile, stable_run) == shelf_before
+    )
     # An upgrade that is perfectly legal -- owned target, stacks to spare --
     # but was not drawn onto the shelf has to be refused.
     shelf_ids = shop_shelf_reward_ids(profile, run)
@@ -1421,6 +1488,12 @@ def _upgrade_reward_checks():
         'mission_grant_idempotent_valid': repeat_grant_valid,
         'mission_unit_gift_tier_valid': unit_gift_tier_valid,
         'upgrade_shelf_purchase_gate_valid': shelf_gate_valid,
+        'shop_one_purchase_per_stock_valid': one_per_stock_valid,
+        'shop_shelf_stable_within_stage_valid': shelf_stable_valid,
+        'shop_stock_record_clears_on_victory_valid': bool(
+            repeat_run.stage_shelf_purchases
+            and not victory.run.stage_shelf_purchases
+        ),
     }
 
 

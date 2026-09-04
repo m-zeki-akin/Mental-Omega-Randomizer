@@ -469,6 +469,10 @@ def normalize_shop_run(document, *, config=SHOP_CONFIG):
         completed_missions=_unique_mission_codes(
             document.get('completed_missions'), 'completed_missions'
         ),
+        stage_shelf_purchases=_unique_strings(
+            document.get('stage_shelf_purchases'),
+            'stage_shelf_purchases',
+        ),
         rewarded_victories=_unique_strings(
             document.get('rewarded_victories'), 'rewarded_victories'
         ),

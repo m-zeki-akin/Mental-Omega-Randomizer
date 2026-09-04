@@ -577,6 +577,8 @@ def apply_mission_victory(
             else run.completed_missions + (mission_code,)
         ),
         rewarded_victories=run.rewarded_victories + (key,),
+        # The stage advances, so the stock rotates and the shelf is new.
+        stage_shelf_purchases=(),
         run_buffs=tuple(
             BuffPurchase(reward_id, stacks)
             for reward_id, stacks in granted_stacks.items()

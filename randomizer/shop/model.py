@@ -40,6 +40,7 @@ class PurchaseResult(str, Enum):
     MAX_LOADOUT_SIZE = 'max_loadout_size'
     NOT_ENTITLED = 'not_entitled'
     MAX_UPGRADE_LEVEL = 'max_upgrade_level'
+    ALREADY_PURCHASED_THIS_STAGE = 'already_purchased_this_stage'
 
 
 class ShopRewardType(str, Enum):
@@ -290,6 +291,13 @@ class ShopRun:
     run_purchases: tuple[PurchaseRecord, ...] = ()
     run_buffs: tuple[BuffPurchase, ...] = ()
     starting_draft_buffs: tuple[BuffPurchase, ...] = ()
+    # What has already been taken off the shelf standing in front of the
+    # player. An upgrade stacks, so nothing else stopped a player from
+    # emptying their Ore into the same offer four times over -- which is the
+    # concentration the drawn-upgrade design exists to prevent. Cleared when
+    # the stage advances and the stock rotates, and only then: a defeat
+    # replays the same stage against the same shelf.
+    stage_shelf_purchases: tuple[str, ...] = ()
     free_buff_tokens_used: int = 0
     emergency_revivals_used: int = 0
     mission_offers: tuple[MissionOffer, ...] = ()
@@ -337,6 +345,7 @@ class ShopRun:
             'starting_draft_buffs': [
                 item.to_dict() for item in self.starting_draft_buffs
             ],
+            'stage_shelf_purchases': list(self.stage_shelf_purchases),
             'free_buff_tokens_used': self.free_buff_tokens_used,
             'emergency_revivals_used': self.emergency_revivals_used,
             'mission_offers': [item.to_dict() for item in self.mission_offers],

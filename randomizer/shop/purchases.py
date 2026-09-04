@@ -29,6 +29,7 @@ def validate_run_purchase(
     current_stacks=0,
     maximum_stacks=None,
     shop_eligible=True,
+    stage_shelf_purchases=(),
 ):
     canonical = canonical_reward(reward)
     reward_id = canonical_reward_id(canonical)
@@ -47,6 +48,13 @@ def validate_run_purchase(
         )
     if entry is None or price < 0:
         return PurchaseValidation(PurchaseResult.NOT_SHOP_ELIGIBLE, reward_id, price)
+    # One purchase per offer per rotation. An access reward is already
+    # one-shot because owning it removes it, but an upgrade stacks, so
+    # without this a single stage could be spent entirely on one of them.
+    if reward_id in set(stage_shelf_purchases):
+        return PurchaseValidation(
+            PurchaseResult.ALREADY_PURCHASED_THIS_STAGE, reward_id, price
+        )
     owned = set()
     for item in owned_reward_ids:
         owned_id = canonical_reward_id(item)
@@ -108,6 +116,11 @@ def apply_validated_run_purchase(
             run,
             run_coins=run.run_coins - validation.cost,
             run_buffs=run_buffs,
+            # A free token still spends the offer: the slot is the limit,
+            # not the Ore.
+            stage_shelf_purchases=(
+                run.stage_shelf_purchases + (entry.reward_id,)
+            ),
             free_buff_tokens_used=(
                 run.free_buff_tokens_used + 1
                 if consume_free_buff_token else run.free_buff_tokens_used
@@ -123,4 +136,5 @@ def apply_validated_run_purchase(
         run,
         run_coins=run.run_coins - validation.cost,
         run_purchases=run_purchases,
+        stage_shelf_purchases=run.stage_shelf_purchases + (entry.reward_id,),
     )

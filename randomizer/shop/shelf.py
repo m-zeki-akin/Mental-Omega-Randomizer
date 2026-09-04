@@ -11,6 +11,8 @@ So the shelf is computed here, from the saved profile and run alone, and both
 the screen and the purchase service ask this module rather than each other.
 """
 
+from dataclasses import replace
+
 from .active import active_shop_power_ids, active_shop_tech_ids
 from .catalogue import (
     buff_draw_weights,
@@ -30,6 +32,8 @@ from .inventory import (
 )
 from .model import (
     SHOP_ACCESS_REWARD_MODE,
+    BuffPurchase,
+    PurchaseRecord,
     RunStatus,
     ShopModeConfig,
     ShopRewardType,
@@ -47,6 +51,42 @@ def run_buff_stacks(run):
         for item in group:
             stacks[item.reward_id] = stacks.get(item.reward_id, 0) + item.stacks
     return stacks
+
+
+def stage_opening_run(run):
+    """Return the run as it stood when this stage's stock was drawn.
+
+    The shelf is a seeded draw over what the player owns, so owning more
+    changes the draw. Buying one offer would otherwise reshuffle the others
+    underneath the player's cursor -- take a single-stack upgrade and the
+    remaining three slots become different upgrades entirely, which reads as
+    the shop cheating rather than as a rule.
+
+    Within a stage the only thing that changes ownership is buying from this
+    shelf, and the run already records exactly that, so rolling those
+    purchases back reproduces the opening state without storing a snapshot.
+    Mission grants arrive on victory, which ends the stage.
+    """
+    if run is None or not run.stage_shelf_purchases:
+        return run
+    spent = {}
+    for reward_id in run.stage_shelf_purchases:
+        spent[reward_id] = spent.get(reward_id, 0) + 1
+    return replace(
+        run,
+        run_purchases=tuple(
+            PurchaseRecord(item.reward_id, remaining)
+            for item in run.run_purchases
+            for remaining in (item.quantity - spent.get(item.reward_id, 0),)
+            if remaining > 0
+        ),
+        run_buffs=tuple(
+            BuffPurchase(item.reward_id, remaining)
+            for item in run.run_buffs
+            for remaining in (item.stacks - spent.get(item.reward_id, 0),)
+            if remaining > 0
+        ),
+    )
 
 
 def run_faction_filter(run):
@@ -77,9 +117,10 @@ def upgradeable_entries(run, *, config: ShopModeConfig = SHOP_CONFIG):
     """
     if run is None:
         return ()
-    owned_tech = set(active_shop_tech_ids(run))
-    owned_powers = set(active_shop_power_ids(run))
-    stacks = run_buff_stacks(run)
+    opening = stage_opening_run(run)
+    owned_tech = set(active_shop_tech_ids(opening))
+    owned_powers = set(active_shop_power_ids(opening))
+    stacks = run_buff_stacks(opening)
     candidates = []
     for entry in shop_catalogue():
         if entry.reward_type is ShopRewardType.UNIT_BUFF:
@@ -128,8 +169,11 @@ def shop_shelf(profile, run, *, config: ShopModeConfig = SHOP_CONFIG):
     empty = ((), (), ())
     if run is None or run.status is not RunStatus.ACTIVE:
         return empty
-    owned_tech = set(active_shop_tech_ids(run))
-    owned_powers = set(active_shop_power_ids(run))
+    # Everything the draw depends on is read from the stage's opening state,
+    # so the stock a player is looking at cannot change under a purchase.
+    opening = stage_opening_run(run)
+    owned_tech = set(active_shop_tech_ids(opening))
+    owned_powers = set(active_shop_power_ids(opening))
     unit_count, power_count = _access_offer_counts(profile, run, config)
     unit_candidates = []
     power_candidates = []
