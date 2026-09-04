@@ -64,6 +64,60 @@ def reward_breakdown_lines(
     return tuple(lines)
 
 
+def shop_run_progress_text(run, profile=None, config=SHOP_CONFIG):
+    """Return the run's headline progress label.
+
+    An endless run has no denominator to count towards, so it reports the
+    stage it is on, the tier that paces its difficulty, and the lives left.
+    """
+    from .missions import difficulty_stage
+    from .transitions import maximum_run_lives
+
+    tier = difficulty_stage(run.stage, config)
+    if not run.endless:
+        return f'Run {run.stage} / {run.run_length}'
+    lives = max(
+        0, maximum_run_lives(profile, config) - run.emergency_revivals_used
+    )
+    return f'Mission {run.stage} — Stage {tier} — {lives} lives'
+
+
+def _missions_won_line(run, config=SHOP_CONFIG):
+    if not run.endless:
+        return (
+            f'Missions won: {len(run.completed_missions)} / {run.run_length}'
+        )
+    # completed_missions is the per-stage offer history in an endless run, so
+    # the paid victories are what actually counts progress.
+    return f'Missions won: {len(run.rewarded_victories)}'
+
+
+def _lives_line(run, profile, config=SHOP_CONFIG):
+    from .transitions import maximum_run_lives
+
+    total = maximum_run_lives(profile, config)
+    return (
+        f'Lives: {max(0, total - run.emergency_revivals_used)} / {total}'
+    )
+
+
+def _permanent_enemy_buff_line(run):
+    """Summarise the escalation this run's challenges handed the enemy."""
+    from randomizer.rewards.enemy_scaling import ENEMY_BUFF_BY_ID
+
+    if not run.permanent_enemy_buff_ids:
+        return 'Enemy challenge buffs: none'
+    counts = {}
+    for buff_id in run.permanent_enemy_buff_ids:
+        counts[buff_id] = counts.get(buff_id, 0) + 1
+    rendered = ', '.join(
+        f'{ENEMY_BUFF_BY_ID.get(buff_id, {}).get("name", buff_id)}'
+        + (f' x{count}' if count > 1 else '')
+        for buff_id, count in sorted(counts.items())
+    )
+    return f'Enemy challenge buffs: {rendered}'
+
+
 def run_summary_lines(profile, run, mission_titles=None, config=SHOP_CONFIG):
     if run is None:
         return ('No Shop run exists.',)
@@ -76,7 +130,7 @@ def run_summary_lines(profile, run, mission_titles=None, config=SHOP_CONFIG):
     lines = [
         status_heading,
         f'Seed: {run.seed}',
-        f'Missions won: {len(run.completed_missions)} / {run.run_length}',
+        _missions_won_line(run),
         f'Ore remaining: {run.run_coins}',
         f'Persistent Gems: {profile.meta_coins}',
         f'Run purchases: {sum(item.quantity for item in run.run_purchases)}',
@@ -84,7 +138,8 @@ def run_summary_lines(profile, run, mission_titles=None, config=SHOP_CONFIG):
         f'Free starting draft buffs: '
         f'{sum(item.stacks for item in run.starting_draft_buffs)}',
         f'Free Buff Tokens used: {run.free_buff_tokens_used}',
-        f'Emergency Revivals used: {run.emergency_revivals_used}',
+        _lives_line(run, profile),
+        _permanent_enemy_buff_line(run),
         f'Run difficulty: +{modifier_difficulty(run.modifiers)}',
         'Modifiers: ' + (
             ', '.join(

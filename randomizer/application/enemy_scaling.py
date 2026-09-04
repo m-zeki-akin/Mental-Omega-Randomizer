@@ -203,7 +203,39 @@ class EnemyScalingController:
                 continue
             counts[effect_id] = counts.get(effect_id, 0) + 1
             capped.append(entry)
-        return capped
+        return capped + self.shop_permanent_enemy_scaling_entries()
+
+    def shop_permanent_enemy_scaling_entries(self):
+        """Return the enemy buffs a Shop run earned from its challenges.
+
+        These are not Archipelago traps and are deliberately exempt from
+        the seed's enemy-scaling allowance: the player took them on by
+        winning stage-closing challenges, and the tier payout multiplier
+        is priced against them. Per-buff stack ceilings still apply and
+        are enforced where the buffs are drawn.
+        """
+        from randomizer.rewards.definitions import ENEMY_REWARD_POOL
+
+        run = getattr(self, 'shop_run', None)
+        buff_ids = tuple(getattr(run, 'permanent_enemy_buff_ids', ()) or ())
+        if not buff_ids:
+            return []
+        rewards_by_id = {
+            str(reward.get('enemy_effect_id') or ''): reward
+            for reward in ENEMY_REWARD_POOL
+            if reward.get('enemy_reward')
+        }
+        entries = []
+        for index, buff_id in enumerate(buff_ids, start=1):
+            reward = rewards_by_id.get(str(buff_id))
+            if not reward:
+                continue
+            entries.append({
+                'reward': dict(reward),
+                'source': 'Shop challenge',
+                'earned_from': f'Shop challenge {index}',
+            })
+        return entries
 
     def enemy_rewards_for_check(self, code, check_id):
         """Return standalone enemy bonuses assigned beside one normal check."""

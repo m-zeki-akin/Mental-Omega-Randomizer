@@ -33,7 +33,11 @@ from .model import (
     ShopRun,
 )
 from .state import normalize_shop_profile, normalize_shop_run
-from .summary import reward_breakdown_lines, run_summary_lines
+from .summary import (
+    reward_breakdown_lines,
+    run_summary_lines,
+    shop_run_progress_text,
+)
 from .persistence import ShopPersistenceError, ShopRepository
 from .service import ShopProgressionService
 from .transitions import (
@@ -88,6 +92,7 @@ __all__ = (
     'reroll_missions',
     'run_buff_price',
     'run_summary_lines',
+    'shop_run_progress_text',
     'run_unit_price',
     'starting_run_coins',
     'reward_breakdown_lines',

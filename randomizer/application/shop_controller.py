@@ -41,6 +41,7 @@ from randomizer.shop.catalogue import (
     shop_entry_available,
 )
 from randomizer.shop.config import SHOP_CONFIG
+from randomizer.shop.summary import shop_run_progress_text
 from randomizer.shop.economy import (
     permanent_buff_price,
     permanent_unit_price,
@@ -751,11 +752,13 @@ class ShopController(ShopPolishController):
             )
         run = self.shop_run
         if run is None:
-            self.shop_stage_var.set(f'Run — / {self.shop_config.run_length}')
+            self.shop_stage_var.set('Run —')
             self.shop_status_var.set('Status: No Run')
             self.shop_run_coins_var.set('Ore: 0')
         else:
-            self.shop_stage_var.set(f'Run {run.stage} / {run.run_length}')
+            self.shop_stage_var.set(shop_run_progress_text(
+                run, self.shop_profile
+            ))
             self.shop_status_var.set(f'Status: {run.status.value.title()}')
             self.shop_run_coins_var.set(f'Ore: {run.run_coins}')
         if hasattr(self, 'shop_status_label'):
@@ -1323,7 +1326,7 @@ class ShopController(ShopPolishController):
             return False
         try:
             next_offers = ()
-            if run.stage < run.run_length:
+            if run.endless or run.stage < run.run_length:
                 next_offers = generate_mission_offers(
                     self._shop_launch_mission_pool,
                     run_seed=run.seed,
