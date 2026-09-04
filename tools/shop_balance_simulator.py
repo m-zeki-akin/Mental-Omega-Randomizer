@@ -22,6 +22,7 @@ from __future__ import annotations
 import argparse
 import random
 import statistics
+from collections import Counter
 import sys
 from dataclasses import dataclass, replace
 from pathlib import Path
@@ -71,6 +72,9 @@ class WinModel:
     per_enemy_buff_percent: float = 2.5
     challenge_penalty_percent: int = 15
     floor_percent: int = 15
+
+    # Known blind spot: Ore is not an input. A setting that only starves the
+    # run shop will look free here even where a player would feel it.
 
     def chance(self, enemy_buffs: int, challenge: bool) -> float:
         chance = self.base_percent - enemy_buffs * self.per_enemy_buff_percent
@@ -122,6 +126,105 @@ def economy_report(config: ShopModeConfig, settings, tiers: int) -> None:
             gems += reward.meta_coins
         buffs = tier * config.permanent_enemy_buffs_per_challenge
         print(f'{tier:>4} {ore:>8} {gems:>8} {buffs:>20}')
+
+
+def purchasing_power_report(config, settings, tiers: int) -> None:
+    """How much of the run shop a tier's income can actually buy.
+
+    Fact, not a model: it divides the Ore a tier pays by what the shop
+    charges. A flat column means Ore keeps pace with prices; a rising one
+    means later tiers drown in money, a falling one that they starve.
+    """
+    unit_prices = sorted(
+        price.run_access for price in config.unit_target_prices.values()
+        if price.run_access
+    )
+    buff_prices = sorted(
+        price.run_buff for price in config.unit_target_prices.values()
+        if price.run_buff
+    )
+    median_unit = unit_prices[len(unit_prices) // 2]
+    median_buff = buff_prices[len(buff_prices) // 2]
+    print()
+    print(f'== Satin alma gucu (medyan birim {median_unit}o, '
+          f'buff {median_buff}o) ==')
+    print(f'{"tier":>4} {"tier Ore":>9} {"birim":>8} {"buff":>8}')
+    for tier in range(1, tiers + 1):
+        ore = sum(
+            _reward(
+                config,
+                (tier - 1) * config.stage_length + 1 + offset,
+                MissionEconomyClass.ACT_2,
+                is_challenge_stage(
+                    (tier - 1) * config.stage_length + 1 + offset, config
+                ),
+                settings,
+            ).run_coins
+            for offset in range(config.stage_length)
+        )
+        print(f'{tier:>4} {ore:>9} {ore / median_unit:>8.1f} '
+              f'{ore / median_buff:>8.1f}')
+
+
+def career_report(config, settings, model, careers, runs_each, seed):
+    """Spend Gems between runs and report how fast the profile fills up.
+
+    Model-dependent twice over: it inherits the win model, and it assumes a
+    player buys the cheapest upgrade level they can afford. Read it for the
+    shape of progression, not for exact run counts.
+    """
+    rng = random.Random(f'{seed}:career')
+    ladders = {
+        upgrade_id: list(definition.prices)
+        for upgrade_id, definition in config.permanent_upgrades.items()
+        if definition.purchasable
+    }
+    total_levels = sum(len(prices) for prices in ladders.values())
+    first_owned_run, completed = Counter(), []
+    for _ in range(careers):
+        owned, gems = Counter(), 0
+        finished_at = None
+        for run_index in range(1, runs_each + 1):
+            gems += _play_one_run(config, settings, model, rng)
+            while True:
+                affordable = [
+                    (prices[owned[key]], key)
+                    for key, prices in ladders.items()
+                    if owned[key] < len(prices)
+                    and prices[owned[key]] <= gems
+                ]
+                if not affordable:
+                    break
+                price, key = min(affordable)
+                gems -= price
+                owned[key] += 1
+                if owned[key] == 1:
+                    first_owned_run[key] = first_owned_run.get(key, 0) or run_index
+            if sum(owned.values()) == total_levels and finished_at is None:
+                finished_at = run_index
+        completed.append(finished_at or runs_each + 1)
+    print()
+    print(f'== Kariyer: {careers} oyuncu x {runs_each} run ==')
+    median = sorted(completed)[len(completed) // 2]
+    print(f'tum yukseltmeler ({total_levels} seviye) tamamlandi: '
+          f'medyan {median} run'
+          + ('' if median <= runs_each else ' (sinira takildi)'))
+
+
+def _play_one_run(config, settings, model, rng):
+    stage, lives, gems, buffs = 1, maximum_run_lives(None, config), 0, 0
+    while lives > 0 and stage <= 200:
+        challenge = is_challenge_stage(stage, config)
+        if rng.random() < model.chance(buffs, challenge):
+            gems += _reward(
+                config, stage, MissionEconomyClass.ACT_2, challenge, settings
+            ).meta_coins
+            if challenge:
+                buffs += config.permanent_enemy_buffs_per_challenge
+            stage += 1
+        else:
+            lives -= 1
+    return gems
 
 
 def upgrade_report(config: ShopModeConfig, gems_per_tier: int) -> None:
@@ -188,6 +291,69 @@ def simulate_runs(config, settings, model, runs, seed, cap_missions):
     return statistics.mean(gem_totals)
 
 
+def run_sweep(args):
+    """Tabulate one pacing setting across its configured range."""
+    if args.sweep not in RUN_PACING_SETTINGS:
+        raise SystemExit(
+            f'Bilinmeyen ayar {args.sweep!r}. Secenekler: '
+            + ', '.join(RUN_PACING_SETTINGS)
+        )
+    field, low, high = RUN_PACING_SETTINGS[args.sweep]
+    step = 10 if 'percent' in args.sweep else 1
+    model = WinModel(
+        base_percent=args.base_win_percent,
+        per_enemy_buff_percent=args.per_buff_percent,
+    )
+    print(f'== {args.sweep} taramasi ({args.runs} run/deger) ==')
+    if args.sweep == 'shop_stage_income_percent':
+        # Worth stating outright: the win model has no notion of Ore, so a
+        # column that only moves Gems is telling you the difficulty score
+        # moved, not that the run got harder to survive.
+        print('   not: kazanma modeli Ore u hesaba katmaz; bu ayarin '
+              'hayatta kalmaya etkisi olculmez')
+    print(f'{"deger":>7}{"zorluk":>8}{"Gem%":>7}{"gorev":>8}{"tier":>7}'
+          f'{"run Gem":>10}{"tier1 Ore":>11}')
+    for value in range(low, high + 1, step):
+        settings = {args.sweep: value}
+        config = run_shop_config(
+            type('Run', (), {'reward_settings': settings})(), SHOP_CONFIG
+        )
+        rng = random.Random(f'{args.seed}:{value}')
+        gems = [
+            _play_one_run(config, settings, model, rng)
+            for _ in range(args.runs)
+        ]
+        depths = []
+        for _ in range(args.runs):
+            depths.append(_run_depth(config, model, random.Random(
+                f'{args.seed}:depth:{value}:{len(depths)}')))
+        tier_one_ore = sum(
+            _reward(
+                config, 1 + offset, MissionEconomyClass.ACT_2,
+                is_challenge_stage(1 + offset, config), settings,
+            ).run_coins
+            for offset in range(config.stage_length)
+        )
+        print(f'{value:>7}{format_difficulty(pacing_difficulty(settings)):>8}'
+              f'{pacing_gem_scale_percent(settings):>6}%'
+              f'{statistics.mean(depths):>8.1f}'
+              f'{statistics.mean(depths) / config.stage_length:>7.1f}'
+              f'{statistics.mean(gems):>10.0f}{tier_one_ore:>11}')
+
+
+def _run_depth(config, model, rng):
+    stage, lives, buffs = 1, maximum_run_lives(None, config), 0
+    while lives > 0 and stage <= 200:
+        challenge = is_challenge_stage(stage, config)
+        if rng.random() < model.chance(buffs, challenge):
+            if challenge:
+                buffs += config.permanent_enemy_buffs_per_challenge
+            stage += 1
+        else:
+            lives -= 1
+    return stage - 1
+
+
 def parse_overrides(pairs):
     settings = {}
     for pair in pairs:
@@ -214,7 +380,18 @@ def main():
         '--set', action='append', default=[], metavar='KEY=VALUE',
         help='Run pacing override, e.g. --set shop_stage_length=2',
     )
+    parser.add_argument(
+        '--sweep', metavar='KEY',
+        help='Compare one pacing setting across its whole range',
+    )
+    parser.add_argument('--careers', type=int, default=0,
+                        help='Simulate this many players buying upgrades')
+    parser.add_argument('--runs-each', type=int, default=60)
     args = parser.parse_args()
+
+    if args.sweep:
+        run_sweep(args)
+        return
 
     settings = parse_overrides(args.set)
     config = run_shop_config(
@@ -234,6 +411,7 @@ def main():
     print()
 
     economy_report(config, settings, args.tiers)
+    purchasing_power_report(config, settings, args.tiers)
     gems_per_tier = sum(
         _reward(
             config,
@@ -255,6 +433,10 @@ def main():
         simulate_runs(
             config, settings, model, args.runs, args.seed, args.cap_missions
         )
+        if args.careers:
+            career_report(
+                config, settings, model, args.careers, args.runs_each, args.seed
+            )
 
 
 if __name__ == '__main__':
