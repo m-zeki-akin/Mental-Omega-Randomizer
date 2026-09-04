@@ -15,7 +15,6 @@ from .economy import mission_reward, starting_run_coins
 from .mission_modifiers import mission_modifier_for_run_offer
 from .missions import difficulty_stage, is_challenge_stage
 from .modifiers import modifier_effects, pacing_gem_scale_percent
-from .economy import starting_meta_coins
 from .meta import validate_starting_loadout
 from .model import (
     CurrencyReward,
@@ -227,12 +226,6 @@ def start_new_run(
         profile,
         lifetime_runs_started=profile.lifetime_runs_started + 1,
         salvaged_run_coins=0,
-        # A configured head start, scaled by the same pacing multiplier
-        # that governs earned Gems so an easier run cannot also start
-        # richer at full value.
-        meta_coins=profile.meta_coins + starting_meta_coins(
-            reward_settings, config
-        ),
     )
     run = ShopRun(
         run_id=run_id,

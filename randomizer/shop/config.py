@@ -112,7 +112,6 @@ def load_shop_mode_config() -> ShopModeConfig:
             settings['max_selected_permanent_units']
         ),
         starting_run_coins=int(settings['starting_run_coins']),
-        starting_meta_coins=int(settings['starting_meta_coins']),
         starting_rerolls=int(settings['starting_rerolls']),
         maximum_starting_ore=int(settings['maximum_starting_ore']),
         minimum_shop_price=int(settings['minimum_shop_price']),
@@ -169,7 +168,6 @@ RUN_PACING_SETTINGS = {
     ),
     'shop_stage_length': ('stage_length', 2, 5),
     'shop_starting_ore': ('starting_run_coins', 0, 50),
-    'shop_starting_gems': ('starting_meta_coins', 0, 50),
     'shop_starting_rerolls': ('starting_rerolls', 0, 5),
 }
 

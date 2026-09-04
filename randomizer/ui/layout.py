@@ -742,7 +742,6 @@ def _build_right_panel(self, main_frame):
         'shop_enemy_buffs_per_challenge': 'Enemy buffs per challenge',
         'shop_stage_length': 'Missions per stage',
         'shop_starting_ore': 'Starting Ore',
-        'shop_starting_gems': 'Starting Gems',
         'shop_starting_rerolls': 'Starting rerolls',
     }
     for index, (key, (_field, low, high)) in enumerate(
@@ -762,7 +761,7 @@ def _build_right_panel(self, main_frame):
         ).pack(anchor='w')
         step = (
             10 if key == 'shop_stage_income_percent'
-            else 5 if key in ('shop_starting_ore', 'shop_starting_gems')
+            else 5 if key == 'shop_starting_ore'
             else 1
         )
         ttk.Spinbox(

@@ -713,13 +713,14 @@ fixed for its whole length:
 | Enemy buffs per challenge    | 0-4     |       2 | more             |
 | Missions per stage           | 2-5     |       3 | fewer            |
 | Starting Ore                 | 0-50    |       5 | less             |
-| Starting Gems                | 0-50    |       0 | less             |
 | Starting rerolls             | 0-5     |       2 | fewer            |
 
 Starting rerolls are a baseline every run receives; the Mission Reroll upgrade
-adds to it rather than being the only source. The starting Gem grant is paid
-once when the run begins and is scaled by the same pacing multiplier as earned
-Gems, so a run made easier cannot also start richer at full value.
+adds to it rather than being the only source.
+
+Runs always begin with zero Gems and there is no setting for it. A grant paid
+at run start is paid whether or not a mission is played, so it can be farmed by
+starting a run and giving up; Gems are only ever earned by winning missions.
 
 A `Reset` button beside the readout restores the configured defaults and
 clears every optional modifier, so a player who has experimented can get back
@@ -748,7 +749,6 @@ stage length shape the whole run and are worth whole points:
 | One buff per challenge   |       ±3   |
 | One mission per stage    |       ∓2   |
 | One starting reroll      |      −0.7  |
-| 5 starting Gems          |      −0.5  |
 | 5 starting Ore           |      −0.3  |
 
 The score scales **Gem** payouts from 200% down to **0%**, and the score itself
@@ -756,8 +756,8 @@ is floored where that reaches zero (−10). Easing past that point pays nothing,
 so there is nothing further to trade away and the readout stops moving rather
 than showing a number that no longer means anything.
 
-At the floor the starting Gem grant is also scaled to zero, so a setup made
-maximally easy cannot mint Gems at all.
+At the floor a run earns no Gems at all, so a setup made maximally easy cannot
+advance permanent progression.
 
 Ore is deliberately **not** scaled by pacing. It is the run's own currency and
 the stage multiplier already governs it; scaling it twice would let an easy run

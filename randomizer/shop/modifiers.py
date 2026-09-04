@@ -79,14 +79,12 @@ PACING_DIFFICULTY_WEIGHTS = {
     'permanent_enemy_buffs_per_challenge': Fraction(3),
     'stage_length': Fraction(-2),
     'starting_run_coins': Fraction(-3, 10),
-    'starting_meta_coins': Fraction(-1, 2),
     'starting_rerolls': Fraction(-7, 10),
 }
 # Currencies move in larger units than the counts, so score them per five.
 PACING_DIFFICULTY_STEPS = {
     'stage_income_percent_per_stage': 10,
     'starting_run_coins': 5,
-    'starting_meta_coins': 5,
 }
 GEM_SCALE_PER_DIFFICULTY_PERCENT = 10
 MINIMUM_GEM_SCALE_PERCENT = 0

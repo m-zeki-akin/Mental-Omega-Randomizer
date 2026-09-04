@@ -146,7 +146,6 @@ def validate_shop_mode_config(sections, path, invalid):
         'power_inventory_size': (1, 100),
         'max_selected_permanent_units': (0, 100),
         'starting_run_coins': (0, 1000000),
-        'starting_meta_coins': (0, 1000000),
         'starting_rerolls': (0, 20),
         'maximum_starting_ore': (1, 1000000),
         'minimum_shop_price': (1, 1000000),

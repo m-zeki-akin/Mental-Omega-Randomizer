@@ -14,7 +14,6 @@
       "power_inventory_size": 6,
       "max_selected_permanent_units": 5,
       "starting_run_coins": 5,
-      "starting_meta_coins": 0,
       "starting_rerolls": 2,
       "maximum_starting_ore": 50,
       "minimum_shop_price": 1,
