@@ -163,8 +163,10 @@ class ShopProgressionService:
             raise ShopTransitionError('No Shop run exists')
         if modifier_effects(run.modifiers)['disable_rerolls']:
             raise ShopTransitionError('No Safety Net disables mission rerolls')
-        upgrade = SHOP_CONFIG.permanent_upgrades['mission_reroll']
-        maximum = (
+        config = run_shop_config(run)
+        upgrade = config.permanent_upgrades['mission_reroll']
+        # Every run gets a baseline allowance; the upgrade adds to it.
+        maximum = int(config.starting_rerolls) + (
             profile.upgrade_level('mission_reroll')
             * int(upgrade.effects['rerolls_per_level'])
         )

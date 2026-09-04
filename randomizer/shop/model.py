@@ -156,6 +156,8 @@ class ShopModeConfig:
     power_inventory_size: int
     max_selected_permanent_units: int
     starting_run_coins: int
+    starting_meta_coins: int
+    starting_rerolls: int
     maximum_starting_ore: int
     minimum_shop_price: int
     reroll_policy: str

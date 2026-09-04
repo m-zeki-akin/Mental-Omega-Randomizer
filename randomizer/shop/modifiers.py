@@ -72,9 +72,16 @@ PACING_DIFFICULTY_WEIGHTS = {
     'stage_income_percent_per_stage': -1,
     'permanent_enemy_buffs_per_challenge': 3,
     'stage_length': -2,
+    'starting_run_coins': -1,
+    'starting_meta_coins': -2,
+    'starting_rerolls': -2,
 }
-# Income moves in larger units than the others, so score it per ten percent.
-PACING_DIFFICULTY_STEPS = {'stage_income_percent_per_stage': 10}
+# Currencies move in larger units than the counts, so score them per five.
+PACING_DIFFICULTY_STEPS = {
+    'stage_income_percent_per_stage': 10,
+    'starting_run_coins': 5,
+    'starting_meta_coins': 5,
+}
 GEM_SCALE_PER_DIFFICULTY_PERCENT = 10
 MINIMUM_GEM_SCALE_PERCENT = 50
 MAXIMUM_GEM_SCALE_PERCENT = 200

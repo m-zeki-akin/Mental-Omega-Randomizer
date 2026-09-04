@@ -164,6 +164,24 @@ def starting_run_coins(
     )
 
 
+def starting_meta_coins(reward_settings=None, config: ShopModeConfig = SHOP_CONFIG):
+    """Return the Gem head start a run begins with.
+
+    Scaled by the run's pacing multiplier for the same reason earned Gems
+    are: a run made easier must not also be paid full value up front.
+    """
+    from .config import run_pacing_overrides
+    from .modifiers import pacing_gem_scale_percent
+
+    granted = run_pacing_overrides(reward_settings, config).get(
+        'starting_meta_coins', config.starting_meta_coins
+    )
+    return _scaled(
+        max(0, int(granted)),
+        Fraction(pacing_gem_scale_percent(reward_settings, config), 100),
+    )
+
+
 def discounted_shop_price(
     base_price,
     *,

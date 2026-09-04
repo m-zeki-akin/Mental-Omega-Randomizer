@@ -741,17 +741,30 @@ def _build_right_panel(self, main_frame):
         'shop_stage_income_percent': 'Income per stage (%)',
         'shop_enemy_buffs_per_challenge': 'Enemy buffs per challenge',
         'shop_stage_length': 'Missions per stage',
+        'shop_starting_ore': 'Starting Ore',
+        'shop_starting_gems': 'Starting Gems',
+        'shop_starting_rerolls': 'Starting rerolls',
     }
     for index, (key, (_field, low, high)) in enumerate(
         RUN_PACING_SETTINGS.items()
     ):
         cell = ttk.Frame(pacing_frame)
-        cell.grid(row=1, column=index, sticky='ew', padx=(0, 12))
+        cell.grid(
+            row=1 + index // 4,
+            column=index % 4,
+            sticky='ew',
+            padx=(0, 12),
+            pady=(0, 4),
+        )
         ttk.Label(
             cell, text=pacing_labels.get(key, key),
             style='Shop.Help.TLabel',
         ).pack(anchor='w')
-        step = 10 if key == 'shop_stage_income_percent' else 1
+        step = (
+            10 if key == 'shop_stage_income_percent'
+            else 5 if key in ('shop_starting_ore', 'shop_starting_gems')
+            else 1
+        )
         ttk.Spinbox(
             cell,
             from_=low,

@@ -712,6 +712,14 @@ fixed for its whole length:
 | Income per stage (%)         | 0-100   |      40 | lower            |
 | Enemy buffs per challenge    | 0-4     |       2 | more             |
 | Missions per stage           | 2-5     |       3 | fewer            |
+| Starting Ore                 | 0-50    |       5 | less             |
+| Starting Gems                | 0-50    |       0 | less             |
+| Starting rerolls             | 0-5     |       2 | fewer            |
+
+Starting rerolls are a baseline every run receives; the Mission Reroll upgrade
+adds to it rather than being the only source. The starting Gem grant is paid
+once when the run begins and is scaled by the same pacing multiplier as earned
+Gems, so a run made easier cannot also start richer at full value.
 
 A `Reset` button beside the readout restores the configured defaults and
 clears every optional modifier, so a player who has experimented can get back
