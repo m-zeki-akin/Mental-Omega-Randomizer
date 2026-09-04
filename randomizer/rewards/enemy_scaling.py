@@ -35,6 +35,13 @@ ENEMY_BUFF_DEFINITIONS = tuple(
 ENEMY_BUFF_BY_ID = {
     str(item['id']): item for item in ENEMY_BUFF_DEFINITIONS
 }
+# Shared stack ceiling per buff id. Shop Mode draws permanent challenge
+# buffs against the same limits the Archipelago Trap pool uses, so the two
+# sources cannot push one buff past its reviewed maximum.
+ENEMY_SCALING_BUFF_STACK_LIMITS = {
+    str(definition['id']): max(1, int(definition.get('maximum_stacks', 1)))
+    for definition in ENEMY_BUFF_DEFINITIONS
+}
 SUPPORTED_AI_REWARD_IDS = frozenset(
     definition['id']
     for definition in ENEMY_BUFF_DEFINITIONS

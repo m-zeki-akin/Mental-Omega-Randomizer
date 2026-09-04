@@ -286,7 +286,10 @@ def normalize_shop_run(document, *, config=SHOP_CONFIG):
         document.get('run_length'), 'run_length', config.run_length
     )
     stage = _positive_int(document.get('stage'), 'stage', 1)
-    if stage > run_length:
+    # Runs created before the endless rewrite have no flag and were all
+    # bounded, so default to False and let start_new_run set it.
+    endless = bool(document.get('endless', False))
+    if not endless and stage > run_length:
         raise ShopStateError(
             f'Shop run stage {stage} exceeds run length {run_length}'
         )
@@ -357,7 +360,7 @@ def normalize_shop_run(document, *, config=SHOP_CONFIG):
         stock_lock_stage = _positive_int(
             stock_lock_stage, 'stock_lock_stage', 1
         )
-        if stock_lock_stage > run_length:
+        if not endless and stock_lock_stage > run_length:
             raise ShopStateError('Shop stock_lock_stage exceeds run length')
     if bool(stock_lock_reward_id) != bool(stock_lock_stage):
         raise ShopStateError(
@@ -370,6 +373,11 @@ def normalize_shop_run(document, *, config=SHOP_CONFIG):
         status=status,
         stage=stage,
         run_length=run_length,
+        endless=endless,
+        permanent_enemy_buff_ids=_strings(
+            document.get('permanent_enemy_buff_ids'),
+            'permanent_enemy_buff_ids',
+        ),
         run_coins=_nonnegative_int(document.get('run_coins'), 'run_coins'),
         campaign_filter=_string(
             document.get('campaign_filter', 'All Campaigns'),

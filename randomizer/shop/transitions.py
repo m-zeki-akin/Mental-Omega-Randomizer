@@ -9,8 +9,11 @@ from .catalogue import (
     catalogue_entry,
     shop_entry_available,
 )
+from hashlib import sha256
+
 from .economy import mission_reward, starting_run_coins
 from .mission_modifiers import mission_modifier_for_run_offer
+from .missions import difficulty_stage, is_challenge_stage
 from .modifiers import modifier_effects
 from .meta import validate_starting_loadout
 from .model import (
@@ -26,6 +29,74 @@ from .state import normalize_shop_run
 
 class ShopTransitionError(ValueError):
     """Raised when an event conflicts with persisted Shop run state."""
+
+
+def maximum_run_lives(profile, config: ShopModeConfig = SHOP_CONFIG):
+    """Return how many defeats a run survives before it ends.
+
+    Every run now starts with the configured lives; the Extra Life
+    upgrade sells more on top. A run ends on the defeat that spends the
+    last one, so three lives means the third loss is fatal.
+    """
+    definition = config.permanent_upgrades['emergency_revival']
+    purchased = (
+        profile.upgrade_level('emergency_revival')
+        * int(definition.effects['lives_per_level'])
+        if profile is not None else 0
+    )
+    return max(1, int(config.starting_lives) + purchased)
+
+
+def unlocked_enemy_buff_ids(stage, config: ShopModeConfig = SHOP_CONFIG):
+    """Return permanent enemy buffs a challenge may draw at a stage."""
+    tier = difficulty_stage(stage, config)
+    return tuple(
+        buff_id
+        for tier_definition in config.enemy_buff_stage_tiers
+        if tier >= int(tier_definition.minimum_stage)
+        for buff_id in tier_definition.buff_ids
+    )
+
+
+def drawn_enemy_buff_ids(
+    run, mission_code, config: ShopModeConfig = SHOP_CONFIG
+):
+    """Return the permanent enemy buffs a challenge victory adds.
+
+    Deterministic from the run seed like every other Shop roll, so a
+    replayed run produces the same escalation. Draws respect the stack
+    ceiling each buff declares in the shared enemy-scaling contract, so a
+    saturated buff is skipped rather than silently wasted.
+    """
+    from randomizer.rewards.enemy_scaling import ENEMY_SCALING_BUFF_STACK_LIMITS
+
+    unlocked = unlocked_enemy_buff_ids(run.stage, config)
+    if not unlocked:
+        return ()
+    counts = Counter(run.permanent_enemy_buff_ids)
+    drawn = []
+    wanted = max(0, int(config.permanent_enemy_buffs_per_challenge))
+    for index in range(wanted * 8):
+        if len(drawn) >= wanted:
+            break
+        available = [
+            buff_id for buff_id in unlocked
+            if counts[buff_id] < ENEMY_SCALING_BUFF_STACK_LIMITS.get(
+                buff_id, 1
+            )
+        ]
+        if not available:
+            break
+        digest = sha256(
+            f'shop_permanent_enemy_buff\0{run.seed}\0{run.stage}\0'
+            f'{mission_code}\0{index}'.encode('utf-8')
+        ).digest()
+        choice = available[
+            int.from_bytes(digest[:4], 'big') % len(available)
+        ]
+        counts[choice] += 1
+        drawn.append(choice)
+    return tuple(drawn)
 
 
 @dataclass(frozen=True)
@@ -61,11 +132,17 @@ def victory_key(run_id, stage, mission_code):
 
 
 def _victory_already_rewarded(run, mission_code):
-    prefix = f'{run.run_id}:'
-    suffix = f':{mission_code}:victory'
+    """Return whether this mission was just paid for.
+
+    Not scoped to the whole run: a tier reset clears the offer history, so the
+    same mission can legitimately come round again three or more stages later
+    and must pay again. Scoped to the open stage and the one before it, which
+    is where a repeated victory report lands once the stage has advanced.
+    """
     return any(
-        key.startswith(prefix) and key.endswith(suffix)
-        for key in run.rewarded_victories
+        victory_key(run.run_id, stage, mission_code) in run.rewarded_victories
+        for stage in (run.stage, run.stage - 1)
+        if stage >= 1
     )
 
 
@@ -156,6 +233,9 @@ def start_new_run(
         status=RunStatus.ACTIVE,
         stage=1,
         run_length=config.run_length,
+        # Archipelago slots need a finite goal; standalone runs do not end
+        # until the lives are gone.
+        endless=not ap_identity,
         run_coins=min(
             config.maximum_starting_ore,
             starting_run_coins(
@@ -353,9 +433,9 @@ def apply_mission_victory(
     mission_code = str(mission_code or '').upper()
     if _victory_already_rewarded(run, mission_code):
         existing_key = next(
-            key for key in run.rewarded_victories
-            if key.startswith(f'{run.run_id}:')
-            and key.endswith(f':{mission_code}:victory')
+            key for stage in (run.stage, run.stage - 1) if stage >= 1
+            for key in (victory_key(run.run_id, stage, mission_code),)
+            if key in run.rewarded_victories
         )
         return VictoryTransition(
             profile, run, CurrencyReward(), existing_key, False
@@ -377,14 +457,24 @@ def apply_mission_victory(
         raise ShopTransitionError(
             f'Committed mission {mission_code!r} is missing from Shop offer'
         )
-    final_victory = run.stage == run.run_length
+    # Only an Archipelago run has a last stage. An endless run keeps going
+    # until its lives run out.
+    final_victory = not run.endless and run.stage == run.run_length
+    challenge_stage = is_challenge_stage(run.stage, config)
+    # Offer history is per tier: an endless run would otherwise exhaust the
+    # campaign and be left with whatever missions happened to remain.
+    opens_new_tier = difficulty_stage(
+        run.stage + 1, config
+    ) != difficulty_stage(run.stage, config)
     next_offers = tuple(next_offers)
     if final_victory:
         if next_offers:
             raise ShopTransitionError('Completed Shop run cannot create more offers')
     elif not next_offers or len(next_offers) > config.mission_offer_count:
         raise ShopTransitionError('Next Shop stage requires valid mission offers')
-    completed_codes = set(run.completed_missions)
+    completed_codes = (
+        set() if opens_new_tier else set(run.completed_missions)
+    )
     completed_codes.add(mission_code)
     if any(
         not isinstance(next_offer, MissionOffer)
@@ -407,7 +497,14 @@ def apply_mission_victory(
             ),
         ),
         challenge_hunter_level=profile.upgrade_level('challenge_hunter'),
+        stage=run.stage,
         config=config,
+    )
+    # A challenge victory permanently strengthens the AI for the rest of
+    # the run. That escalation is what the tier payout multiplier pays for.
+    earned_enemy_buffs = (
+        drawn_enemy_buff_ids(run, mission_code, config)
+        if challenge_stage else ()
     )
     if final_victory:
         dividend_level = profile.upgrade_level('gem_dividend')
@@ -453,8 +550,14 @@ def apply_mission_victory(
         selected_mission_code=None,
         mission_committed=False,
         assisted_mission_code=None,
-        completed_missions=run.completed_missions + (mission_code,),
+        completed_missions=(
+            () if opens_new_tier
+            else run.completed_missions + (mission_code,)
+        ),
         rewarded_victories=run.rewarded_victories + (key,),
+        permanent_enemy_buff_ids=(
+            run.permanent_enemy_buff_ids + earned_enemy_buffs
+        ),
         stock_lock_reward_id=(
             None if expire_stock_lock else run.stock_lock_reward_id
         ),
@@ -471,7 +574,7 @@ def apply_mission_failure(
     mission_code,
     *,
     profile=None,
-    maximum_emergency_revivals=0,
+    maximum_lives=1,
     revival_offers=(),
     salvage_run_coins=0,
     maximum_salvaged_run_coins=0,
@@ -488,12 +591,14 @@ def apply_mission_failure(
             f'Mission {mission_code!r} is not committed for current Shop stage'
         )
     revival_offers = tuple(revival_offers)
-    if run.emergency_revivals_used < max(0, int(maximum_emergency_revivals)):
+    # emergency_revivals_used counts spent lives. The run survives while a
+    # life remains after this one.
+    if run.emergency_revivals_used + 1 < max(1, int(maximum_lives)):
         if not revival_offers or any(
             not isinstance(offer, MissionOffer) for offer in revival_offers
         ):
             raise ShopTransitionError(
-                'Emergency Revival requires replacement mission offers'
+                'Surviving a Shop defeat requires replacement mission offers'
             )
         revived = replace(
             run,

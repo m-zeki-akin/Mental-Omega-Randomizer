@@ -1,5 +1,7 @@
 """Pure Shop Mode reward and price calculations."""
 
+from fractions import Fraction
+
 from .config import SHOP_CONFIG
 from .model import (
     CurrencyReward,
@@ -8,6 +10,25 @@ from .model import (
     ShopRewardType,
 )
 from .modifiers import modifier_effects
+
+
+def stage_income_multiplier(stage, config: ShopModeConfig = SHOP_CONFIG):
+    """Return the payout multiplier for the tier a mission sits in.
+
+    An endless run gets harder every tier: each challenge victory hands
+    the AI two permanent buffs that never come off. Payouts have to climb
+    with that or later tiers cost more than they return.
+    """
+    from .missions import difficulty_stage
+
+    tier = difficulty_stage(stage, config)
+    percent = max(0, int(config.stage_income_percent_per_stage))
+    return 1 + Fraction(percent, 100) * (tier - 1)
+
+
+def _scaled(amount, multiplier):
+    """Round a scaled currency amount half-up so payouts stay whole."""
+    return int(Fraction(amount) * Fraction(multiplier) + Fraction(1, 2))
 
 
 def _bounded_upgrade_level(config, upgrade_id, level):
@@ -27,6 +48,7 @@ def mission_reward(
     successful=True,
     mission_modifier=None,
     challenge_hunter_level=0,
+    stage=1,
     config: ShopModeConfig = SHOP_CONFIG,
 ):
     """Return configured victory currency; failures always return zero."""
@@ -44,7 +66,19 @@ def mission_reward(
         definition.run_coins * effects['run_reward_percent']
     )
     meta_coins = int(definition.meta_coins * effects['meta_reward_percent'])
-    if getattr(mission_modifier, 'challenge', False):
+    challenge = bool(getattr(mission_modifier, 'challenge', False))
+    stage_multiplier = stage_income_multiplier(stage, config)
+    challenge_multiplier = (
+        Fraction(max(100, int(config.challenge_reward_multiplier_percent)), 100)
+        if challenge else Fraction(1)
+    )
+    base_run_coins = _scaled(
+        base_run_coins, stage_multiplier * challenge_multiplier
+    )
+    meta_coins = _scaled(
+        meta_coins, stage_multiplier * challenge_multiplier
+    )
+    if challenge:
         meta_coins = int(
             meta_coins * effects['challenge_meta_reward_percent']
         )

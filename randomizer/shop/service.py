@@ -41,6 +41,7 @@ from .transitions import (
     apply_mission_difficulty_assist,
     apply_mission_victory,
     commit_selected_mission,
+    maximum_run_lives,
     reroll_missions,
     merge_archipelago_entitlements,
     select_mission,
@@ -388,9 +389,6 @@ class ShopProgressionService:
         profile, run = self.repository.load()
         if run is None:
             raise ShopTransitionError('No Shop run exists')
-        revival_definition = SHOP_CONFIG.permanent_upgrades[
-            'emergency_revival'
-        ]
         salvage_definition = SHOP_CONFIG.permanent_upgrades[
             'recovery_salvage'
         ]
@@ -399,10 +397,11 @@ class ShopProgressionService:
             run,
             mission_code,
             profile=profile,
-            maximum_emergency_revivals=(
-                0 if effects['disable_revivals'] else
-                profile.upgrade_level('emergency_revival')
-                * int(revival_definition.effects['revivals_per_run'])
+            maximum_lives=(
+                # A run modifier that disables revivals leaves exactly one
+                # life: the next defeat ends the run.
+                1 if effects['disable_revivals']
+                else maximum_run_lives(profile)
             ),
             revival_offers=revival_offers,
             salvage_run_coins=(

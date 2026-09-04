@@ -6,6 +6,7 @@ from hashlib import sha256
 from randomizer.config.static import load_static_config
 
 from .active import active_shop_reward_ids
+from .missions import is_challenge_stage
 from .text import gem_text
 from .model import MissionEconomyClass
 
@@ -73,52 +74,57 @@ def _eligible_player_boons(owned_reward_ids=()):
     )
 
 
+# How often a non-challenge mission carries a player boon.
+BOON_APPEARANCE_PERCENT = 55
+
+
 def mission_modifier_for_offer(run_seed, stage, offer, *, owned_reward_ids=()):
-    """Return stable modifier using player-first early-run difficulty pacing."""
-    if offer is None or offer.economy_class not in {
+    """Return the stable modifier for one offered mission.
+
+    Every mission that closes a stage is a challenge, on all offers, so the
+    player meets exactly one per stage whichever mission they pick. The
+    missions in between never carry a challenge; they only ever roll a
+    player boon.
+    """
+    if offer is None:
+        return None
+    stage = int(stage)
+    stream = (
+        f'shop_mission_modifier\0{run_seed}\0{stage}\0'
+        f'{offer.mission_code}'
+    ).encode('utf-8')
+    digest = sha256(stream).digest()
+    if is_challenge_stage(stage):
+        return CHALLENGE_MODIFIERS[
+            int.from_bytes(digest[4:6], 'big') % len(CHALLENGE_MODIFIERS)
+        ]
+    # Boons stay on the ordinary campaign classes: an operation or finale
+    # offer is already the hard pick of its stage.
+    if offer.economy_class not in {
         MissionEconomyClass.ACT_1,
         MissionEconomyClass.ACT_2,
     }:
         return None
-    stream = (
-        f'shop_mission_modifier\0{run_seed}\0{int(stage)}\0'
-        f'{offer.mission_code}'
-    ).encode('utf-8')
-    digest = sha256(stream).digest()
-    stage = int(stage)
-    if stage <= 2:
-        appearance_percent = 60
-        challenge_percent = 5
-    elif stage <= 5:
-        appearance_percent = 50
-        challenge_percent = 20
-    else:
-        appearance_percent = 65
-        challenge_percent = 70
-    if int.from_bytes(digest[:2], 'big') % 100 >= appearance_percent:
+    if int.from_bytes(digest[:2], 'big') % 100 >= BOON_APPEARANCE_PERCENT:
         return None
-    pool = CHALLENGE_MODIFIERS
-    if int.from_bytes(digest[2:4], 'big') % 100 >= challenge_percent:
-        pool = _eligible_player_boons(owned_reward_ids)
-    return pool[
-        int.from_bytes(digest[4:6], 'big') % len(pool)
-    ]
+    pool = _eligible_player_boons(owned_reward_ids)
+    return pool[int.from_bytes(digest[4:6], 'big') % len(pool)]
 
 
 def _raw_run_offer_modifier(
     run, offer, offer_index, *, challenge_slots, owned_reward_ids
 ):
-    if 0 <= offer_index < max(0, int(challenge_slots)):
+    if (
+        0 <= offer_index < max(0, int(challenge_slots))
+        and not is_challenge_stage(run.stage)
+    ):
         stream = (
             f'shop_permanent_challenge\0{run.seed}\0{run.stage}\0'
             f'{offer_index}\0{offer.mission_code}'
         ).encode('utf-8')
         digest = sha256(stream).digest()
-        pool = CHALLENGE_MODIFIERS
-        if int(run.stage) <= 5:
-            pool = _eligible_player_boons(owned_reward_ids)
-        return pool[
-            int.from_bytes(digest[:2], 'big') % len(pool)
+        return CHALLENGE_MODIFIERS[
+            int.from_bytes(digest[:2], 'big') % len(CHALLENGE_MODIFIERS)
         ]
     return mission_modifier_for_offer(
         run.seed,

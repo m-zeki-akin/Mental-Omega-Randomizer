@@ -64,6 +64,7 @@ from .inventory import (
     rotating_unit_inventory,
 )
 from .missions import (
+    is_challenge_stage,
     classify_mission,
     generate_mission_offers,
     mission_classes_for_stage,
@@ -394,14 +395,14 @@ def _permanent_feature_checks(mission_pool):
         committed,
         offers[0].mission_code,
         profile=profile,
-        maximum_emergency_revivals=1,
+        maximum_lives=2,
         revival_offers=offers[1:] + offers[:1],
     )
     failed = apply_mission_failure(
         replace(committed, emergency_revivals_used=1),
         offers[0].mission_code,
         profile=profile,
-        maximum_emergency_revivals=1,
+        maximum_lives=1,
         salvage_run_coins=25,
         maximum_salvaged_run_coins=25,
     )
@@ -798,6 +799,7 @@ def _phase_four_checks():
         )
         total_meta_coins = 0
         all_stages_had_three_offers = True
+        challenge_victories = 0
         for expected_stage in range(1, SHOP_CONFIG.run_length + 1):
             profile, run = repository.load()
             all_stages_had_three_offers &= len(run.mission_offers) == 3
@@ -807,14 +809,14 @@ def _phase_four_checks():
             assert selected.selected_mission_code == code
             assert not selected.mission_committed
             assert committed.mission_committed
-            next_offers = ()
-            if expected_stage < SHOP_CONFIG.run_length:
-                next_offers = generate_mission_offers(
-                    mission_pool,
-                    run_seed=run.seed,
-                    stage=expected_stage + 1,
-                    completed_codes=run.completed_missions + (code,),
-                )
+            next_offers = generate_mission_offers(
+                mission_pool,
+                run_seed=run.seed,
+                stage=expected_stage + 1,
+                completed_codes=run.completed_missions + (code,),
+            )
+            if is_challenge_stage(expected_stage):
+                challenge_victories += 1
             transition = service.record_victory(
                 code, next_offers=next_offers
             )
@@ -838,13 +840,27 @@ def _phase_four_checks():
     )
     reward_names = [reward.get('name') for reward in active_shop_rewards(stacked)]
     return {
+        # A standalone run is endless: it stays active, banks Gems as it
+        # goes, resets its offer history every stage, and collects two
+        # permanent enemy buffs from each stage-closing challenge.
         'full_standalone_run_valid': bool(
             all_stages_had_three_offers
-            and final_run.status is RunStatus.COMPLETED
-            and len(final_run.completed_missions) == SHOP_CONFIG.run_length
-            and len(set(final_run.completed_missions)) == SHOP_CONFIG.run_length
+            and final_run.status is RunStatus.ACTIVE
+            and final_run.endless
+            and final_run.stage == SHOP_CONFIG.run_length + 1
+            and len(final_run.completed_missions) == (
+                SHOP_CONFIG.run_length % SHOP_CONFIG.stage_length
+            )
             and final_profile.meta_coins == total_meta_coins
-            and final_profile.lifetime_runs_completed == 1
+            and final_profile.lifetime_missions_completed
+            == SHOP_CONFIG.run_length
+        ),
+        'endless_challenge_cadence_valid': bool(
+            challenge_victories
+            == SHOP_CONFIG.run_length // SHOP_CONFIG.stage_length
+            and len(final_run.permanent_enemy_buff_ids)
+            == challenge_victories
+            * SHOP_CONFIG.permanent_enemy_buffs_per_challenge
         ),
         'active_shop_reward_payload_valid': bool(
             reward_names.count(unit_reward_ids[0]) == 1
@@ -1305,9 +1321,9 @@ def validate_shop_domain():
         except ValueError:
             pass
     economy_valid = bool(
-        (act_one.run_coins, act_one.meta_coins) == (3, 1)
+        (act_one.run_coins, act_one.meta_coins) == (3, 2)
         and operation.run_coins == 10
-        and operation.meta_coins == 3
+        and operation.meta_coins == 5
         and operation.victory_bonus_run_coins == 3
         and capped_bonus.victory_bonus_run_coins == 5
         and len(SHOP_CONFIG.unit_target_prices) == 310
@@ -1355,13 +1371,13 @@ def validate_shop_domain():
     }
     stage_game_difficulty_valid = bool(
         mission_difficulty_weights_for_stage(3)
-        == {'Casual': 80, 'Normal': 20, 'Mental': 0}
+        == {'Casual': 85, 'Normal': 15, 'Mental': 0}
         and mission_difficulty_weights_for_stage(4)
-        == {'Casual': 35, 'Normal': 65, 'Mental': 0}
+        == {'Casual': 55, 'Normal': 45, 'Mental': 0}
         and mission_difficulty_weights_for_stage(6)
-        == {'Casual': 20, 'Normal': 60, 'Mental': 20}
-        and mission_difficulty_weights_for_stage(8)
-        == {'Casual': 10, 'Normal': 45, 'Mental': 45}
+        == {'Casual': 55, 'Normal': 45, 'Mental': 0}
+        and mission_difficulty_weights_for_stage(12)
+        == {'Casual': 25, 'Normal': 65, 'Mental': 10}
         and difficulty_samples[3]['Mental'] == 0
         and difficulty_samples[4]['Normal'] > difficulty_samples[4]['Casual']
         and difficulty_samples[4]['Mental'] == 0

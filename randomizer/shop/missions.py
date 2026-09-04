@@ -185,7 +185,9 @@ def generate_mission_offers(
     offer_count = (
         config.mission_offer_count if offer_count is None else int(offer_count)
     )
-    if run_length < 1 or not 1 <= stage <= run_length:
+    # An endless run has no last stage, so run_length only bounds offers for
+    # an Archipelago run. Stage still has to be a real stage.
+    if run_length < 1 or stage < 1:
         raise ValueError(
             f'Invalid Shop Mode stage {stage} for run length {run_length}'
         )

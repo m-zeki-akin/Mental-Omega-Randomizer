@@ -246,9 +246,10 @@ class ShopRun:
     run_length: int
     run_coins: int
     # Endless runs ignore run_length and end only when lives run out.
-    # Persisted at creation rather than inferred from ap_identity, which
-    # can be cleared while a run is still in progress.
-    endless: bool = True
+    # Persisted at creation rather than inferred from ap_identity, which can
+    # be cleared while a run is still in progress. Defaults to the bounded
+    # behaviour so a run restored from an older document stays bounded.
+    endless: bool = False
     permanent_enemy_buff_ids: tuple[str, ...] = ()
     schema_version: int = SHOP_RUN_SCHEMA_VERSION
     campaign_filter: str = 'All Campaigns'
