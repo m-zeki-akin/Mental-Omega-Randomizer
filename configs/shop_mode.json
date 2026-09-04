@@ -30,25 +30,25 @@
       "act_1": {
         "display_name": "Act 1",
         "difficulty": 1,
-        "run_coins": 30,
+        "run_coins": 75,
         "meta_coins": 20
       },
       "act_2": {
         "display_name": "Act 2",
         "difficulty": 2,
-        "run_coins": 50,
+        "run_coins": 125,
         "meta_coins": 30
       },
       "operation": {
         "display_name": "Operation",
         "difficulty": 3,
-        "run_coins": 70,
+        "run_coins": 175,
         "meta_coins": 50
       },
       "finale": {
         "display_name": "Finale",
         "difficulty": 4,
-        "run_coins": 100,
+        "run_coins": 250,
         "meta_coins": 70
       }
     },

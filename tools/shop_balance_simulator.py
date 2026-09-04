@@ -159,7 +159,8 @@ def purchasing_power_report(config, settings, tiers: int) -> None:
     print(f'== Satin alma gucu (bir turluk stok ~{slate}o: '
           f'{config.unit_inventory_size} birim + buff, '
           f'{config.power_inventory_size} guc) ==')
-    print(f'{"tier":>4} {"tier Ore":>9} {"stogun %":>10}')
+    print(f'{"tier":>4} {"tier Ore":>9} {"stogun %":>10}'
+          f'{"gorev Ore":>12}{"alim/gorev":>12}')
     for tier in range(1, tiers + 1):
         ore = sum(
             _reward(
@@ -173,7 +174,9 @@ def purchasing_power_report(config, settings, tiers: int) -> None:
             ).run_coins
             for offset in range(config.stage_length)
         )
-        print(f'{tier:>4} {ore:>9} {100 * ore / slate:>9.0f}%')
+        per_mission = ore / config.stage_length
+        print(f'{tier:>4} {ore:>9} {100 * ore / slate:>9.0f}%'
+              f'{per_mission:>12.0f}{per_mission / unit:>12.1f}')
     print('   not: stok her gorevde yenilenir ve buff lar ust uste binebilir,'
           ' yani gercek harcama tavani bundan yuksek')
 

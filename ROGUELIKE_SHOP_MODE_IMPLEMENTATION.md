@@ -179,10 +179,16 @@ Suggested default economy ranking:
 
 | Class     | Relative difficulty | Stage 1 Run Coin reward | Stage 1 Gem reward |
 | --------- | ------------------: | ----------------------: | -----------------: |
-| Act 1     |                   1 |                      30 |                 20 |
-| Act 2     |                   2 |                      50 |                 30 |
-| Operation |                   3 |                      70 |                 50 |
-| Finale    |                   4 |                     100 |                 70 |
+| Act 1     |                   1 |                      75 |                 20 |
+| Act 2     |                   2 |                     125 |                 30 |
+| Operation |                   3 |                     175 |                 50 |
+| Finale    |                   4 |                     250 |                 70 |
+
+Ore is deliberately several times the Gem figure. The run shop stocks eight
+units and six powers at once, refreshes them every mission, and takes buff
+stacks on top, so a mission's Ore has to buy a real choice out of that slate
+rather than a single item. `tools/shop_balance_simulator.py` reports the ratio
+directly as purchases per mission.
 
 Every Ore and Gem amount is held at ten times its natural size: rewards,
 prices, upgrade ladders, and the flat adjustments modifiers make. Percentage

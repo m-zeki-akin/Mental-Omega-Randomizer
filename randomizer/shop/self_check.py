@@ -1211,9 +1211,9 @@ def _phase_seven_checks():
             len(hidden) == 1
             and hidden == hidden_offer_codes(run)
             and hidden[0] in {offer.mission_code for offer in offers}
-            and adjusted.run_coins == 140
+            and adjusted.run_coins == 335
             and adjusted.meta_coins == 87
-            and poor_logistics_reward.run_coins == 70
+            and poor_logistics_reward.run_coins == 115
             and starting_run_coins(modifiers=('poor_logistics',)) == 50
             and discounted_shop_price(
                 50, modifiers=('poor_logistics',)
@@ -1223,7 +1223,7 @@ def _phase_seven_checks():
                 'generous_command'
             ].effects
             and any('Permanent Victory Bonus: +20' in line for line in breakdown)
-            and any('Total: +160 Ore' in line for line in breakdown)
+            and any('Total: +355 Ore' in line for line in breakdown)
             and 'Persistent Gems: 42' in completion_summary
             and restored == run
         ),
@@ -1348,8 +1348,8 @@ def validate_shop_domain():
         except ValueError:
             pass
     economy_valid = bool(
-        (act_one.run_coins, act_one.meta_coins) == (30, 20)
-        and operation.run_coins == 100
+        (act_one.run_coins, act_one.meta_coins) == (75, 20)
+        and operation.run_coins == 205
         and operation.meta_coins == 50
         and operation.victory_bonus_run_coins == 30
         and capped_bonus.victory_bonus_run_coins == 50
