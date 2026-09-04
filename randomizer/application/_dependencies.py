@@ -252,6 +252,7 @@ from randomizer.ui.config import (
 )
 from randomizer.ui.builder import create_widgets as build_launcher_widgets
 from randomizer.ui.grid import redraw_grid as redraw_launcher_grid
+from randomizer.ui.scrolling import scroll_under_pointer
 from randomizer.ui.theme import apply_color_mode as apply_launcher_color_mode
 from randomizer.ui.tooltips import WidgetTooltip
 

@@ -1,6 +1,7 @@
 """Shop Mode workspace widgets."""
 
 from ._builder_dependencies import TreeTooltip, WidgetTooltip, tk, ttk
+from .scrolling import block_wheel, claim_wheel, scroll_owner
 
 
 def _tree(
@@ -30,12 +31,24 @@ def _tree(
     )
     tree._shop_vertical_scrollbar = scrollbar
     tree._shop_horizontal_scrollbar = horizontal_scrollbar
+    # The wheel belongs to this tree while the pointer is anywhere over its
+    # frame, so the surrounding Shop or Settings canvas stays put.
+    scroll_owner(parent, target=tree, units=3)
+    for widget in (tree, scrollbar, horizontal_scrollbar):
+        claim_wheel(widget)
     tree.grid(row=0, column=0, sticky='nsew')
     scrollbar.grid(row=0, column=1, sticky='ns')
     horizontal_scrollbar.grid(row=1, column=0, sticky='ew')
     parent.columnconfigure(0, weight=1)
     parent.rowconfigure(0, weight=1)
     return tree
+
+
+def _keep_wheel_off_tabs(notebook):
+    """Scroll the page under a notebook instead of cycling its tabs."""
+    claim_wheel(notebook)
+    block_wheel(notebook, '<TouchpadScroll>')
+    return notebook
 
 
 def build_shop_tab(self, workspace_tabs):
@@ -74,6 +87,7 @@ def build_shop_tab(self, workspace_tabs):
     )
     content.bind('<Configure>', self.on_shop_content_configure, add='+')
     canvas.bind('<Configure>', self.on_shop_canvas_configure, add='+')
+    scroll_owner(canvas)
     self.bind_all('<MouseWheel>', self.on_shop_mousewheel, add='+')
 
     header = ttk.Frame(content)
@@ -219,6 +233,7 @@ def build_shop_tab(self, workspace_tabs):
     panels = ttk.Notebook(content, style='Unlocks.TNotebook')
     self.shop_panels = panels
     panels.grid(row=3, column=0, sticky='nsew')
+    _keep_wheel_off_tabs(panels)
 
     run_shop = ttk.Frame(panels, padding=8)
     panels.add(run_shop, text='Run Shop')
@@ -252,6 +267,7 @@ def build_shop_tab(self, workspace_tabs):
         width=10,
     )
     self.shop_access_view_combo.pack(side='left', padx=(5, 10))
+    claim_wheel(self.shop_access_view_combo)
     self.shop_access_view_combo.bind(
         '<<ComboboxSelected>>', self.refresh_shop_catalogue
     )
@@ -270,6 +286,7 @@ def build_shop_tab(self, workspace_tabs):
         width=9,
     )
     sort_box.pack(side='left', padx=(5, 0))
+    claim_wheel(sort_box)
     sort_box.bind('<<ComboboxSelected>>', self.refresh_shop_catalogue)
     self.shop_catalogue_help_var = tk.StringVar(value='')
     ttk.Label(
@@ -399,6 +416,7 @@ def build_shop_tab(self, workspace_tabs):
     permanent_tabs = ttk.Notebook(permanent, style='Unlocks.TNotebook')
     self.shop_permanent_tabs = permanent_tabs
     permanent_tabs.grid(row=1, column=0, sticky='nsew')
+    _keep_wheel_off_tabs(permanent_tabs)
 
     permanent_units = ttk.Frame(permanent_tabs, padding=8)
     self.shop_permanent_units_panel = permanent_units

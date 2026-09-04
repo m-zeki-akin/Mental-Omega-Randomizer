@@ -12,6 +12,7 @@ from ._dependencies import (
     messagebox,
     queue,
     save_config,
+    scroll_under_pointer,
     sys,
     tk,
     threading,
@@ -692,29 +693,14 @@ class WindowController:
             )
 
     def on_shop_mousewheel(self, event):
+        """Fallback for Shop widgets that do not claim the wheel themselves."""
         if not all(hasattr(self, name) for name in (
             'shop_canvas', 'shop_tab', 'workspace_tabs'
         )):
             return None
         if self.workspace_tabs.select() != str(self.shop_tab):
             return None
-        pointer_x = self.winfo_pointerx()
-        pointer_y = self.winfo_pointery()
-        left = self.shop_canvas.winfo_rootx()
-        top = self.shop_canvas.winfo_rooty()
-        right = left + self.shop_canvas.winfo_width()
-        bottom = top + self.shop_canvas.winfo_height()
-        if not (left <= pointer_x <= right and top <= pointer_y <= bottom):
-            return None
-        if event.state & 0x0001:
-            self.shop_canvas.xview_scroll(
-                -1 if event.delta > 0 else 1, 'units'
-            )
-        else:
-            self.shop_canvas.yview_scroll(
-                -1 if event.delta > 0 else 1, 'units'
-            )
-        return 'break'
+        return scroll_under_pointer(self, event)
 
     def on_grid_configure(self, _event=None):
         """Keep cached Grid content and canvas viewport dimensions aligned."""
