@@ -2316,8 +2316,12 @@ class ShopController(ShopPolishController):
                 'values': (
                     entry.reward_id,
                     (entry.tier or '').replace('_', ' ').title(),
+                    # Say why the price is four times the list one, and say
+                    # it whenever the surcharge applies -- a player who
+                    # cannot afford the row is exactly the one who needs to
+                    # know the number is not the normal price.
                     f'{state} • Reward Pool surcharge'
-                    if surcharged and buyable else state,
+                    if surcharged and entry.reward_id not in owned else state,
                     gem_text(price),
                 ),
             }
