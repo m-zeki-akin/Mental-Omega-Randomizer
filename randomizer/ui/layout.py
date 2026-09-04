@@ -714,12 +714,26 @@ def _build_right_panel(self, main_frame):
     self.shop_pacing_difficulty_var = tk.StringVar(
         value='Run difficulty +0 — Gems x1'
     )
+    pacing_heading = ttk.Frame(pacing_frame)
+    pacing_heading.grid(row=0, column=3, sticky='e', pady=(0, 6))
     ttk.Label(
-        pacing_frame,
+        pacing_heading,
         textvariable=self.shop_pacing_difficulty_var,
         font=('Segoe UI', 10, 'bold'),
         style='Shop.Reward.TLabel',
-    ).grid(row=0, column=3, sticky='e', pady=(0, 6))
+    ).pack(side='left', padx=(0, 8))
+    self.shop_setup_reset_button = ttk.Button(
+        pacing_heading,
+        text='Reset',
+        width=8,
+        command=self.reset_shop_setup,
+    )
+    self.shop_setup_reset_button.pack(side='left')
+    WidgetTooltip(
+        self.shop_setup_reset_button,
+        'Restore the configured default pacing and clear every optional '
+        'run modifier. An active run keeps the rules it started with.',
+    )
     for column in range(4):
         pacing_frame.columnconfigure(column, weight=1)
     pacing_labels = {

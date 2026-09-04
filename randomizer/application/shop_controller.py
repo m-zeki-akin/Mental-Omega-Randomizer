@@ -1539,6 +1539,23 @@ class ShopController(ShopPolishController):
         settings.update(self.shop_pacing_settings())
         return settings
 
+    def reset_shop_setup(self):
+        """Return the new-run setup to its configured defaults.
+
+        Covers both halves of the setup: pacing goes back to the configured
+        baseline, which is difficulty zero, and every optional modifier is
+        cleared. An active run is untouched -- its rules were fixed when it
+        started.
+        """
+        for key, (field, _low, _high) in RUN_PACING_SETTINGS.items():
+            variable = self.shop_pacing_vars.get(key)
+            if variable is not None:
+                variable.set(getattr(self.shop_config, field))
+        for variable in self.shop_modifier_vars.values():
+            variable.set(False)
+        self._refresh_shop_modifier_difficulty()
+        self._set_shop_message('Shop setup reset to defaults.')
+
     def shop_pacing_settings(self):
         """Return the pacing values selected for the next run."""
         chosen = {}

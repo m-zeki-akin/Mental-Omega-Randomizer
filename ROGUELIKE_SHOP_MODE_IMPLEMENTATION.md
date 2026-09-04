@@ -713,6 +713,11 @@ fixed for its whole length:
 | Enemy buffs per challenge    | 0-4     |       2 | more             |
 | Missions per stage           | 2-5     |       3 | fewer            |
 
+A `Reset` button beside the readout restores the configured defaults and
+clears every optional modifier, so a player who has experimented can get back
+to a difficulty-zero setup in one click. An active run is untouched: its rules
+were fixed when it started.
+
 They are stored in `reward_settings`, which is already snapshotted per run, so
 a run keeps the rules it started with even if the launcher defaults change
 underneath it. `run_shop_config()` resolves them into the config the run
