@@ -324,11 +324,7 @@ class ShopPolishController(ShopArchipelagoController):
             hidden = set(hidden_offer_codes(run))
             for offer in run.mission_offers:
                 mission = self._shop_mission(offer.mission_code)
-                mission_modifier = mission_modifier_for_run_offer(
-                    run,
-                    offer,
-                    challenge_slots=self._shop_challenge_slots(),
-                )
+                mission_modifier = mission_modifier_for_run_offer(run, offer)
                 definition = self.shop_config.mission_rewards[
                     offer.economy_class
                 ]
@@ -439,11 +435,7 @@ class ShopPolishController(ShopArchipelagoController):
                 continue
             card['frame'].grid()
             offer = offers[index]
-            mission_modifier = mission_modifier_for_run_offer(
-                run,
-                offer,
-                challenge_slots=self._shop_challenge_slots(),
-            )
+            mission_modifier = mission_modifier_for_run_offer(run, offer)
             mission = self._shop_mission(offer.mission_code)
             definition = self.shop_config.mission_rewards[offer.economy_class]
             reward = mission_reward(
@@ -1338,12 +1330,6 @@ class ShopPolishController(ShopArchipelagoController):
                 f'by {effects.get("ore_per_level", 0)} Ore, minimum price '
                 f'{SHOP_CONFIG.minimum_shop_price} Ore.'
             ),
-            'permanent_challenge_slots': (
-                f'Each level guarantees +{effects.get("slots_per_level", 0)} '
-                'special mission choice. Stage-closing missions are always '
-                'challenges, so this only adds one to the missions between '
-                'them.'
-            ),
             'coupon_book': (
                 f'First paid shop purchase each mission costs '
                 f'{effects.get("ore_per_level", 0)} less Ore per level.'
@@ -1355,12 +1341,6 @@ class ShopPolishController(ShopArchipelagoController):
             'veteran_academy': (
                 'Units selected in the permanent starting loadout begin '
                 'missions as Veterans.'
-            ),
-            'gem_dividend': (
-                f'On run victory, gain 1 Gem per '
-                f'{effects.get("ore_per_gem", 0)} remaining Ore, capped at '
-                f'{gem_text(effects.get("maximum_gems_per_level", 0))} '
-                'per level.'
             ),
             'premium_supplier': (
                 f'From mission {effects.get("minimum_stage", 0)}, guarantee '
@@ -1518,9 +1498,7 @@ class ShopPolishController(ShopArchipelagoController):
             ),
             modifiers=previous_run.modifiers,
             mission_modifier=mission_modifier_for_run_offer(
-                previous_run,
-                offer,
-                challenge_slots=self._shop_challenge_slots(),
+                previous_run, offer
             ),
             challenge_hunter_level=self.shop_profile.upgrade_level(
                 'challenge_hunter'
@@ -1536,13 +1514,8 @@ class ShopPolishController(ShopArchipelagoController):
         lines = tuple(lines[:-1]) + (
             f'Total: +{paid.run_coins} Ore, +{gem_text(paid.meta_coins)}',
         )
-        dividend = paid.gem_dividend_meta_coins
         self._set_shop_message(
             f'{source}: {code} victory. ' + ' | '.join(lines)
-            + (
-                f' | Gem Dividend: +{gem_text(dividend)}'
-                if dividend else ''
-            )
             + (
                 ' | New unit: ' + ', '.join(paid.granted_unit_ids)
                 if paid.granted_unit_ids else ''

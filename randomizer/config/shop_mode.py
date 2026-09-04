@@ -154,6 +154,7 @@ def validate_shop_mode_config(sections, path, invalid):
         'starting_rerolls': (0, 20),
         'maximum_starting_ore': (1, 1000000),
         'minimum_shop_price': (1, 1000000),
+        'excluded_target_gem_price_multiplier': (1, 100),
         'archipelago_purchase_locations': (0, 25),
         'archipelago_purchase_meta_coin_cost': (1, 1000000),
     }
@@ -350,11 +351,9 @@ def validate_shop_mode_config(sections, path, invalid):
         'recovery_salvage': ('ore_per_level', 'maximum_saved_ore'),
         'starting_buff_draft': ('buffs_per_level',),
         'discount_specialization': ('ore_per_level',),
-        'permanent_challenge_slots': ('slots_per_level',),
         'coupon_book': ('ore_per_level',),
         'stock_lock': ('locks_per_stage',),
         'veteran_academy': ('veteran_loadout',),
-        'gem_dividend': ('ore_per_gem', 'maximum_gems_per_level'),
         'premium_supplier': ('minimum_stage', 'guaranteed_offers'),
     }
     upgrades = sections['permanent_upgrades']

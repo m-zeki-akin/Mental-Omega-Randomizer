@@ -129,6 +129,9 @@ def load_shop_mode_config() -> ShopModeConfig:
         starting_rerolls=int(settings['starting_rerolls']),
         maximum_starting_ore=int(settings['maximum_starting_ore']),
         minimum_shop_price=int(settings['minimum_shop_price']),
+        excluded_target_gem_price_multiplier=int(
+            settings['excluded_target_gem_price_multiplier']
+        ),
         reroll_policy=str(settings['reroll_policy']),
         archipelago_purchase_locations=int(
             settings['archipelago_purchase_locations']

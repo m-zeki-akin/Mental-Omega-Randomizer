@@ -712,18 +712,8 @@ class ShopController(ShopPolishController):
         ].effects['assists_per_level']
         return level * int(per_level)
 
-    def _shop_challenge_slots(self):
-        definition = self.shop_config.permanent_upgrades[
-            'permanent_challenge_slots'
-        ]
-        return self.shop_profile.upgrade_level(
-            'permanent_challenge_slots'
-        ) * int(definition.effects['slots_per_level'])
-
     def _active_shop_mission_modifier(self, run):
-        return active_mission_modifier(
-            run, challenge_slots=self._shop_challenge_slots()
-        )
+        return active_mission_modifier(run)
 
     def shop_mission_difficulty_label(self, run, mission_code):
         if run is None:
@@ -2257,6 +2247,10 @@ class ShopController(ShopPolishController):
             and self.shop_run.status is RunStatus.ACTIVE
         )
         purchases_blocked = bool(self.shop_permanent_purchase_block())
+        # Reward Pool exclusions hide a target from runs, not from the Gem
+        # shop -- a player who ticked "no campaign-only units" may still want
+        # one particular story unit. They just pay the surcharge for it.
+        hidden_targets = self.shop_pending_reward_exclusions()
         unit_tree = self.shop_permanent_unit_tree
         unit_tree.delete(*unit_tree.get_children())
         self._shop_permanent_rows = {}
@@ -2291,7 +2285,10 @@ class ShopController(ShopPolishController):
         )
         for index, entry in enumerate(entries):
             iid = f'permanent-{index}'
-            price = permanent_unit_price(entry.target_id)
+            surcharged = entry.target_id in hidden_targets
+            price = permanent_unit_price(
+                entry.target_id, excluded_target_ids=hidden_targets
+            )
             if entry.reward_id in owned:
                 state = 'Owned'
                 row_tag = 'owned'
@@ -2319,7 +2316,8 @@ class ShopController(ShopPolishController):
                 'values': (
                     entry.reward_id,
                     (entry.tier or '').replace('_', ' ').title(),
-                    state,
+                    f'{state} • Reward Pool surcharge'
+                    if surcharged and buyable else state,
                     gem_text(price),
                 ),
             }
@@ -2400,6 +2398,10 @@ class ShopController(ShopPolishController):
         self._shop_permanent_buff_rows = {}
         self._shop_permanent_buff_buyable = {}
         purchases_blocked = bool(self.shop_permanent_purchase_block())
+        # Reward Pool exclusions hide a target from runs, not from the Gem
+        # shop -- a player who ticked "no campaign-only units" may still want
+        # one particular story unit. They just pay the surcharge for it.
+        hidden_targets = self.shop_pending_reward_exclusions()
         owned = set(self.shop_profile.permanent_unit_unlocks)
         owned_entries = sorted(
             (
@@ -2446,7 +2448,9 @@ class ShopController(ShopPolishController):
             stacks = stacks_by_reward.get(entry.reward_id, 0)
             maximum = entry.stack_limit or 1
             maxed = stacks >= maximum
-            price = permanent_buff_price(entry.target_id)
+            price = permanent_buff_price(
+                entry.target_id, excluded_target_ids=hidden_targets
+            )
             effect_state = 'MAX' if maxed else f'Stacks {stacks} / {maximum}'
             if maxed:
                 state, row_tag, buyable = 'Maximum stacks', 'maxed', False
@@ -2529,7 +2533,10 @@ class ShopController(ShopPolishController):
         if not reward_id:
             return
         try:
-            outcome = self.shop_service.purchase_permanent_unit(reward_id)
+            outcome = self.shop_service.purchase_permanent_unit(
+                reward_id,
+                excluded_target_ids=self.shop_pending_reward_exclusions(),
+            )
         except ShopTransitionError as exc:
             self._set_shop_message(exc, error=True)
         else:
@@ -2561,7 +2568,10 @@ class ShopController(ShopPolishController):
         if not reward_id:
             return
         try:
-            outcome = self.shop_service.purchase_permanent_buff(reward_id)
+            outcome = self.shop_service.purchase_permanent_buff(
+                reward_id,
+                excluded_target_ids=self.shop_pending_reward_exclusions(),
+            )
         except ShopTransitionError as exc:
             self._set_shop_message(exc, error=True)
         else:

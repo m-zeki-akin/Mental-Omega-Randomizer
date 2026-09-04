@@ -148,6 +148,19 @@ def _archipelago_profiles(value):
     return profiles
 
 
+# Upgrades that no longer exist. A saved profile still naming one is old,
+# not corrupt, so the level is dropped instead of refused -- retiring a
+# feature must never cost a player the rest of their profile.
+#
+# Gem Dividend paid out only when a run reached its final mission, which a
+# standalone endless run never does, so most players could never collect it.
+# Permanent Challenge Slots forced early offers to be challenges, which every
+# stage-closing mission already is.
+RETIRED_UPGRADE_IDS = frozenset({
+    'gem_dividend', 'permanent_challenge_slots',
+})
+
+
 def normalize_shop_profile(document=None, *, config=SHOP_CONFIG):
     if document is None:
         document = {}
@@ -166,6 +179,8 @@ def normalize_shop_profile(document=None, *, config=SHOP_CONFIG):
     }
     for raw_id, raw_level in raw_upgrades.items():
         upgrade_id = legacy_names.get(str(raw_id), str(raw_id))
+        if upgrade_id in RETIRED_UPGRADE_IDS:
+            continue
         definition = config.permanent_upgrades.get(upgrade_id)
         if definition is None:
             raise ShopStateError(

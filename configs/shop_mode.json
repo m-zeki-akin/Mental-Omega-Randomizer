@@ -22,6 +22,7 @@
       "starting_rerolls": 2,
       "maximum_starting_ore": 1250,
       "minimum_shop_price": 10,
+      "excluded_target_gem_price_multiplier": 4,
       "reroll_policy": "per_run",
       "archipelago_purchase_locations": 5,
       "archipelago_purchase_meta_coin_cost": 50,
@@ -582,14 +583,6 @@
           "ore_per_level": 10
         }
       },
-      "permanent_challenge_slots": {
-        "display_name": "Permanent Challenge Slots",
-        "max_level": 2,
-        "prices": [380, 750],
-        "effects": {
-          "slots_per_level": 1
-        }
-      },
       "coupon_book": {
         "display_name": "Coupon Book",
         "max_level": 3,
@@ -612,15 +605,6 @@
         "prices": [600],
         "effects": {
           "veteran_loadout": 1
-        }
-      },
-      "gem_dividend": {
-        "display_name": "Gem Dividend",
-        "max_level": 3,
-        "prices": [260, 520, 900],
-        "effects": {
-          "ore_per_gem": 13,
-          "maximum_gems_per_level": 10
         }
       },
       "premium_supplier": {

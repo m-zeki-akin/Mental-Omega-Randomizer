@@ -195,8 +195,8 @@ mission is higher than the Ore figure alone.
 A run opens with 125 Ore, and the Starting Capital ladder adds 25 more per
 level up to a 1,250 Ore ceiling -- the same 2.5x the mission rewards carry,
 so the opening purchase keeps the weight it was designed with. Victory Ore
-Bonus (+25 a level), Recovery Salvage (+125 a level, 625 carried), and the
-Gem Dividend rate (13 Ore a Gem) moved with them.
+Bonus (+25 a level) and Recovery Salvage (+125 a level, 625 carried) moved
+with them.
 
 The price side deliberately did **not** move: shop prices, the minimum
 shop price, and Coupon Book are all denominated in prices that were left
@@ -209,8 +209,7 @@ Every Ore and Gem amount is held at ten times its natural size: rewards,
 prices, upgrade ladders, and the flat adjustments modifiers make. Percentage
 modifiers used to be rounded away at single-digit values -- a 25% Gem bonus on
 a 2 Gem reward produced 2 -- and now land whole. Rates and counts are **not**
-scaled: the Gem Dividend exchange stays at 5 Ore per Gem, and level counts,
-slot counts, and level intervals are unchanged.
+scaled: level counts, slot counts, and level intervals are unchanged.
 
 These are the **stage 1** values. Each currency climbs on its own tier curve:
 
@@ -692,8 +691,21 @@ Do not implement unless the first Shop uses rotating offers.
 - Coupon Book: first paid shop purchase each stage costs 1–3 less Ore.
 - Stock Lock: preserve one selected access offer through the next victory rotation.
 - Veteran Academy: selected permanent-loadout units begin Veteran.
-- Gem Dividend: completed runs convert remaining Ore into a level-capped Gem bonus.
 - Premium Supplier: later stages guarantee one higher-tier access offer.
+
+### Retired account upgrades
+
+Two were removed rather than rebalanced, and `RETIRED_UPGRADE_IDS` in
+`randomizer/shop/state.py` drops them from a saved profile instead of refusing
+it, so retiring a feature never costs a player the rest of their account.
+
+- **Gem Dividend** paid only on the victory that ended a run, and a standalone
+  run is endless -- it has no final mission, so the payout could never fire
+  outside Archipelago. It was priced as a real upgrade while being unreachable
+  for most of the people buying it.
+- **Permanent Challenge Slots** forced the first offers of a non-closing stage
+  to be challenges. Every stage-closing mission is already a challenge, so the
+  upgrade sold a second helping of something the pacing hands out on schedule.
 
 ### Extra Life
 
@@ -831,6 +843,13 @@ group is data: an id list, a display name, a description, and the
 target the shop actually prices, forbids the same target appearing in two
 groups, and forbids two groups sharing a settings key -- a group that matched
 nothing would leave a checkbox claiming to hide rewards it never touches.
+
+The permanent Gem shop is the deliberate exception: it keeps selling a hidden
+target, at `excluded_target_gem_price_multiplier` times the normal price. The
+boxes exist to keep absurd units out of a run's random offers, not to forbid
+them outright, and a player who ticks "no campaign-only units" may still want
+one particular story unit badly enough to pay four times for it. The surcharge
+covers the access reward and every buff pointing at the same target.
 
 Exclusion is by **target**, not reward id. An access entry and the dozen buff
 entries aimed at the same unit share a target, so hiding "Paradox Engine

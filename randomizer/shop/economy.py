@@ -290,12 +290,48 @@ def _power_target_price(config, target_id, price_field):
     return int(price)
 
 
-def permanent_unit_price(target_id, *, config: ShopModeConfig = SHOP_CONFIG):
-    return _unit_target_price(config, target_id, 'permanent_access')
+def excluded_target_gem_price(
+    price, target_id, excluded_target_ids, config: ShopModeConfig = SHOP_CONFIG
+):
+    """Return the Gem price after the Reward Pool surcharge.
+
+    The Reward Pool boxes take a target out of a run: no offers, no upgrades,
+    no starting loadout. They deliberately do not take it out of the permanent
+    shop, because a player who has ticked "no campaign-only units" may still
+    want one specific story unit and should not have to untick the box to buy
+    it. What they should not get is the same price as everyone else, so a
+    hidden target costs the configured multiple.
+
+    Applied by target, like the exclusion itself: the access reward and every
+    buff that points at the same unit carry the surcharge together.
+    """
+    if not excluded_target_ids:
+        return price
+    if str(target_id).upper() not in excluded_target_ids:
+        return price
+    return price * max(1, int(config.excluded_target_gem_price_multiplier))
 
 
-def permanent_buff_price(target_id, *, config: ShopModeConfig = SHOP_CONFIG):
-    return _unit_target_price(config, target_id, 'permanent_buff')
+def permanent_unit_price(
+    target_id, *, excluded_target_ids=(), config: ShopModeConfig = SHOP_CONFIG
+):
+    return excluded_target_gem_price(
+        _unit_target_price(config, target_id, 'permanent_access'),
+        target_id,
+        excluded_target_ids,
+        config,
+    )
+
+
+def permanent_buff_price(
+    target_id, *, excluded_target_ids=(), config: ShopModeConfig = SHOP_CONFIG
+):
+    return excluded_target_gem_price(
+        _unit_target_price(config, target_id, 'permanent_buff'),
+        target_id,
+        excluded_target_ids,
+        config,
+    )
 
 
 def permanent_upgrade_price(

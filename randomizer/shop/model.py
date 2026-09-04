@@ -59,7 +59,6 @@ class CurrencyReward:
     mission_bonus_meta_coins: int = 0
     challenge_hunter_run_coins: int = 0
     challenge_hunter_meta_coins: int = 0
-    gem_dividend_meta_coins: int = 0
     # What the victory handed over on top of the currency. Named rather than
     # counted so the victory line can say which units and upgrades arrived.
     granted_upgrade_ids: tuple[str, ...] = ()
@@ -179,6 +178,7 @@ class ShopModeConfig:
     starting_rerolls: int
     maximum_starting_ore: int
     minimum_shop_price: int
+    excluded_target_gem_price_multiplier: int
     reroll_policy: str
     archipelago_purchase_locations: int
     archipelago_purchase_meta_coin_cost: int

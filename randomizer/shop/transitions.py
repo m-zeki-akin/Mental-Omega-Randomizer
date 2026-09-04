@@ -499,17 +499,7 @@ def apply_mission_victory(
             'victory_run_coin_bonus'
         ),
         modifiers=run.modifiers,
-        mission_modifier=mission_modifier_for_run_offer(
-            run,
-            offer,
-            challenge_slots=profile.upgrade_level(
-                'permanent_challenge_slots'
-            ) * int(
-                config.permanent_upgrades[
-                    'permanent_challenge_slots'
-                ].effects['slots_per_level']
-            ),
-        ),
+        mission_modifier=mission_modifier_for_run_offer(run, offer),
         challenge_hunter_level=profile.upgrade_level('challenge_hunter'),
         stage=run.stage,
         gem_scale_percent=pacing_gem_scale_percent(run.reward_settings),
@@ -521,21 +511,6 @@ def apply_mission_victory(
         drawn_enemy_buff_ids(run, mission_code, config)
         if challenge_stage else ()
     )
-    if final_victory:
-        dividend_level = profile.upgrade_level('gem_dividend')
-        dividend_effects = config.permanent_upgrades['gem_dividend'].effects
-        remaining_ore = run.run_coins + reward.run_coins
-        dividend = min(
-            dividend_level
-            * int(dividend_effects['maximum_gems_per_level']),
-            remaining_ore // int(dividend_effects['ore_per_gem']),
-        )
-        if dividend:
-            reward = replace(
-                reward,
-                meta_coins=reward.meta_coins + dividend,
-                gem_dividend_meta_coins=dividend,
-            )
     # Winning a mission strengthens the roster actually being fielded: a
     # couple of upgrades spread across owned units and powers, plus one unit
     # from the lowest tier that still has anything left to give. Both are

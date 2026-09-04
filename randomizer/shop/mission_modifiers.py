@@ -111,21 +111,7 @@ def mission_modifier_for_offer(run_seed, stage, offer, *, owned_reward_ids=()):
     return pool[int.from_bytes(digest[4:6], 'big') % len(pool)]
 
 
-def _raw_run_offer_modifier(
-    run, offer, offer_index, *, challenge_slots, owned_reward_ids
-):
-    if (
-        0 <= offer_index < max(0, int(challenge_slots))
-        and not is_challenge_stage(run.stage)
-    ):
-        stream = (
-            f'shop_permanent_challenge\0{run.seed}\0{run.stage}\0'
-            f'{offer_index}\0{offer.mission_code}'
-        ).encode('utf-8')
-        digest = sha256(stream).digest()
-        return CHALLENGE_MODIFIERS[
-            int.from_bytes(digest[:2], 'big') % len(CHALLENGE_MODIFIERS)
-        ]
+def _raw_run_offer_modifier(run, offer, *, owned_reward_ids):
     return mission_modifier_for_offer(
         run.seed,
         run.stage,
@@ -152,7 +138,7 @@ def _unused_modifier(raw_modifier, used_ids, owned_reward_ids):
     )
 
 
-def mission_modifier_for_run_offer(run, offer, *, challenge_slots=0):
+def mission_modifier_for_run_offer(run, offer):
     """Resolve stable offer modifiers without duplicate visible choices."""
     if run is None or offer is None:
         return None
@@ -168,14 +154,10 @@ def mission_modifier_for_run_offer(run, offer, *, challenge_slots=0):
     owned_reward_ids = active_shop_reward_ids(run)
     used_ids = set()
     resolved = None
-    for index, current_offer in enumerate(
-        run.mission_offers[:offer_index + 1]
-    ):
+    for current_offer in run.mission_offers[:offer_index + 1]:
         raw_modifier = _raw_run_offer_modifier(
             run,
             current_offer,
-            index,
-            challenge_slots=challenge_slots,
             owned_reward_ids=owned_reward_ids,
         )
         resolved = _unused_modifier(raw_modifier, used_ids, owned_reward_ids)
@@ -184,13 +166,11 @@ def mission_modifier_for_run_offer(run, offer, *, challenge_slots=0):
     return resolved
 
 
-def active_mission_modifier(run, *, challenge_slots=0):
+def active_mission_modifier(run):
     if run is None or not run.selected_mission_code:
         return None
     offer = next((
         item for item in run.mission_offers
         if item.mission_code == run.selected_mission_code
     ), None)
-    return mission_modifier_for_run_offer(
-        run, offer, challenge_slots=challenge_slots
-    )
+    return mission_modifier_for_run_offer(run, offer)

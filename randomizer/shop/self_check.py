@@ -153,7 +153,7 @@ def _reward(reward_id):
 def _requested_upgrade_modifier_checks():
     required_upgrades = {
         'coupon_book', 'stock_lock', 'veteran_academy',
-        'gem_dividend', 'premium_supplier',
+        'premium_supplier',
     }
     required_modifiers = {
         'glass_cannon', 'overclocked_factories', 'black_market',
@@ -185,13 +185,10 @@ def _requested_upgrade_modifier_checks():
         minimum_stage=3,
     )
 
-    profile = ShopProfile(
-        permanent_upgrades={'gem_dividend': 3},
-    )
     final_offer = MissionOffer('FINALE', MissionEconomyClass.FINALE)
     final_run = ShopRun(
-        run_id='dividend',
-        seed='DIVIDEND',
+        run_id='final-victory',
+        seed='FINAL-VICTORY',
         status=RunStatus.ACTIVE,
         stage=SHOP_CONFIG.run_length,
         run_length=SHOP_CONFIG.run_length,
@@ -200,8 +197,6 @@ def _requested_upgrade_modifier_checks():
         selected_mission_code='FINALE',
         mission_committed=True,
     )
-    dividend = apply_mission_victory(profile, final_run, 'FINALE')
-
     liquid_offer = MissionOffer('NEXT', MissionEconomyClass.ACT_1)
     liquid_run = replace(
         final_run,
@@ -281,10 +276,6 @@ def _requested_upgrade_modifier_checks():
             and len(locked) == 2
             and len(premium) == 2
         ),
-        'gem_dividend_valid': bool(
-            dividend.reward.gem_dividend_meta_coins == 30
-            and dividend.profile.meta_coins == dividend.reward.meta_coins
-        ),
         'liquid_assets_valid': bool(
             liquid.run.run_coins == liquid_reward.run_coins
         ),
@@ -356,7 +347,6 @@ def _permanent_feature_checks(mission_pool):
         'recovery_salvage': 5,
         'starting_buff_draft': 1,
         'discount_specialization': 5,
-        'permanent_challenge_slots': 1,
     }
     profile = ShopProfile(
         meta_coins=1000,
@@ -374,16 +364,11 @@ def _permanent_feature_checks(mission_pool):
         starting_draft_buffs=(BuffPurchase(buff_entry.reward_id, 1),),
         reward_settings={'shop_discount_specialization': 'Units'},
     )
-    early_forced = mission_modifier_for_run_offer(
-        run, offers[0], challenge_slots=1
-    )
-    unslotted = mission_modifier_for_run_offer(
-        run, offers[0], challenge_slots=0
-    )
+    # A stage-closing mission is a challenge on its own; nothing else forces
+    # one now that Permanent Challenge Slots is retired.
     late_run = replace(run, stage=SHOP_CONFIG.stage_length)
-    forced = mission_modifier_for_run_offer(
-        late_run, offers[0], challenge_slots=1
-    )
+    forced = mission_modifier_for_run_offer(late_run, offers[0])
+    between_stages = mission_modifier_for_run_offer(run, offers[0])
     challenge_reward = mission_reward(
         offers[0].economy_class,
         mission_modifier=forced,
@@ -538,12 +523,11 @@ def _permanent_feature_checks(mission_pool):
         'discount_specialization_valid': bool(
             specialized_price < normal_price and globally_discounted
         ),
-        'permanent_challenge_slots_valid': bool(
-            early_forced
-            and early_forced.challenge
-            and not (unslotted and unslotted.challenge)
-            and forced
+        # Challenges belong to the stage-closing mission and nowhere else.
+        'challenge_placement_valid': bool(
+            forced
             and forced.challenge
+            and not (between_stages and between_stages.challenge)
         ),
     }
 
@@ -2012,7 +1996,7 @@ def validate_shop_domain():
                 for offer in sample_offers
                 if (
                     modifier := mission_modifier_for_run_offer(
-                        sample_run, offer, challenge_slots=2
+                        sample_run, offer
                     )
                 ) is not None
             ]
@@ -2173,6 +2157,39 @@ def validate_shop_domain():
                     for group in SHOP_CONFIG.reward_exclusion_groups
                 })
             )
+        ),
+        # A hidden target is still on sale for Gems, at a multiple of the
+        # normal price. Both the access reward and its buffs carry it, and a
+        # target nobody ticked stays at list price.
+        'shop_exclusion_gem_surcharge_valid': bool(
+            SHOP_CONFIG.excluded_target_gem_price_multiplier > 1
+            and all(
+                permanent_unit_price(
+                    surcharge_target, excluded_target_ids=surcharge_group
+                ) == permanent_unit_price(surcharge_target)
+                * SHOP_CONFIG.excluded_target_gem_price_multiplier
+                and permanent_buff_price(
+                    surcharge_target, excluded_target_ids=surcharge_group
+                ) == permanent_buff_price(surcharge_target)
+                * SHOP_CONFIG.excluded_target_gem_price_multiplier
+                for surcharge_group in (
+                    group.target_ids
+                    for group in SHOP_CONFIG.reward_exclusion_groups
+                )
+                for surcharge_target in (
+                    sorted(
+                        surcharge_group & set(SHOP_CONFIG.unit_target_prices)
+                    )[:1]
+                )
+            )
+            and permanent_unit_price(
+                'E1',
+                excluded_target_ids=frozenset(
+                    target_id
+                    for group in SHOP_CONFIG.reward_exclusion_groups
+                    for target_id in group.target_ids
+                ),
+            ) == permanent_unit_price('E1')
         ),
         'shop_exact_access_mode_valid': SHOP_ACCESS_REWARD_MODE == 'Chaos',
         'shop_single_airfield_valid': shop_single_airfield_valid,

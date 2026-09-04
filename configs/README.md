@@ -196,9 +196,12 @@ Discounted prices use integer percentages, round down, then clamp to
 `permanent_upgrades` maps stable IDs to `display_name`, positive `max_level`,
 one positive price per level, and integer `effects`. Optional boolean
 `purchasable` defaults to `true`; `false` retains a retired upgrade ID for old
-profile normalization while hiding it and rejecting new purchases. Version 1 requires
-the full stable account-upgrade catalogue, including `coupon_book`,
-`stock_lock`, `veteran_academy`, `gem_dividend`, and `premium_supplier`.
+profile normalization while hiding it and rejecting new purchases. An upgrade
+deleted outright instead is listed in `RETIRED_UPGRADE_IDS`
+(`randomizer/shop/state.py`), which drops the level from a saved profile rather
+than refusing the profile. Version 1 requires the full stable account-upgrade
+catalogue, including `coupon_book`, `stock_lock`, `veteran_academy`, and
+`premium_supplier`.
 `modifiers` maps stable IDs to display text and additive or
 percentage economy effects. Percentage modifiers multiply exactly; flat
 modifiers add. Unknown saved modifier or upgrade IDs fail with a
