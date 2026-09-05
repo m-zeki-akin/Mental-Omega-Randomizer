@@ -21,6 +21,12 @@ Computer players are not ``[OtherN]`` sections -- those are for remote humans.
 They are rows in ``[HouseCountries]``, ``[HouseColors]``, ``[HouseHandicaps]``
 and ``[SpawnLocations]``, keyed ``MultiN``, numbered after the humans.
 
+The ``[Settings]`` keys are the ones yrpp-spawner actually reads, and the
+campaign keys the launcher writes for missions are absent on purpose. One of
+them mattered: ``IsSinglePlayer`` is the spawner's ``IsCampaign``, so carrying
+it over asked for a campaign with four multiplayer houses and crashed the game
+at "Processing sides.".
+
     python tools/skirmish_spike.py --dry-run     # show the files, write nothing
     python tools/skirmish_spike.py               # write and launch
     python tools/skirmish_spike.py --alliance-offset 11
@@ -182,26 +188,34 @@ def spawn_ini_text(chosen, alliance_offset, seed):
         f'Side={PLAYER_COUNTRY}',
         f'Color={COLORS[0]}',
         'IsSpectator=No',
-        'PlayerCount=1',
+        # IsSinglePlayer is the spawner's IsCampaign. The first version of
+        # this file set it to Yes, copied from the campaign spawn.ini the
+        # launcher already writes, which asked the engine to run a campaign
+        # with four multiplayer houses. It crashed at "Processing sides."
+        'IsSinglePlayer=False',
+        'GameMode=0',
+        'Ra2Mode=False',
         f'AIPlayers={sum(1 for house in houses if house["ai"])}',
+        f'AIDifficulty={AI_HANDICAP}',
         f'Seed={seed}',
         'GameSpeed=4',
         'Credits=10000',
         'UnitCount=10',
+        'TechLevel=10',
         'ShortGame=True',
         'Superweapons=True',
         'BuildOffAlly=True',
         'MCVRedeploy=True',
+        'MultiEngineer=False',
+        'AlliesAllowed=True',
+        'HarvesterTruce=False',
+        'FogOfWar=False',
+        'SpecialHouseIsAlly=False',
+        'BridgeDestroy=True',
         'Bases=True',
         'Crates=False',
-        'GameMode=1',
-        'IsSinglePlayer=Yes',
-        'Firestorm=False',
-        'SidebarHack=False',
-        'Difficulty=1',
-        'CampDifficulty=1',
-        'DifficultyModeHuman=1',
-        'DifficultyModeComputer=1',
+        f'UIMapName={chosen["name"]}',
+        'UIGameMode=Standard',
     ]
 
     def table(section, value_for):
