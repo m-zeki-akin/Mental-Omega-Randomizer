@@ -318,12 +318,15 @@ class SkirmishController:
             )
             return
         houses = self.skirmish_houses()
-        seed = random.randrange(1, 2 ** 31)
         battle = {
             'map': entry,
             'player': player,
             'houses': houses,
-            'seed': seed,
+            'seed': random.randrange(1, 2 ** 31),
+            # Read here rather than in the worker: these come off Tk
+            # variables, and Tk is not safe to touch from another thread.
+            'difficulty': self.get_selected_difficulty_value(),
+            'game_speed': self.get_selected_game_speed_value(),
         }
         self.config['skirmish_country'] = player.display
         self.config['skirmish_ally'] = self.skirmish_ally_var.get()
@@ -353,13 +356,14 @@ class SkirmishController:
                 player_color=HOUSE_COLORS[0],
                 houses=battle['houses'],
                 seed=battle['seed'],
+                # The spawner takes the match speed from here, not from the
+                # option files, so a skirmish plays at the speed the
+                # launcher locks its missions to rather than the client's.
+                options={'GameSpeed': str(battle['game_speed'])},
             ),
             encoding='utf-8',
         )
-        self.write_launch_options(
-            self.get_selected_difficulty_value(),
-            self.get_selected_game_speed_value(),
-        )
+        self.write_launch_options(battle['difficulty'], battle['game_speed'])
         return True
 
     def handle_skirmish_launch_error(self, exc, detail):
