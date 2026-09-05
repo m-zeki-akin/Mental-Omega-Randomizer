@@ -150,31 +150,68 @@ def veteran_armor_safety_rules(lines, installed_sections):
         },
     }
 
+def live_value(values, ini_key, fallback):
+    """Return the unit's own value for one stat, or the catalogue's.
+
+    Buffs used to be computed entirely from the reviewed catalogue baseline
+    while the clone body carried whatever the installation's rules said. On
+    stock Mental Omega the two agree, so nothing showed. On a submod they do
+    not, and the result was a reward that did nothing: a +1 sight buff on a
+    unit the mod had already raised to 7 wrote 6+1=7 back over 7. Worse, a
+    +1 passenger buff on Super Thor wrote 25+1=26 over an authored 28 and
+    took seats away.
+
+    A buff adds to what the unit *is*. This reads that, and falls back to the
+    catalogue for the units whose body does not carry the key at all.
+    """
+    for key, value in (values or {}).items():
+        if str(key).lower() != str(ini_key).lower():
+            continue
+        try:
+            number = float(str(value).strip())
+        except (TypeError, ValueError):
+            break
+        if isfinite(number):
+            return number
+        break
+    return fallback
+
+
 def apply_unit_buff_value(values, target, buff_type, count):
     if buff_type == 'health':
         multiplier = stacking_multiplier('health', count)
-        base_strength = resolved_safe_strength(target)
+        base_strength = resolved_safe_strength(target, values)
         set_safe_strength(values, int(round(base_strength * multiplier)))
     elif buff_type == 'sight':
         values['Sight'] = str(int(round(
-            target['sight'] + stacking_amount('sight', count)
+            live_value(values, 'Sight', target['sight'])
+            + stacking_amount('sight', count)
         )))
     elif buff_type == 'ammo':
         values['Ammo'] = str(int(round(
-            target['ammo'] + stacking_amount('ammo', count)
+            live_value(values, 'Ammo', target['ammo'])
+            + stacking_amount('ammo', count)
         )))
     elif buff_type == 'storage':
         values['Storage'] = str(int(round(
-            target['storage'] + stacking_amount('storage', count)
+            live_value(values, 'Storage', target['storage'])
+            + stacking_amount('storage', count)
         )))
     elif buff_type == 'income':
         values['ProduceCashAmount'] = str(int(round(
-            target['produce_cash_amount'] + stacking_amount('income', count)
+            live_value(
+                values, 'ProduceCashAmount', target['produce_cash_amount']
+            )
+            + stacking_amount('income', count)
         )))
     elif buff_type == 'passenger_capacity':
+        # Eligibility stays a reviewed decision -- a unit the catalogue says
+        # carries nobody gets no seat buff even if its section lists seats.
         if int(target.get('passengers', 0)) < 1:
             return False
-        values['Passengers'] = str(int(target['passengers']) + int(count))
+        values['Passengers'] = str(int(
+            live_value(values, 'Passengers', target['passengers'])
+        ) + int(count))
     elif buff_type == 'open_topped':
         if int(target.get('passengers', 0)) < 1:
             return False
@@ -195,10 +232,13 @@ def apply_unit_buff_value(values, target, buff_type, count):
     elif buff_type == 'sensors':
         values['Sensors'] = 'yes'
         values['SensorsSight'] = str(int(round(
-            target.get('sight', 5) + float(BUFF_EFFECTS['sensor_sight_bonus'])
+            live_value(values, 'Sight', target.get('sight', 5))
+            + float(BUFF_EFFECTS['sensor_sight_bonus'])
         )))
     elif buff_type == 'cost':
-        values['Cost'] = str(stacked_cost(target['cost'], count))
+        values['Cost'] = str(stacked_cost(
+            int(round(live_value(values, 'Cost', target['cost']))), count
+        ))
     elif buff_type == 'production':
         multiplier = stacking_multiplier('production', count)
         existing_key = next(
@@ -212,7 +252,14 @@ def apply_unit_buff_value(values, target, buff_type, count):
         base = parse_float(values.get(existing_key), 1.0)
         values[existing_key] = format_multiplier(base * multiplier)
     elif buff_type == 'speed':
-        values['Speed'] = str(capped_movement_speed(target, count))
+        # The ceiling is a per-category safety rule and stays the catalogue's;
+        # only the speed it is applied to comes from the unit.
+        values['Speed'] = str(capped_movement_speed(
+            {**target, 'speed': live_value(
+                values, 'Speed', target.get('speed', 1)
+            )},
+            count,
+        ))
     elif buff_type == 'armor':
         multiplier = stacking_multiplier('armor', count)
         current_strength = resolved_safe_strength(target, values)

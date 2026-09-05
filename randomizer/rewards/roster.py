@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-import shutil
+import traceback
 from functools import lru_cache
 from math import isfinite
 from pathlib import Path
@@ -11,7 +11,18 @@ from statistics import median
 from randomizer.core.paths import APP_DIR, FROZEN, SOURCE_DIR
 
 
-ROSTER_FILENAMES = (
+# What is left of a 494 KB bake of every player clone's complete stat line.
+# The bake was a copy of stock rules with the reviewed clone policy applied,
+# and the policy is in template_policy.py, so all of it could be rebuilt from
+# the rules the installation loads -- measured at 326 of 326 sections
+# reproduced with no differences. Two things could not: which units get a
+# clone at all, and the six bodies that exist only inside maps.
+ROSTER_REGISTRY_FILENAME = 'RandomizerUnits.ini'
+MAP_ONLY_SOURCE_FILENAME = 'RandomizerMapOnlySources.ini'
+ROSTER_FILENAMES = (ROSTER_REGISTRY_FILENAME, MAP_ONLY_SOURCE_FILENAME)
+# Files the bake used to occupy, moved out of the way once rather than
+# deleted: a player may have edited one, and they stop being read either way.
+OBSOLETE_ROSTER_FILENAMES = (
     'RandomizerInfantry.ini',
     'RandomizerHeroes.ini',
     'RandomizerVehicles.ini',
@@ -220,16 +231,40 @@ def randomizer_unit_id(source_id):
     return f'MORP{str(source_id or "").strip().upper()}'
 
 
+def _retire_obsolete_visible_rosters():
+    """Move the old editable stat bake aside, once, on a packaged install."""
+    folder = APP_DIR / 'configs'
+    if not FROZEN or not folder.is_dir():
+        return []
+    retired = []
+    for name in OBSOLETE_ROSTER_FILENAMES:
+        path = folder / name
+        if not path.is_file():
+            continue
+        replacement = path.with_suffix(path.suffix + '.replaced')
+        try:
+            if replacement.exists():
+                path.unlink()
+            else:
+                path.rename(replacement)
+        except OSError:
+            continue
+        retired.append(name)
+    return retired
+
+
 def _active_roster_paths():
-    bundled_paths = tuple(SOURCE_DIR / 'configs' / name for name in ROSTER_FILENAMES)
-    if not FROZEN:
-        return bundled_paths
-    visible_paths = tuple(APP_DIR / 'configs' / name for name in ROSTER_FILENAMES)
-    for bundled_path, visible_path in zip(bundled_paths, visible_paths):
-        if not visible_path.exists():
-            visible_path.parent.mkdir(parents=True, exist_ok=True)
-            shutil.copy2(bundled_path, visible_path)
-    return visible_paths
+    """Return the committed roster files -- always the bundled ones.
+
+    These were copied into the game folder and treated as authoritative once
+    there, which was right while they carried every clone's stat line: a
+    player who wanted their Rhino retuned had somewhere to do it. They no
+    longer carry stats. What they carry now is which units the randomizer
+    clones, and six bodies no rules file contains, so an editable copy would
+    only be a way to award yourself units.
+    """
+    _retire_obsolete_visible_rosters()
+    return tuple(SOURCE_DIR / 'configs' / name for name in ROSTER_FILENAMES)
 
 
 def _read_sections(path: Path):
@@ -330,35 +365,109 @@ def _normalize_special_reward_build_times(templates, targets):
     return normalized
 
 
-@lru_cache(maxsize=1)
-def randomizer_unit_template_values():
-    """Return source-ID values from the active static player templates."""
+def _roster_paths_or_raise():
     paths = _active_roster_paths()
     missing_files = [str(path) for path in paths if not path.is_file()]
     if missing_files:
         raise FileNotFoundError(
             'Randomizer unit roster file(s) missing: ' + ', '.join(missing_files)
         )
+    return paths
 
-    sections = {}
-    for path in paths:
-        for section, values in _read_sections(path).items():
-            sections[section.lower()] = (section, values)
-    if FROZEN:
-        # Preserved visible sections remain authoritative. Bundled sections
-        # only supplement types absent from an older packaged roster.
-        for name in ROSTER_FILENAMES:
-            bundled_path = SOURCE_DIR / 'configs' / name
-            if not bundled_path.is_file():
-                continue
-            for section, values in _read_sections(bundled_path).items():
-                sections.setdefault(section.lower(), (section, values))
 
-    templates = {}
-    for section, values in sections.values():
-        if not section.upper().startswith('MORP'):
+@lru_cache(maxsize=1)
+def registered_clone_ids():
+    """Return ``{SOURCE_ID: MORP clone id}`` from the committed registry."""
+    registry_path = SOURCE_DIR / 'configs' / ROSTER_REGISTRY_FILENAME
+    _roster_paths_or_raise()
+    list_names = {name.lower() for name in ROSTER_CATEGORIES.values()}
+    clone_ids = {}
+    for section, values in _read_sections(registry_path).items():
+        if section.lower() not in list_names:
             continue
-        templates[section[4:].upper()] = dict(values)
+        for clone_id in values.values():
+            clone_id = str(clone_id).strip()
+            if clone_id.upper().startswith('MORP'):
+                clone_ids[clone_id[4:].upper()] = clone_id
+    return clone_ids
+
+
+@lru_cache(maxsize=1)
+def map_only_source_sections():
+    """Return the reviewed bodies of units no rules file contains."""
+    path = SOURCE_DIR / 'configs' / MAP_ONLY_SOURCE_FILENAME
+    _roster_paths_or_raise()
+    return {
+        section.upper(): dict(values)
+        for section, values in _read_sections(path).items()
+    }
+
+
+def _installed_sections():
+    """Return the installed rules sections, or ``{}`` when unreadable."""
+    try:
+        from randomizer.ui.cameos import installed_rules_registry
+
+        _superweapons, sections = installed_rules_registry(synchronous=True)
+    except Exception:
+        # Callers turn an empty registry into a visible failure, but the
+        # reason it was empty only exists here.
+        from randomizer.core.diagnostics import event as log_event
+
+        log_event(
+            'installed_rules_registry_failed',
+            traceback=traceback.format_exc(),
+        )
+        return {}
+    return {str(name).upper(): values for name, values in (sections or {}).items()}
+
+
+@lru_cache(maxsize=1)
+def randomizer_unit_template_values():
+    """Return each registered clone's body, built from the live rules.
+
+    The reviewed policy applied to the section this installation actually
+    loads, with the six map-only bodies filling in for units no rules file
+    contains. This is where the shop reads a unit's Cost and TechLevel and
+    where the catalogue reads Storage and Harvester, so it has to be the
+    clone's own values: six reviewed identities change BuildLimit or Cost
+    away from their source, and reading the source would misprice them.
+
+    Called before ``BUFF_TARGETS`` exists -- ``rewards.definitions`` uses it
+    while building them -- so category and special-reward status are not
+    available here. The one policy branch that needs them normalizes campaign
+    build delays, which no caller of this function reads;
+    :func:`randomizer_unit_roster` builds the same bodies again with both.
+
+    Scoped to the committed registry rather than every installed section, so
+    a caller that iterates this gets the roster and not four thousand weapon
+    and warhead definitions.
+    """
+    from randomizer.config.tuning import CLONE_UI_DESCRIPTION
+    from randomizer.rewards.template_policy import (
+        build_template_values,
+        template_source_id,
+    )
+
+    installed = _installed_sections()
+    map_only = map_only_source_sections()
+    templates = {}
+    for source_id in registered_clone_ids():
+        wanted = str(template_source_id(source_id)).upper()
+        values = installed.get(wanted) or map_only.get(wanted)
+        if not values:
+            continue
+        built = build_template_values(
+            source_id,
+            values,
+            category=None,
+            special_reward=False,
+            description=CLONE_UI_DESCRIPTION,
+        )
+        built.update(MANDATORY_TEMPLATE_OVERRIDES.get(source_id, {}))
+        templates[source_id] = {
+            key: value for key, value in built.items() if value is not None
+        }
     return templates
 
 
@@ -384,69 +493,38 @@ def randomizer_unit_ids_with_behavior(key, expected_value='yes'):
 
 @lru_cache(maxsize=1)
 def randomizer_unit_roster():
-    from randomizer.rewards.catalogue import BUFF_TARGETS
+    """Return ``(paths, clone_ids, templates)`` built from the live rules.
 
-    paths = _active_roster_paths()
-    sections_by_path = {}
-    bundled_fallback_sections = {}
-    missing_files = []
-    for path in paths:
-        if not path.is_file():
-            missing_files.append(str(path))
-            continue
-        sections_by_path[path] = _read_sections(path)
-    if FROZEN:
-        # Editable roster files intentionally survive packaged upgrades. New
-        # mandatory clone templates must still work when an older visible
-        # roster predates them, so use bundled registrations/templates only as
-        # an in-memory fallback. Existing visible sections remain authoritative.
-        for name in ROSTER_FILENAMES:
-            bundled_path = SOURCE_DIR / 'configs' / name
-            if bundled_path.is_file():
-                bundled_fallback_sections[bundled_path] = _read_sections(
-                    bundled_path
-                )
-    if missing_files:
+    Every clone body is the reviewed policy in ``template_policy`` applied to
+    the section the installation loads, so a submodded Rhino and its player
+    copy are one unit rather than two sidebar entries with different stats.
+    This used to be a committed bake of stock values with the same policy
+    replayed over it afterwards at map generation; the bake reproduced from
+    the rules exactly, and only the overlay's result ever reached the game.
+
+    Raises rather than returning a thin roster when the rules cannot be read.
+    A silent fallback here is a shop full of stock prices and clones that
+    disagree with the units beside them, which is the failure this replaced.
+    """
+    from randomizer.rewards.catalogue import BUFF_TARGETS, SPECIAL_REWARD_UNIT_IDS
+    from randomizer.config.tuning import CLONE_UI_DESCRIPTION
+    from randomizer.rewards.template_policy import (
+        build_template_values,
+        template_source_id,
+    )
+
+    paths = _roster_paths_or_raise()
+    registered = registered_clone_ids()
+    installed = _installed_sections()
+    map_only = map_only_source_sections()
+    if not installed:
         raise FileNotFoundError(
-            'Randomizer unit roster file(s) missing: ' + ', '.join(missing_files)
+            'Installed rules registry is empty; RULESMO.INI could not be read '
+            'from the game directory, and every player clone is built from it.'
         )
 
-    template_sections = {}
-    registered_by_list = {}
-    for path, sections in sections_by_path.items():
-        section_names = {name.lower(): name for name in sections}
-        for list_name in set(ROSTER_CATEGORIES.values()):
-            actual = section_names.get(list_name.lower())
-            registered_by_list.setdefault(list_name, set()).update(
-                value.upper()
-                for value in sections.get(actual, {}).values()
-                if value
-            )
-        for section, values in sections.items():
-            lowered = section.lower()
-            if lowered in {name.lower() for name in ROSTER_CATEGORIES.values()}:
-                continue
-            if lowered in template_sections:
-                raise ValueError(
-                    f'Duplicate randomizer unit section [{section}] in {path}.'
-                )
-            template_sections[lowered] = (section, values)
-    for sections in bundled_fallback_sections.values():
-        section_names = {name.lower(): name for name in sections}
-        for list_name in set(ROSTER_CATEGORIES.values()):
-            actual = section_names.get(list_name.lower())
-            registered_by_list.setdefault(list_name, set()).update(
-                value.upper()
-                for value in sections.get(actual, {}).values()
-                if value
-            )
-        for section, values in sections.items():
-            lowered = section.lower()
-            if lowered in {name.lower() for name in ROSTER_CATEGORIES.values()}:
-                continue
-            template_sections.setdefault(lowered, (section, values))
-
     missing = []
+    unregistered = []
     templates = {}
     clone_ids = {}
     for source_id, target in BUFF_TARGETS.items():
@@ -457,121 +535,108 @@ def randomizer_unit_roster():
         list_name = ROSTER_CATEGORIES.get(target.get('category'))
         if not list_name:
             continue
-        clone_id = randomizer_unit_id(source_id)
-        template = template_sections.get(clone_id.lower())
-        if (
-            clone_id not in registered_by_list.get(list_name, set())
-            or template is None
-            or not template[1]
-        ):
-            missing.append(f'{source_id}->{clone_id}/{list_name}')
+        source_id = source_id.upper()
+        clone_id = registered.get(source_id)
+        if not clone_id:
+            unregistered.append(f'{source_id}/{list_name}')
             continue
-        clone_ids[source_id.upper()] = clone_id
-        templates[source_id.upper()] = dict(template[1])
-        templates[source_id.upper()].update(
-            MANDATORY_TEMPLATE_OVERRIDES.get(source_id.upper(), {})
+        wanted = str(template_source_id(source_id)).upper()
+        source_values = installed.get(wanted) or map_only.get(wanted)
+        if not source_values:
+            missing.append(f'{source_id}->{wanted}')
+            continue
+        values = build_template_values(
+            source_id,
+            source_values,
+            category=target.get('category'),
+            special_reward=source_id in SPECIAL_REWARD_UNIT_IDS,
+            description=CLONE_UI_DESCRIPTION,
+        )
+        values.update(MANDATORY_TEMPLATE_OVERRIDES.get(source_id, {}))
+        # A None override means "this key must not be present", which is how
+        # a reviewed identity drops a campaign-only gate the source carries.
+        clone_ids[source_id] = clone_id
+        templates[source_id] = {
+            key: value for key, value in values.items() if value is not None
+        }
+    if unregistered:
+        raise ValueError(
+            'Randomizer roster registry lacks required TechnoTypes: '
+            + ', '.join(unregistered)
         )
     if missing:
         raise ValueError(
-            'Randomizer roster lacks required TechnoTypes: ' + ', '.join(missing)
+            'No installed or reviewed source section for: ' + ', '.join(missing)
         )
     _normalize_special_reward_build_times(templates, BUFF_TARGETS)
     return paths, clone_ids, templates
 
 
-def _lowered_key_map(values):
-    return {str(key).lower(): key for key in values}
+def roster_stock_report():
+    """Return which rostered units differ from stock Mental Omega rules.
 
-
-def installed_rules_template_overlay(templates, installed_sections):
-    """Rebuild clone templates from the live installed rules registry.
-
-    The committed ``configs/Randomizer*.ini`` roster is baked from stock
-    Mental Omega rules. A submod that edits ``rulesmo.ini`` therefore leaves
-    every ``MORP*`` player copy on the stock stat line while its native source
-    uses the submodded one. Replay the same reviewed template policy against
-    whatever rules the installation actually loads so the player clone and its
-    native identity stay one unit.
-
-    Static roster values remain authoritative wherever the live registry has
-    no matching source section (reviewed map-only rewards such as Super Thor,
-    the boss Brutes, and campaign-only heroes) and wherever the value wires up
-    a generated ``MORP*`` identity. Returns ``(templates, report)`` and never
-    mutates its input.
+    Building clones from the installed rules is what makes a submod work; it
+    is also what makes it invisible. This is the other half: the units whose
+    section no longer matches the shipped digest of stock rules, and the ones
+    stock has no section for at all.
     """
-    from randomizer.rewards.catalogue import BUFF_TARGETS, SPECIAL_REWARD_UNIT_IDS
-    from randomizer.config.tuning import CLONE_UI_DESCRIPTION
-    from randomizer.rewards.template_policy import (
-        build_template_values,
-        case_insensitive_section,
-        template_source_id,
-    )
+    from randomizer.core import rules_digest
+    from randomizer.rewards.template_policy import template_source_id
 
-    overlaid = {source_id: dict(values) for source_id, values in templates.items()}
-    report = {'updated': {}, 'unchanged': [], 'no_installed_source': []}
-    if not installed_sections:
-        report['no_installed_source'] = sorted(overlaid)
-        return overlaid, report
-
-    for source_id, template in sorted(templates.items()):
-        source_name = case_insensitive_section(
-            installed_sections, template_source_id(source_id)
-        )
-        if not source_name:
-            report['no_installed_source'].append(source_id)
+    installed = _installed_sections()
+    if not installed or not rules_digest.available():
+        return {}
+    report = {'original': 0, 'modified': [], 'unknown': []}
+    for source_id in sorted(registered_clone_ids()):
+        wanted = str(template_source_id(source_id)).upper()
+        values = installed.get(wanted)
+        if values is None:
+            # Map-only bodies are not in stock rules by definition; saying so
+            # for all six every launch is noise, not information.
             continue
-        target = BUFF_TARGETS.get(source_id, {})
-        rebuilt = build_template_values(
-            source_id,
-            installed_sections[source_name],
-            category=target.get('category'),
-            special_reward=source_id in SPECIAL_REWARD_UNIT_IDS,
-            description=CLONE_UI_DESCRIPTION,
+        status = rules_digest.section_status(
+            rules_digest.RULES, wanted, values
         )
-        # Clone wiring (Convert.Deploy, Passengers.Allowed, InitialPayload,
-        # miner Dock lists) names generated MORP identities that exist only in
-        # the randomizer roster. Reviewed policy already restores these, but an
-        # older editable packaged roster can carry ones this build does not
-        # know; never drop them to installed rules.
-        rebuilt_keys = _lowered_key_map(rebuilt)
-        for key, value in template.items():
-            if 'MORP' not in str(value).upper():
-                continue
-            rebuilt.pop(rebuilt_keys.get(str(key).lower(), key), None)
-            rebuilt[key] = value
-        rebuilt.update(MANDATORY_TEMPLATE_OVERRIDES.get(source_id, {}))
-        before, after = _lowered_key_map(template), _lowered_key_map(rebuilt)
-        changed = sorted(
-            key for key in set(before) | set(after)
-            if str(template.get(before.get(key))) != str(rebuilt.get(after.get(key)))
-        )
-        if changed:
-            report['updated'][source_id] = changed
+        if status == rules_digest.ORIGINAL:
+            report['original'] += 1
+        elif status == rules_digest.MODIFIED:
+            report['modified'].append(source_id)
         else:
-            report['unchanged'].append(source_id)
-        overlaid[source_id] = rebuilt
-    _normalize_special_reward_build_times(overlaid, BUFF_TARGETS)
-    return overlaid, report
+            report['unknown'].append(source_id)
+    return report
 
 
-def summarize_installed_rules_overlay(report, limit=12):
-    """Return one log line describing an installed-rules template overlay."""
-    updated = report.get('updated', {})
-    if not updated:
+def off_stock_unit_ids():
+    """Return the rostered units this installation has changed from stock.
+
+    Contracts below are authored against stock Mental Omega, and clone bodies
+    come from whatever rules the installation loads. Where those disagree the
+    contract is describing a unit that no longer exists on this machine, so it
+    is reported rather than raised -- a modded game must still launch.
+    """
+    report = roster_stock_report()
+    return set(report.get('modified', ())) | set(report.get('unknown', ()))
+
+
+def summarize_roster_stock_report(report, limit=12):
+    """Return one log line describing how far the roster is from stock."""
+    if not report:
         return (
-            'Player clone templates already match the installed rules '
-            'registry; no submod stat differences found.'
+            'Stock comparison unavailable; player clones still follow the '
+            'installed rules.'
         )
-    named = sorted(updated, key=lambda key: (-len(updated[key]), key))
-    shown = ', '.join(
-        f'{source_id} ({len(updated[source_id])} key(s))'
-        for source_id in named[:limit]
-    )
-    if len(named) > limit:
-        shown += f', and {len(named) - limit} more'
+    changed = report['modified'] + report['unknown']
+    if not changed:
+        return (
+            f'Player clones follow the installed rules; all '
+            f'{report["original"]} rostered units match stock Mental Omega.'
+        )
+    shown = ', '.join(changed[:limit])
+    if len(changed) > limit:
+        shown += f', +{len(changed) - limit} more'
     return (
-        f'Rebuilt {len(updated)} player clone template(s) from the installed '
-        f'rules registry: {shown}.'
+        f'{len(changed)} rostered unit(s) differ from stock Mental Omega and '
+        f'their player clones follow the modified rules: {shown}.'
     )
 
 
@@ -713,7 +778,30 @@ def validate_unit_buff_application_contracts():
     from randomizer.rewards.definitions import SUICIDE_RANGE_EXCLUDED_UNIT_IDS
 
     _paths, _clone_ids, templates = randomizer_unit_roster()
+    # The catalogue is authored against stock Mental Omega, and clone bodies
+    # now come from whatever rules the installation loads. On a submod the two
+    # legitimately disagree: a unit the mod already moved to the speed ceiling
+    # takes no more speed, one it gave OpenTopped cannot be given it again,
+    # one whose weapons it replaced is not reachable by a weapon buff. None of
+    # that is a fault in the reward definitions, and failing the whole
+    # self-check over it would make every modded install unlaunchable.
+    #
+    # So the contract still binds -- but only for units this installation has
+    # not changed. The rest are named in the report instead, which is a more
+    # useful thing to know than a crash: these are the rewards that do nothing
+    # on this player's game.
+    stock_report = roster_stock_report()
+    off_stock = off_stock_unit_ids()
     errors = []
+    inert_off_stock = []
+
+    def report_failure(unit_id, detail):
+        peers = linked_buff_variant_ids(unit_id) or {unit_id}
+        if off_stock & {str(peer).upper() for peer in peers}:
+            inert_off_stock.append(detail)
+        else:
+            errors.append(detail)
+
     counts_by_type = {}
     reward_pairs = {
         (str(reward.get('unit') or '').upper(), reward.get('buff_type'))
@@ -835,9 +923,10 @@ def validate_unit_buff_application_contracts():
                             ))
                 current = tuple(current)
                 if not current or current == previous:
-                    errors.append(
+                    report_failure(
+                        unit_id,
                         f'{unit_id}/{buff_type} stack {stack} changes no '
-                        'direct weapon field'
+                        'direct weapon field',
                     )
                     break
                 previous = current
@@ -877,8 +966,10 @@ def validate_unit_buff_application_contracts():
                 break
             current = normalized(after)
             if not applied or current == previous:
-                errors.append(
-                    f'{unit_id}/{buff_type} stack {stack} changes no clone field'
+                report_failure(
+                    unit_id,
+                    f'{unit_id}/{buff_type} stack {stack} changes no clone '
+                    'field',
                 )
                 break
             previous = current
@@ -892,6 +983,8 @@ def validate_unit_buff_application_contracts():
         'rewards': len(UNIT_BUFF_REWARDS),
         'buff_types': counts_by_type,
         'all_change_generated_rules': True,
+        'stock_units_checked': stock_report.get('original', 0),
+        'inert_off_stock': sorted(inert_off_stock),
         'suicide_range_excluded_ids': sorted(
             SUICIDE_RANGE_EXCLUDED_UNIT_IDS
         ),
@@ -1648,11 +1741,18 @@ def validate_randomizer_unit_health():
             normal_damage_and_death,
             behavior_preserved,
         )):
-            errors.append(
+            detail = (
                 f'{source_id} player health contract invalid: '
                 f'Strength={raw_strength!r}, Armor={raw_armor!r}, '
                 f'PixelSelectionBracketDelta={raw_bracket!r}'
             )
+            # This describes stock Mental Omega's Hand of Ereshkigal. A submod
+            # that retunes it -- this machine's raises JumpJetSpeed from 9 to
+            # 15 -- has not broken the launcher.
+            if source_id in off_stock_unit_ids():
+                contract['off_stock'] = True
+            else:
+                errors.append(detail)
     if errors:
         raise ValueError(
             'Randomizer player-template health validation failed: '

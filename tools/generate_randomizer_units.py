@@ -1,43 +1,43 @@
-"""Generate the static player-owned TechnoType roster.
+"""Regenerate configs/RandomizerUnits.ini -- the list of cloned units.
 
-Infantry definitions come from the mapper-reviewed InfantryList.txt. Remaining
-rewardable units come from the installed Mental Omega 3.3.6 rules registry.
-Generated files are committed runtime data; generation is a maintenance step,
-never part of mission launch.
+This used to bake all 494 KB of ``configs/Randomizer*.ini``: every player
+clone's complete stat line, copied from stock Mental Omega with the reviewed
+clone policy applied. The policy lives in
+``randomizer/rewards/template_policy.py`` and the launcher now applies it at
+load to the rules the installation actually loads, which reproduced all 326
+baked sections with no differences and made the bake dead weight -- worse than
+dead, since it froze a submod's units at stock values in the shop.
 
-Run this against stock Mental Omega rules only. The default --rules path is the
-launcher cache, which now follows the installed archives and any loose
-rules override, so a submodded installation would bake private balance into
-files every player receives. Submod values reach the game at launch instead:
-randomizer/rewards/template_policy.py is shared with the runtime overlay in
-randomizer.rewards.roster.installed_rules_template_overlay.
+What could not be derived is which units get a clone at all, and that is what
+this writes. Registry slot numbers are preserved across runs: a saved profile
+names clones rather than slots, but a stable file keeps regeneration diffs
+readable.
+
+    python tools/generate_randomizer_units.py
+
+The other committed roster file, ``RandomizerMapOnlySources.ini``, holds the
+six bodies that exist only inside campaign, challenge and cooperative maps and
+so cannot be looked up in any rules file. It is maintained by hand from those
+maps -- verbatim sections, no policy applied, since the launcher applies it --
+and changes about once per Mental Omega release.
 """
 
 from __future__ import annotations
 
 import argparse
-import re
 import sys
 from collections import OrderedDict
 from pathlib import Path
 
-
 ROOT = Path(__file__).resolve().parents[1]
-# Resolve the project root before importing shared runtime policy so direct
-# script execution works from any working directory.
 sys.path.insert(0, str(ROOT))
-DEFAULT_INFANTRY = ROOT / 'InfantryList.txt'
-FALLBACK_REVIEWED_INFANTRY = ROOT / 'configs' / 'RandomizerHeroes.ini'
-from randomizer.core.paths import CAMEO_CACHE_DIR  # noqa: E402
 
-DEFAULT_RULES = CAMEO_CACHE_DIR / 'rulesmo.ini'
-DEFAULT_OUTPUT_DIR = ROOT / 'configs'
-SUPPLEMENTAL_SOURCE_FILES = (
-    ROOT / 'configs' / 'RandomizerMapOnlySources.ini',
-    ROOT.parent / 'MapsMO' / 'Challenge' / 'c_revolution.map',
-    ROOT.parent / 'MapsMO' / 'Cooperative' / 'coop_sthunder.map',
-    ROOT.parent / 'MapsMO' / 'Cooperative' / 'coop_stoxic.map',
-)
+DEFAULT_OUTPUT = ROOT / 'configs' / 'RandomizerUnits.ini'
+# Reviewed infantry the mapper listed for later catalogue expansion. Present
+# in the registry so their clone identities stay reserved even before a reward
+# points at them.
+DEFAULT_INFANTRY = ROOT / 'InfantryList.txt'
+
 TYPE_LISTS = OrderedDict((
     ('infantry', 'InfantryTypes'),
     ('units', 'VehicleTypes'),
@@ -45,362 +45,180 @@ TYPE_LISTS = OrderedDict((
     ('defenses', 'BuildingTypes'),
     ('special_buildings', 'BuildingTypes'),
 ))
-OUTPUT_GROUPS = OrderedDict((
-    ('infantry', ('RandomizerInfantry.ini', 300000)),
-    ('heroes', ('RandomizerHeroes.ini', 310000)),
-    ('vehicles', ('RandomizerVehicles.ini', 320000)),
-    ('ships', ('RandomizerShips.ini', 330000)),
-    ('aircraft', ('RandomizerAircraft.ini', 340000)),
-    ('buildings', ('RandomizerDefensesAndSpecialBuildings.ini', 350000)),
-))
-# Append newly reviewed map-only identities instead of renumbering every
-# committed registry entry that already follows them in BUFF_TARGETS order.
-STABLE_APPEND_ORDER = (
-    'MAMM', 'PANTHER',
-    'QUICK', 'LIONH', 'CHRP', 'AHVYBOT2', 'AHVYBOT2B',
-    'GRUMBLE', 'NAGRUM', 'SYCKLE', 'IDRAG',
-    'TRACTOR', 'WORMQ', 'SEIZER', 'SALA', 'SALA_1', 'SALA_2',
-    'PHNT', 'SEITAAD', 'ARCH', 'ARCH2', 'RAMW', 'REJU',
-    'STHOR', 'DHANDL', 'CZEP', 'SHINBOT', 'HEPH',
-    'KSNK', 'OTRK', 'MADU', 'MAMU', 'V2', 'ICBM',
-    'ARTY', 'RANGER', 'LONGBO', 'GRAV', 'STARDUSTB', 'MECHA', 'YURIX2',
-    'GRND', 'CAOS', 'MAMUP', 'YAHCRE',
-    'BIKE', 'TERROR', 'CYCOM', 'ARND', 'STLN', 'SCAV',
-    'BRUTM', 'BRUTS', 'BRUTV',
-)
-STABLE_APPEND_IDS = frozenset(STABLE_APPEND_ORDER)
-UNFINISHED_ASSET_IDS = frozenset({
-    # Bonus MIX supplies only Heavy Trooper art/cameos. No installed or
-    # campaign TechnoType rules exist; do not synthesize gameplay from KNIGHT.
-    'CAPU',
-})
-EXCLUDED_REVIEWED_INFANTRY_IDS = frozenset({
-    # Cosmetic Brute variant; no distinct gameplay identity/reward value.
-    'BRUTE2',
-})
-# Template policy is shared with the launcher runtime so a submodded
-# rules registry produces the same reviewed player identities without
-# regenerating this committed roster.
-from randomizer.rewards.template_policy import (  # noqa: E402
-    IMAGE_OVERRIDES,
-    SPECIAL_TEMPLATE_SOURCES,
-    TEMPLATE_VALUE_OVERRIDES,
-    TEMPLATE_VALUE_REMOVALS,
-    build_template_values,
-)
+LIST_ORDER = ('InfantryTypes', 'VehicleTypes', 'AircraftTypes', 'BuildingTypes')
+FIRST_KEYS = {
+    'InfantryTypes': 300000,
+    'VehicleTypes': 320000,
+    'AircraftTypes': 340000,
+    'BuildingTypes': 350000,
+}
+
+HEADER = """; Which units the randomizer clones, and nothing else about them.
+;
+; Every clone body is built at load from the rules the installation actually
+; loads, so a submod's Rhino reaches the game as the submod's Rhino. What
+; cannot be derived is the decision of *which* units get a player-owned copy:
+; that is reviewed, it is this file, and randomizer_unit_roster() checks it
+; against the reward catalogue on every load so the two cannot drift apart.
+;
+; The numbers are TechnoType registry slots. They are stable across
+; regeneration on purpose -- a saved profile names clones, not slots -- and
+; carry no other meaning.
+;
+; Generated by tools/generate_randomizer_units.py; bodies for the six units
+; that exist only inside maps live in RandomizerMapOnlySources.ini."""
 
 
-def read_sections(path: Path) -> OrderedDict[str, OrderedDict[str, str]]:
-    sections: OrderedDict[str, OrderedDict[str, str]] = OrderedDict()
+def read_sections(path):
+    sections = OrderedDict()
     current = None
-    for raw_line in path.read_text(encoding='utf-8-sig', errors='strict').splitlines():
+    for raw_line in path.read_text(encoding='utf-8-sig').splitlines():
         stripped = raw_line.strip()
-        match = re.match(r'^\[([^]]+)\]', stripped)
-        if match:
-            current = match.group(1).strip()
+        if stripped.startswith('[') and stripped.endswith(']'):
+            current = stripped[1:-1].strip()
             sections[current] = OrderedDict()
             continue
-        if current is None or not stripped or stripped.startswith(';') or '=' not in raw_line:
+        if current is None or not stripped or stripped.startswith(';'):
+            continue
+        if '=' not in raw_line:
             continue
         key, value = raw_line.split('=', 1)
-        sections[current][key.strip()] = value.strip()
+        sections[current][key.strip()] = value.split(';', 1)[0].strip()
     return sections
 
 
-def case_name(sections, requested):
-    requested = requested.lower()
-    return next((name for name in sections if name.lower() == requested), None)
-
-
-def infantry_sources(sections):
-    registry_name = case_name(sections, 'InfantryTypes')
-    if not registry_name:
-        raise ValueError('InfantryList.txt has no [InfantryTypes] section.')
-    source_to_section = {}
-    for clone_id in sections[registry_name].values():
-        clone_id = clone_id.split(';', 1)[0].strip()
-        if not clone_id.upper().startswith('MOR'):
+def previous_slots(path):
+    """Return ``{list: {CLONE_ID: slot}}`` from the committed file."""
+    if not path.is_file():
+        return {}
+    slots = {}
+    for section, values in read_sections(path).items():
+        name = next(
+            (item for item in LIST_ORDER if item.lower() == section.lower()),
+            None,
+        )
+        if not name:
             continue
-        if clone_id.upper() == 'MORE1':
-            source_id = 'E1'
-        elif clone_id.upper().startswith('MORP'):
-            source_id = clone_id[4:].upper()
-        else:
-            source_id = clone_id[3:].upper()
-        section_name = case_name(sections, clone_id)
-        if not section_name:
-            # Mapper scratch lists may reserve a future registry ID before its
-            # definition exists. Required reward targets are checked below.
-            continue
-        source_to_section[source_id] = section_name
-    return source_to_section
+        for key, clone_id in values.items():
+            if str(key).isdigit() and str(clone_id).upper().startswith('MORP'):
+                slots.setdefault(name, {})[str(clone_id).upper()] = int(key)
+    return slots
 
 
-def render_section(name, values):
-    lines = [f'[{name}]']
-    for key, value in values.items():
-        if key.lower() == '$inherits':
-            continue
-        lines.append(f'{key}={value}')
-    return lines
-
-
-def stable_registry_entries(output_path, list_name, source_ids, first_key):
-    """Preserve existing numeric type registrations across regeneration."""
-    previous = read_sections(output_path) if output_path.is_file() else OrderedDict()
-    previous_name = case_name(previous, list_name)
-    previous_values = previous.get(previous_name, {}) if previous_name else {}
-    current_clone_ids = {f'MORP{source_id}'.upper() for source_id in source_ids}
-    existing_keys = {
-        value.upper(): str(key)
-        for key, value in previous_values.items()
-        if value
-    }
-    reusable_keys = sorted(
+def reviewed_extra_infantry(path):
+    """Return reviewed clone ids from the mapper's InfantryList.txt."""
+    if not path.is_file():
+        return []
+    sections = read_sections(path)
+    registry = next(
         (
-            int(key)
-            for key, value in previous_values.items()
-            if str(key).isdigit() and str(value).upper() not in current_clone_ids
-        )
+            values for section, values in sections.items()
+            if section.lower() == 'infantrytypes'
+        ),
+        {},
     )
-    used_keys = {
-        int(key)
-        for clone_id, key in existing_keys.items()
-        if clone_id in current_clone_ids and key.isdigit()
-    }
-    next_key = max([first_key - 1, *used_keys, *reusable_keys]) + 1
-    entries = []
-    for source_id in source_ids:
-        clone_id = f'MORP{source_id}'
-        key = existing_keys.get(clone_id.upper())
-        if key is None:
-            if reusable_keys:
-                key = str(reusable_keys.pop(0))
-            else:
-                while next_key in used_keys:
-                    next_key += 1
-                key = str(next_key)
-                next_key += 1
-        if key.isdigit():
-            used_keys.add(int(key))
-        entries.append((key, clone_id))
-    return entries, next_key
+    extra = []
+    for clone_id in registry.values():
+        clone_id = str(clone_id).strip().upper()
+        if clone_id.startswith('MORP'):
+            extra.append(clone_id[4:])
+        elif clone_id == 'MORE1':
+            extra.append('E1')
+    return extra
 
 
-def main():
-    parser = argparse.ArgumentParser()
-    parser.add_argument('--infantry', type=Path, default=DEFAULT_INFANTRY)
-    parser.add_argument('--rules', type=Path, default=DEFAULT_RULES)
-    parser.add_argument('--output-dir', type=Path, default=DEFAULT_OUTPUT_DIR)
-    parser.add_argument(
-        '--group',
-        action='append',
-        choices=tuple(OUTPUT_GROUPS),
-        help='Generate only this output group. May be repeated.',
-    )
-    args = parser.parse_args()
+def clone_ids_by_list(reviewed_extra, previous):
+    from randomizer.rewards.catalogue import BUFF_TARGETS
 
-    from randomizer.rewards.catalogue import (
-        BUFF_TARGETS,
-        LIMITED_HERO_UNIT_IDS,
-        NAVAL_UNIT_IDS,
-        SPECIAL_REWARD_UNIT_IDS,
-    )
-    from randomizer.config.tuning import CLONE_UI_DESCRIPTION
+    by_list = OrderedDict((name, []) for name in LIST_ORDER)
+    seen = set()
 
-    selected_groups = set(args.group or OUTPUT_GROUPS)
-    needs_reviewed_infantry = bool(selected_groups.intersection({'infantry', 'heroes'}))
-    reviewed_infantry_path = args.infantry
-    if needs_reviewed_infantry and not reviewed_infantry_path.is_file():
-        reviewed_infantry_path = FALLBACK_REVIEWED_INFANTRY
-    if needs_reviewed_infantry and not reviewed_infantry_path.is_file():
-        raise FileNotFoundError(
-            'Reviewed infantry source is required for selected groups: '
-            f'{args.infantry} or {FALLBACK_REVIEWED_INFANTRY}'
-        )
-    infantry_sections = (
-        read_sections(reviewed_infantry_path)
-        if reviewed_infantry_path.is_file()
-        else OrderedDict()
-    )
-    installed_sections = read_sections(args.rules)
-    supplemental_sections = OrderedDict()
-    for source_path in SUPPLEMENTAL_SOURCE_FILES:
-        if source_path.is_file():
-            supplemental_sections.update(read_sections(source_path))
-    reviewed_infantry = (
-        infantry_sources(infantry_sections) if infantry_sections else {}
-    )
+    def add(list_name, source_id):
+        source_id = str(source_id).upper()
+        if source_id in seen:
+            return
+        seen.add(source_id)
+        by_list[list_name].append(source_id)
 
-    target_ids_by_list = OrderedDict(
-        (list_name, []) for list_name in dict.fromkeys(TYPE_LISTS.values())
-    )
-    target_categories = {}
+    # Already committed wins, always. A clone id that leaves this file leaves
+    # a saved profile pointing at a unit that no longer exists, and the ones
+    # here now include reviewed identities the catalogue does not yet name.
+    for list_name, known in previous.items():
+        for clone_id in known:
+            add(list_name, clone_id[4:])
     for source_id, target in BUFF_TARGETS.items():
-        # Most transform-only forms are closed dynamically at launch and are
-        # intentionally absent from the committed buildable roster. Preserve
-        # only reviewed historical static variants.
-        if target.get('runtime_transform') and source_id not in STABLE_APPEND_IDS:
-            continue
-        category = target.get('category')
-        list_name = TYPE_LISTS.get(category)
+        list_name = TYPE_LISTS.get(target.get('category'))
         if not list_name:
             continue
-        target_ids_by_list[list_name].append(source_id.upper())
-        target_categories[source_id.upper()] = category
-
-    # Preserve mapper-reviewed extra infantry for later catalogue expansion.
-    for source_id in reviewed_infantry:
-        if (
-            source_id in UNFINISHED_ASSET_IDS
-            or source_id in EXCLUDED_REVIEWED_INFANTRY_IDS
-        ):
+        # Deploy/undeploy forms are cloned from live rules at launch and are
+        # not separate buildable identities; only reviewed historical ones
+        # keep a registry slot, and those are already committed above.
+        if target.get('runtime_transform') or target.get('power_payload_only'):
             continue
-        # A reviewed infantry file may be the previously generated heroes
-        # file. Do not let an old registry placement override the catalogue's
-        # current TechnoType category.
-        if source_id not in target_categories:
-            target_ids_by_list['InfantryTypes'].append(source_id)
-            target_categories[source_id] = 'infantry-extra'
+        add(list_name, source_id)
+    for source_id in reviewed_extra:
+        add('InfantryTypes', source_id)
+    return by_list
 
-    definitions = OrderedDict()
-    missing = []
-    for list_name, source_ids in target_ids_by_list.items():
-        for source_id in source_ids:
-            if source_id in definitions:
-                continue
-            # YURIX2 is the stable reward key, not the requested source body.
-            # Even when the fallback reviewed file already contains that old
-            # clone, rebuild it from Purgatory's installed YURIX definition.
-            if source_id in reviewed_infantry and source_id != 'YURIX2':
-                source_values = infantry_sections[reviewed_infantry[source_id]]
-            else:
-                template_source = SPECIAL_TEMPLATE_SOURCES.get(source_id, source_id)
-                source_sections = installed_sections
-                source_name = case_name(source_sections, template_source)
-                if not source_name:
-                    source_sections = supplemental_sections
-                    source_name = case_name(source_sections, template_source)
-                if not source_name:
-                    missing.append(source_id)
-                    continue
-                source_values = source_sections[source_name]
-            definitions[source_id] = build_template_values(
-                source_id,
-                source_values,
-                category=target_categories[source_id],
-                special_reward=source_id in SPECIAL_REWARD_UNIT_IDS,
-                description=CLONE_UI_DESCRIPTION,
-            )
 
-    if missing:
-        raise ValueError('Installed rules missing target section(s): ' + ', '.join(missing))
-
-    grouped_ids = OrderedDict((group, []) for group in OUTPUT_GROUPS)
-    for source_id in definitions:
-        category = target_categories[source_id]
-        if (
-            source_id in LIMITED_HERO_UNIT_IDS
-            or (
-                source_id in SPECIAL_REWARD_UNIT_IDS
-                and category == 'infantry'
-            )
-            or category == 'infantry-extra'
-        ):
-            group = 'heroes'
-        elif category == 'infantry':
-            group = 'infantry'
-        elif category == 'units' and source_id in NAVAL_UNIT_IDS:
-            group = 'ships'
-        elif category == 'units':
-            group = 'vehicles'
-        elif category == 'aircraft':
-            group = 'aircraft'
-        else:
-            group = 'buildings'
-        grouped_ids[group].append(source_id)
-    for group, source_ids in grouped_ids.items():
-        grouped_ids[group] = [
-            source_id for source_id in source_ids
-            if source_id not in STABLE_APPEND_IDS
-        ] + [
-            source_id for source_id in STABLE_APPEND_ORDER
-            if source_id in source_ids
-        ]
-
-        # Keep committed section order byte-stable. Registry keys already stay
-        # stable; sorting definitions by those keys prevents one new review
-        # from moving hundreds of existing definitions in generated diffs.
-        output_path = args.output_dir / OUTPUT_GROUPS[group][0]
-        previous = read_sections(output_path) if output_path.is_file() else {}
-        registry_order = {}
-        list_ranks = {
-            list_name: list_rank
-            for list_rank, list_name in enumerate(dict.fromkeys(TYPE_LISTS.values()))
-        }
-        for list_rank, list_name in enumerate(dict.fromkeys(TYPE_LISTS.values())):
-            actual = case_name(previous, list_name)
-            for raw_key, clone_id in previous.get(actual, {}).items():
-                clone_id = str(clone_id).upper()
-                if not clone_id.startswith('MORP'):
-                    continue
-                try:
-                    key_rank = int(raw_key)
-                except ValueError:
-                    key_rank = 1_000_000
-                registry_order[clone_id[4:]] = (list_rank, key_rank)
-        stable_ranks = {
-            source_id: rank for rank, source_id in enumerate(STABLE_APPEND_ORDER)
-        }
-
-        def definition_order(source_id):
-            list_name = TYPE_LISTS[target_categories[source_id].split('-', 1)[0]]
-            list_rank, key_rank = registry_order.get(
-                source_id,
-                (list_ranks[list_name], 1_000_000),
-            )
-            if source_id in STABLE_APPEND_IDS:
-                return list_rank, 1, stable_ranks[source_id]
-            return list_rank, 0, key_rank
-
-        grouped_ids[group] = sorted(
-            grouped_ids[group],
-            key=definition_order,
+def assign_slots(by_list, previous):
+    """Return ``[(list, slot, clone_id)]`` keeping committed slots put."""
+    rows = []
+    for list_name in LIST_ORDER:
+        known = previous.get(list_name, {})
+        used = set(known.values())
+        entries = []
+        # A slot the committed file never handed out; only new units take one.
+        next_key = max([FIRST_KEYS[list_name] - 1, *used]) + 1
+        for source_id in by_list.get(list_name, ()):
+            clone_id = 'MORP' + source_id
+            slot = known.get(clone_id)
+            if slot is None:
+                while next_key in used:
+                    next_key += 1
+                slot = next_key
+                used.add(slot)
+                next_key += 1
+            entries.append((slot, clone_id))
+        rows.extend(
+            (list_name, slot, clone_id)
+            for slot, clone_id in sorted(entries)
         )
+    return rows
 
-    args.output_dir.mkdir(parents=True, exist_ok=True)
-    for group, source_ids in grouped_ids.items():
-        if group not in selected_groups:
+
+def build(destination, infantry_path):
+    previous = previous_slots(destination)
+    rows = assign_slots(
+        clone_ids_by_list(reviewed_extra_infantry(infantry_path), previous),
+        previous,
+    )
+    lines = [HEADER]
+    for list_name in LIST_ORDER:
+        entries = [row for row in rows if row[0] == list_name]
+        if not entries:
             continue
-        filename, next_key = OUTPUT_GROUPS[group]
-        output_path = args.output_dir / filename
-        lines = [
-            f'; Mental Omega Randomizer owned {group}',
-            '; Generated by tools/generate_randomizer_units.py.',
-            '; Runtime changes MORP* sections only. Native IDs remain AI/script types.',
-            '',
-        ]
-        registry_groups = OrderedDict()
-        for source_id in source_ids:
-            list_name = TYPE_LISTS[target_categories[source_id].split('-', 1)[0]]
-            registry_groups.setdefault(list_name, []).append(source_id)
-        for list_name, registry_ids in registry_groups.items():
-            lines.append(f'[{list_name}]')
-            entries, next_key = stable_registry_entries(
-                output_path, list_name, registry_ids, next_key
-            )
-            for registry_key, clone_id in entries:
-                lines.append(f'{registry_key}={clone_id}')
-            lines.append('')
-        for source_id in source_ids:
-            lines.extend(render_section(f'MORP{source_id}', definitions[source_id]))
-            lines.append('')
-        output_path.write_text('\n'.join(lines), encoding='utf-8', newline='\n')
-        print(
-            f'Wrote {output_path}: {len(source_ids)} TechnoTypes, '
-            f'{len(source_ids)} registry entries.'
+        lines.append('')
+        lines.append('[{}]'.format(list_name))
+        lines.extend(
+            '{}={}'.format(slot, clone_id) for _list, slot, clone_id in entries
         )
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    destination.write_text('\n'.join(lines) + '\n', encoding='utf-8', newline='\n')
+    print('{}: {} clone(s), {:.1f} KB'.format(
+        destination, len(rows), destination.stat().st_size / 1024
+    ))
+    return rows
+
+
+def main(argv=None):
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--output', type=Path, default=DEFAULT_OUTPUT)
+    parser.add_argument('--infantry', type=Path, default=DEFAULT_INFANTRY)
+    args = parser.parse_args(argv)
+    build(args.output, args.infantry)
+    return 0
 
 
 if __name__ == '__main__':
-    main()
+    raise SystemExit(main())

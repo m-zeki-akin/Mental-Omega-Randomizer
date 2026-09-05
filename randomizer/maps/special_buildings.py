@@ -387,11 +387,20 @@ def validate_reprocessor_bounty_support():
         for faction, source_id in representatives.items()
     }
     errors = []
-    errors.extend(
-        f'Reprocessor template lacks native {field}'
-        for field, valid in native_parity.items()
-        if not valid
-    )
+    # Native parity describes stock Mental Omega's Reprocessor. Clone bodies
+    # come from the rules the installation loads, so a submod that retunes its
+    # Power or Prerequisite has moved the target, not broken the launcher --
+    # the clone still matches its native counterpart, which is the point.
+    from randomizer.rewards.roster import off_stock_unit_ids
+
+    off_stock = REPROCESSOR_SOURCE_ID in off_stock_unit_ids()
+    native_parity['off_stock'] = off_stock
+    if not off_stock:
+        errors.extend(
+            f'Reprocessor template lacks native {field}'
+            for field, valid in native_parity.items()
+            if field != 'off_stock' and not valid
+        )
     errors.extend(
         f'{faction} representative {representatives[faction]} lacks Bounty=yes'
         for faction, valid in representative_results.items()

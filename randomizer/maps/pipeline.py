@@ -161,9 +161,9 @@ from randomizer.ui.config import (
     RAINBOWIZER_COLORS,
 )
 from randomizer.rewards.roster import (
-    installed_rules_template_overlay,
     randomizer_unit_roster,
-    summarize_installed_rules_overlay,
+    roster_stock_report,
+    summarize_roster_stock_report,
 )
 from randomizer.rewards.arsenal import ARSENAL_MODE
 
@@ -405,31 +405,21 @@ def prepare_hooked_map(self, mission, extra_rules=None):
     (
         _unit_roster_path,
         owned_clone_ids,
-        owned_clone_templates,
+        cached_clone_templates,
     ) = randomizer_unit_roster()
-    # The committed roster is baked from stock Mental Omega rules. Replay the
-    # reviewed template policy over whatever rules this installation actually
-    # loads, so a submodded unit and its player clone are the same unit rather
-    # than two sidebar entries with different stats.
-    owned_clone_templates, installed_overlay_report = (
-        installed_rules_template_overlay(
-            owned_clone_templates,
-            installed_rule_sections,
-        )
-    )
-    if installed_overlay_report['updated']:
-        self.append_log(
-            summarize_installed_rules_overlay(installed_overlay_report)
-        )
-    elif not installed_rule_sections:
-        # Silence here is exactly the bug this overlay exists to fix: clones
-        # would keep stock stats beside submodded natives with no explanation.
-        self.append_log(
-            'Installed rules registry is empty; player clones fall back to '
-            'the committed stock roster. Submod stat changes will not reach '
-            'them until RULESMO.INI can be read from the game directory.',
-            error=True,
-        )
+    # The roster is cached for the session and buffs are applied to these
+    # bodies in place, so a second launch would compound the first one's
+    # rewards. The overlay that used to sit here returned a fresh dict and
+    # quietly did this; nothing else does.
+    owned_clone_templates = {
+        source_id: dict(values)
+        for source_id, values in cached_clone_templates.items()
+    }
+    # Clone bodies already come from these same installed sections -- the
+    # roster is built from them rather than overlaid onto a bake. What is
+    # worth saying is which of them are no longer stock, so a player reading
+    # the log can tell a submod's numbers from Mental Omega's.
+    self.append_log(summarize_roster_stock_report(roster_stock_report()))
     mission_base_rules = MISSION_TECHNO_BASE_RULES.get(code, {})
     native_names_by_lower = {
         str(section).lower(): section for section in native_map_sections

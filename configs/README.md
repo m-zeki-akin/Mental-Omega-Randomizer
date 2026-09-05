@@ -9,8 +9,9 @@ all configuration is grouped under `configs/`. Packaged runs create the same
 relative path under `%LOCALAPPDATA%/MentalOmegaRandomizer/<installation>/configs/player/`. Do not commit a
 personal player YAML.
 
-The six `Randomizer*.ini` files do not replace these documents. INI files are
-complete player-owned TechnoType templates. JSON files define randomizer
+The two `Randomizer*.ini` files do not replace these documents. They say which
+units get a player-owned copy and carry the handful of bodies no rules file
+contains; every other clone body is built at load from the installed rules. JSON files define randomizer
 policy, reward identity/display, mission exceptions, cross-faction roles,
 stacking, compatibility aliases, and building-free power conversion. The main
 intentional overlap is `rewards/unit_data.json`: roster/base-stat snapshots
@@ -96,20 +97,34 @@ that overlap only with full reward-plan and 97-map parity coverage.
   reward count limits, and global-buff planning cadence. Display text,
   effective stack limits, and generated map values use the same data. Unit
   damage uses x1.15 per stack and caps at x6 total (+500%) on stack 13.
-- `RandomizerInfantry.ini`, `RandomizerHeroes.ini`,
-  `RandomizerVehicles.ini`, `RandomizerShips.ini`,
-  `RandomizerAircraft.ini`, and
-  `RandomizerDefensesAndSpecialBuildings.ini`: split static `MORP*` player
-  roster. Infantry definitions come from mapper-reviewed `InfantryList.txt`;
-  remaining definitions are Mental Omega 3.3.6 identity snapshots. Ships still
-  register under engine `VehicleTypes`. Hero file contains capped reward heroes
-  plus mapper infantry extras. Mission generation buffs these owned types while
-  native IDs remain reserved for campaign AI and scripts. These files are a
-  stock-rules snapshot, not the final clone body: map generation replays the
-  shared template policy in `randomizer/rewards/template_policy.py` over the
-  installed rules registry, so a submodded `rulesmo.ini` reaches every player
-  clone. A reward whose source section is absent from installed rules (Super
-  Thor, boss Brutes, campaign-only heroes) keeps its committed definition.
+- `RandomizerUnits.ini`: which units get a `MORP*` player clone, and the
+  registry slot each one occupies. 326 entries, 6 KB, and nothing else about
+  them -- every clone body is built at load by applying the reviewed policy in
+  `randomizer/rewards/template_policy.py` to the section the installation
+  actually loads, so a submodded `rulesmo.ini` reaches every player clone.
+  `randomizer_unit_roster()` checks this list against the reward catalogue on
+  every load, so the two cannot drift apart. Ships register under engine
+  `VehicleTypes`. Mission generation buffs the owned types while native IDs
+  stay reserved for campaign AI and scripts.
+- `RandomizerMapOnlySources.ini`: the six source bodies that exist only inside
+  campaign, challenge and cooperative maps -- Boris, the Kirov Command
+  Airship, Super Thor and the three boss Brutes -- and so can be looked up in
+  no rules file. Verbatim map sections; the launcher applies clone policy to
+  them exactly as it does to an installed section.
+
+  These two replaced a 494 KB bake of every clone's complete stat line. The
+  bake was stock Mental Omega with the same policy already applied, which
+  meant it could be rebuilt from the rules the installation loads -- measured
+  at 326 of 326 sections reproduced with no differences. Keeping it did active
+  harm: the shop priced units off frozen stock numbers, so a submod repriced
+  nothing.
+
+  A consequence worth knowing: the reward catalogue is authored against stock
+  Mental Omega, and on a submod some rewards do nothing. A speed buff on a
+  unit the mod already moved to the safety ceiling, an `OpenTopped` buff on a
+  transport the mod already opened, a weapon buff on a weapon the mod
+  replaced. The self-check reports those under `inert_off_stock` rather than
+  failing, because a modded game must still launch.
 
 ## Shop Mode balance
 
@@ -240,13 +255,14 @@ pushed every ordinary tank toward the bottom of its range.
 Cost, build limit and stolen-tech status are read from **the rules the
 installation actually loads** -- a loose `rulesmo.ini` in the game folder
 first, then the highest-numbered `expandmo` archive that carries the section,
-which is the order the engine itself resolves. The committed roster under
-`configs/Randomizer*.ini` is only the fallback, for the nineteen campaign-only
-units that have no section anywhere in the installed rules. It is a bake of
-stock Mental Omega and drifts: it has Tanya at 1,500 credits where the shipped
-rules say 2,500 and Centurion at 3,000 against 5,000, and it carries
-BuildLimits belonging to the randomizer's own player clones rather than to the
-game. Pricing off the bake meant a submod repriced nothing.
+which is the order the engine itself resolves. Nineteen units are priced from
+their clone body instead, which is built from those same rules: units whose
+reviewed identity is templated from a differently named section, and the six
+that exist only inside maps. This used to read a committed bake of stock
+Mental Omega, which drifted -- Tanya at 1,500 credits where the shipped rules
+say 2,500, Centurion at 3,000 against 5,000, and BuildLimits belonging to the
+randomizer's own player clones rather than to the game. Pricing off the bake
+meant a submod repriced nothing.
 
 Cost, category, build limit, and stolen-tech status all come from the live
 roster, so a submod that reprices a unit reprices its Shop price with it.

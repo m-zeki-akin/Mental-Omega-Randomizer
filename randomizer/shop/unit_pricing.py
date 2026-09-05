@@ -85,15 +85,17 @@ def _unit_traits():
     """Return the facts pricing needs, per unit id.
 
     Cost, build limit and stolen-tech status come from the installed rules
-    wherever the installation has a section for the unit. The committed
-    roster is a bake of stock Mental Omega and drifts from what is actually
-    installed: it puts Tanya at 1,500 credits where the shipped rules say
-    2,500, Centurion at 3,000 against 5,000, and it carries BuildLimits that
-    belong to the randomizer's own player clones rather than to the game.
-    Pricing off the bake meant a submod, or a patch, repriced nothing.
+    wherever the installation has a section under the unit's own id. This
+    used to read a committed bake of stock Mental Omega, which drifted from
+    what was installed: it put Tanya at 1,500 credits where the shipped rules
+    say 2,500, Centurion at 3,000 against 5,000, and it carried BuildLimits
+    belonging to the randomizer's own player clones rather than to the game.
+    Pricing off it meant a submod, or a patch, repriced nothing.
 
-    The bake stays as the fallback, and has to: nineteen sellable units are
-    campaign-only and have no section in the installed rules at all.
+    The rest come from the clone body, which is itself built from the
+    installed rules -- ``clone_template`` covers the units whose reviewed
+    identity is templated from a differently named section (YURIX2 from
+    Purgatory's YURIX) and the six that exist only inside campaign maps.
     """
     cached = _CACHE.get('traits')
     if cached is not None:
@@ -119,7 +121,7 @@ def _unit_traits():
                 str(_template_value(values, 'Prerequisite.StolenTechs') or '')
                 .strip()
             )
-            source = 'baked_roster'
+            source = 'clone_template'
         if cost <= 0:
             # BUFF_TARGETS carries a cost for anything buildable but not for
             # special buildings, and a Cloning Vat priced as though it were

@@ -1,11 +1,13 @@
-"""Shared policy for building player-owned ``MORP*`` TechnoType templates.
+"""The reviewed policy that turns a rules section into a player clone.
 
-``tools/generate_randomizer_units.py`` bakes the committed
-``configs/Randomizer*.ini`` roster from an installed rules registry. The
-launcher replays the same policy at map-generation time against the live
-installed registry, so a submodded ``rulesmo.ini`` reaches player clones
-without regenerating committed data. Both callers must apply identical
-policy; keeping it here is what makes that true.
+This is the whole of what makes a ``MORP*`` copy differ from the unit it is
+copied from: campaign build delays normalized, art bound to the reward
+identity, a shared tooltip, reviewed value overrides, campaign-only keys
+removed. It used to be applied once at build time to bake 494 KB of committed
+clone bodies out of stock rules; ``randomizer.rewards.roster`` now applies it
+at load to the rules the installation actually loads, which is how a submod
+reaches player clones, and which made the bake reproducible and therefore
+unnecessary.
 """
 
 from collections import OrderedDict
