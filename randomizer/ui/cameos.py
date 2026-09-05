@@ -74,7 +74,7 @@ def _launcher_owned_root_assets():
     return frozenset(str(name).lower() for name in manifest)
 
 
-def _loose_override_path(source_name):
+def loose_override_path(source_name):
     """Return the loose game-root file that outranks archived members.
 
     Ares reads loose files in the game directory ahead of MIX members, so a
@@ -131,7 +131,7 @@ def _installed_source_signature():
         + [
             candidate
             for name in INSTALLED_REGISTRY_NAMES
-            for candidate in (_loose_override_path(name),)
+            for candidate in (loose_override_path(name),)
             if candidate is not None
         ],
         key=lambda item: item.name.lower(),
@@ -270,7 +270,7 @@ def _extract_mix_files(requests):
             continue
         # A loose game-root file is what the engine loads, so it is also what
         # the launcher must read. Take it instead of any archived member.
-        loose_path = _loose_override_path(source_name)
+        loose_path = loose_override_path(source_name)
         if loose_path is not None:
             output_path.parent.mkdir(parents=True, exist_ok=True)
             try:

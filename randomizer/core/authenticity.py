@@ -14,10 +14,12 @@ for a directory scan: measured at 0.54 s and 0.01 s against a real install.
 
 Be clear about what the fast path costs, because it is a real hole and not a
 theoretical one: a matching size and modification time means the cached digest
-is **trusted without reading the file**. An edit that preserves both -- which
-is exactly what someone deliberately tampering would do -- is missed until
-something else moves. ``force=True`` reads everything and catches it; that is
-the mode for an explicit check rather than a startup one.
+is **trusted without reading the file**. An edit that preserves both is missed
+until something else moves -- deliberately, by restoring the timestamp, or by
+accident, when a same-size write lands inside the filesystem's timestamp
+resolution. Editing an INI almost always changes its length, which is caught;
+a byte-for-byte substitution is not. ``force=True`` reads everything, and that
+is the mode for an explicit check rather than a startup one.
 
 What none of this does is prove an installation is honest. A player who can
 edit a file can edit this cache, and the manifest sits inside an executable
@@ -75,6 +77,44 @@ def _save_cache(cache):
         )
     except OSError:
         pass
+
+
+# Loose copies of these in the game folder outrank every archive: Ares reads
+# the game directory before the MIX chain. Checking members alone therefore
+# checks something the engine may never load, which is the one blind spot a
+# member-level manifest has.
+OVERRIDABLE_NAMES = ('rulesmo.ini', 'artmo.ini', 'aimo.ini', 'battlemo.ini')
+
+
+def loose_overrides(game_root):
+    """Return loose files that outrank the archives and are not ours.
+
+    The decision of what counts as "ours" is not remade here. The cameo
+    module already resolves it -- a file this launcher staged, or one
+    carrying its generated-content marker, is not an override -- and two
+    answers to that question is how they drift apart.
+    """
+    try:
+        from randomizer.ui.cameos import loose_override_path
+    except Exception:
+        return []
+    root = Path(game_root)
+    found = []
+    for name in OVERRIDABLE_NAMES:
+        path = root / name
+        if not path.is_file():
+            continue
+        if loose_override_path(name) is None:
+            # Present, but written by this launcher: expected during a
+            # mission launch and cleaned up after it.
+            continue
+        try:
+            digest = _digest(path.read_bytes(), name)
+            size = path.stat().st_size
+        except OSError:
+            continue
+        found.append({'name': name, 'digest': digest, 'size': size})
+    return found
 
 
 def archive_signature(game_root):
@@ -196,6 +236,17 @@ def verify_installation(game_root=GAME_ROOT, *, force=False):
     else:
         members, member_digests = _verify_members(game_root, expected_members)
 
+    overrides = loose_overrides(game_root)
+    stock_members = manifest.get('members') or {}
+    for entry in overrides:
+        # A loose copy that happens to be the stock file changes nothing the
+        # engine loads, and saying so is more use than a bare warning.
+        entry['matches_stock'] = (
+            entry['digest'] == stock_members.get(entry['name'].upper())
+        )
+    effective_overrides = [
+        entry for entry in overrides if not entry['matches_stock']
+    ]
     report = {
         'available': True,
         'manifest_version': manifest.get('manifest_version'),
@@ -208,6 +259,7 @@ def verify_installation(game_root=GAME_ROOT, *, force=False):
         'members_modified': sorted(members['modified']),
         'members_missing': sorted(members['missing']),
         'members_from_cache': reuse,
+        'loose_overrides': overrides,
         'elapsed_seconds': round(time.perf_counter() - started, 3),
     }
     report['modified_count'] = (
@@ -216,7 +268,12 @@ def verify_installation(game_root=GAME_ROOT, *, force=False):
     report['missing_count'] = (
         len(report['files_missing']) + len(report['members_missing'])
     )
-    report['stock'] = not (report['modified_count'] or report['missing_count'])
+    report['override_count'] = len(effective_overrides)
+    report['stock'] = not (
+        report['modified_count']
+        or report['missing_count']
+        or report['override_count']
+    )
     _save_cache({
         'manifest_version': manifest.get('manifest_version'),
         'signature': signature,
@@ -237,6 +294,8 @@ def summary_line(report):
         parts.append(f'{report["modified_count"]} modified')
     if report.get('missing_count'):
         parts.append(f'{report["missing_count"]} missing')
+    if report.get('override_count'):
+        parts.append(f'{report["override_count"]} override')
     return 'Game files: ' + ', '.join(parts)
 
 
@@ -264,7 +323,7 @@ def validate_authenticity_contract():
         clean, index = _verify_files(root, expected, {}, False)
         cached, _ = _verify_files(root, expected, index, False)
 
-        (root / 'data.bin').write_bytes(b'\x00\x01\x09')
+        (root / 'data.bin').write_bytes(b'\x00\x01\x09\x09')
         edited, _ = _verify_files(root, expected, index, False)
 
         # Same size, same modification time, different content -- and the
@@ -281,6 +340,28 @@ def validate_authenticity_contract():
         (root / 'data.bin').unlink()
         deleted, _ = _verify_files(root, expected, index, False)
 
+        # Loose overrides are resolved against the cameo module's notion of
+        # the game folder, so the folder is what gets redirected here. The
+        # alternative -- a second copy of "is this file ours" living in the
+        # test -- is how the two answers would come to disagree.
+        from randomizer.maps._shared import RANDOMIZER_RULES_MARKER
+        from randomizer.ui import cameos
+
+        real_root = cameos.GAME_ROOT
+        cameos.GAME_ROOT = root
+        try:
+            none_present = loose_overrides(root)
+            (root / 'rulesmo.ini').write_text(
+                '[General]' + chr(10), encoding='utf-8'
+            )
+            foreign = loose_overrides(root)
+            (root / 'rulesmo.ini').write_text(
+                RANDOMIZER_RULES_MARKER + chr(10), encoding='utf-8'
+            )
+            generated = loose_overrides(root)
+        finally:
+            cameos.GAME_ROOT = real_root
+
     return {
         'authenticity_line_endings_valid': clean['clean'] == 2,
         'authenticity_cache_reuse_valid': cached['clean'] == 2,
@@ -295,4 +376,14 @@ def validate_authenticity_contract():
         'authenticity_stamp_disguise_known_valid': (
             not disguised['modified'] and forced['modified'] == ['data.bin']
         ),
+        # A loose rules file outranks every archive member, so a manifest
+        # that only checks members can be looking at rules the engine never
+        # loads. This is the one blind spot that has, and it is closed.
+        'authenticity_loose_override_detected_valid': (
+            not none_present
+            and [entry['name'] for entry in foreign] == ['rulesmo.ini']
+        ),
+        # And the launcher's own generated rules are not an override. They
+        # exist for the length of a mission launch and are deleted after.
+        'authenticity_generated_rules_exempt_valid': not generated,
     }
