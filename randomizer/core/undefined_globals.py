@@ -57,6 +57,31 @@ def _global_names(code):
     return loads, bound
 
 
+def scan_detects_missing_import():
+    """Return whether the scan still reports a name nothing binds.
+
+    Counting assignment as a definition is what stops a conditional
+    ``if FROZEN: ... else: ...`` from reading as undefined, and it is exactly
+    the kind of relaxation that can quietly widen until the check reports
+    nothing at all. So the scan is run against a module built to be broken:
+    one that loads a global it never imports, assigns, or deletes.
+    """
+    source = '\n'.join((
+        'import os',
+        'STORED = 1',
+        'def f():',
+        '    return os.sep, STORED, name_nothing_defines',
+    ))
+    code = compile(source, '<undefined-globals-self-test>', 'exec')
+    loads, bound = _global_names(code)
+    missing = {
+        name for name in loads
+        if name not in bound and name not in _BUILTINS
+        and name not in _IMPLICIT
+    }
+    return missing == {'name_nothing_defines'}
+
+
 def undefined_globals(package_names=('randomizer',)):
     """Return 'module.name' for every global load nothing can satisfy."""
     return scan_undefined_globals(package_names)[0]

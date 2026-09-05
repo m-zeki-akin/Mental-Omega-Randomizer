@@ -19,7 +19,10 @@ from randomizer.core.paths import (
     MAP_RENDERER_DIR,
     WINDOW_ICON_PATH,
 )
-from randomizer.core.undefined_globals import scan_undefined_globals
+from randomizer.core.undefined_globals import (
+    scan_detects_missing_import,
+    scan_undefined_globals,
+)
 from randomizer.core.version import APP_VERSION
 from randomizer.config.static import REQUIRED_STATIC_CONFIGS, validate_static_configs
 from randomizer.maps.settings import validate_eva_voice_profiles
@@ -1344,8 +1347,13 @@ def run_self_check():
             'missing_runtime_symbols': missing_runtime_symbols,
             'undefined_globals': undefined_global_names,
             'undefined_globals_scanned': scanned_modules,
+            # Three ways this can be a clean bill that means nothing: it
+            # found nothing, it read nothing, or it can no longer tell.
+            'undefined_globals_scan_bites': scan_detects_missing_import(),
             'undefined_globals_valid': (
-                not undefined_global_names and scanned_modules > 50
+                not undefined_global_names
+                and scanned_modules > 50
+                and scan_detects_missing_import()
             ),
             'diagnostic_log': str(LAUNCHER_LOG),
             'deterministic_seed_rng_works': 0 <= random.Random('MO-SELF-CHECK').random() < 1,
