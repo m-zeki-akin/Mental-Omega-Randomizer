@@ -4975,25 +4975,6 @@
           }
         }
       },
-      "MOR_BUILDINGS": {
-        "label": "Faction Production",
-        "plural": "Faction production queues",
-        "category": "global",
-        "factions": [
-          "Allies",
-          "Soviets",
-          "Epsilon",
-          "Foehn"
-        ],
-        "allowed_buff_types": [
-          "production"
-        ],
-        "buff_descriptions": {
-          "production": "Infantry, vehicles, aircraft, buildings, and defenses have 15% shorter production times for the player faction and enabled allied helpers."
-        },
-        "global_buff": true,
-        "global_production": true
-      },
       "E1": {
         "label": "GI",
         "plural": "GIs",

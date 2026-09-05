@@ -2997,7 +2997,9 @@
             "source": "DUMMYDUMMY",
             "clone": "MORGeneburstProvider",
             "list": "BuildingTypes",
-            "reference_keys": ["EMPulse.Cannons"],
+            "reference_keys": [
+              "EMPulse.Cannons"
+            ],
             "startup_count": 1,
             "static_startup": true,
             "values": {
@@ -3076,7 +3078,9 @@
           "DBAT": {
             "clone": "MORToxicPlane",
             "list": "AircraftTypes",
-            "reference_keys": ["SpyPlane.Type"],
+            "reference_keys": [
+              "SpyPlane.Type"
+            ],
             "values": {
               "Primary": "MORToxicWeapon",
               "ElitePrimary": "MORToxicWeapon"
@@ -4639,6 +4643,14 @@
         "factions": [
           "Epsilon"
         ],
+        "kind": "retired",
+        "retired_reward": true
+      },
+      "Faction Production Drill I": {
+        "name": "Faction Production Drill I (retired: faction-wide)",
+        "description": "Disabled because it shortened production for an entire faction while every other upgrade applies to one unit.",
+        "rules": {},
+        "factions": [],
         "kind": "retired",
         "retired_reward": true
       }

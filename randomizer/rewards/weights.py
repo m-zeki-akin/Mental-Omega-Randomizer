@@ -26,8 +26,8 @@ MAIN_REWARD_WEIGHT_TYPES = (
         'id': 'economy',
         'label': 'Economy',
         'description': (
-            'Starting credits, faction-wide production speed, unit cost and '
-            'build time, refinery income, and harvester capacity.'
+            'Starting credits, unit cost and build time, refinery income, '
+            'and harvester capacity.'
         ),
     },
     {
@@ -44,7 +44,10 @@ MAIN_REWARD_WEIGHT_TYPES = (
 
 # Buff types that are about the economy rather than a unit's fighting stats.
 # They classify into the Economy main group, which exists so that Starting
-# Credits has somewhere to live that is not a group of one.
+# Credits has somewhere to live that is not a group of one. Every one of them
+# still reaches exactly one unit; the faction-wide production reward that used
+# to sit here was retired for being the only upgrade in the catalogue that
+# did not.
 ECONOMY_BUFF_TYPES = frozenset({
     'starting_credits', 'cost', 'production', 'income', 'storage',
 })

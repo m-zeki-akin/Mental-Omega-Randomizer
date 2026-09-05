@@ -711,17 +711,6 @@
       }
     },
     "mission_effects": {
-      "command_surge": {
-        "title": "Command Surge",
-        "description": "Player and allied-helper production time is 30% shorter.",
-        "bonus_run_coins": 10,
-        "bonus_meta_coins": 10,
-        "player_reward_ids": [
-          "Faction Production Drill I",
-          "Faction Production Drill I"
-        ],
-        "buffs_allied_helpers": true
-      },
       "tempest_support": {
         "title": "Great Tempest Support",
         "description": "Player receives Great Tempest with faster recharge and stronger damage for this mission.",

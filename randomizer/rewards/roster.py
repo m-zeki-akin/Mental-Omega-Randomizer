@@ -1919,15 +1919,15 @@ def validate_house_wide_buff_policy():
 
     errors = []
     scope_set = {scope for _reward, scope in scopes}
-    if scope_set != {('All', 'production')}:
-        errors.append(f'unexpected house-wide scopes: {sorted(scope_set)}')
-    if not global_production_reward:
-        errors.append('All Production reward is absent')
-    if any(
-        reward.get('buff_type') in forbidden_house_types
-        for reward, _scope in scopes
-    ):
-        errors.append('redundant stat/cost house-wide scope remains')
+    # There used to be exactly one house-wide reward, Faction Production Drill,
+    # and this asserted its presence. It is gone: it shortened production for
+    # an entire faction and stacked, while every other upgrade in the
+    # catalogue applies to one unit. The invariant is therefore stricter than
+    # it was rather than looser -- no reward writes a house-wide effect at all.
+    if scope_set:
+        errors.append(f'house-wide scopes remain: {sorted(scope_set)}')
+    if global_production_reward:
+        errors.append('retired All Production reward is back in the pool')
 
     direct_results = {}
     for buff_type in sorted(forbidden_house_types | {'production'}):
@@ -1952,25 +1952,9 @@ def validate_house_wide_buff_policy():
             errors.append(f'individual {buff_type} still writes CountryType')
         direct_results[buff_type] = sorted(affected_ids)
 
-    global_results = {}
-    if global_production_reward:
-        global_results = _active_direct_buff_counts(
-            [global_production_reward],
-            require_unlocked_access=False,
-            global_production_unit_ids={'E1', 'HTNK'},
-        )
-        if set(global_results) != {'E1', 'HTNK'} or any(
-            counts != {'production': 1}
-            for counts in global_results.values()
-        ):
-            errors.append(
-                f'All Production did not reach all audited units: {global_results}'
-            )
-
     if errors:
         raise ValueError('House-wide buff policy failed: ' + '; '.join(errors))
     return {
         'house_wide_scopes': [list(scope) for scope in sorted(scope_set)],
         'individual_direct_results': direct_results,
-        'all_production_direct_results': global_results,
     }

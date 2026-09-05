@@ -1388,10 +1388,12 @@ def run_self_check():
                 and transport_buffs['rhino_ammo_migrated_to_reload']
             ),
             'transport_buff_eligibility': transport_buffs,
+            # No reward writes a house-wide effect any more. The one that
+            # did shortened a whole faction's production and stacked, where
+            # every other upgrade reaches a single unit.
             'house_wide_buff_policy_valid': bool(
-                house_wide_buffs['house_wide_scopes']
-                == [['All', 'production']]
-                and house_wide_buffs['all_production_direct_results']
+                house_wide_buffs['house_wide_scopes'] == []
+                and house_wide_buffs['individual_direct_results']
             ),
             'house_wide_buff_policy': house_wide_buffs,
             'reprocessor_bounty_support_valid': bool(
