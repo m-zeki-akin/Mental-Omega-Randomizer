@@ -2,7 +2,10 @@
 
 from dataclasses import replace
 
-from randomizer.rewards.catalogue import buff_stack_limit, canonical_reward
+from randomizer.rewards.catalogue import (
+    canonical_reward,
+    offered_buff_stack_limit,
+)
 from randomizer.rewards.rules import tech_ids_for_rewards
 
 from .catalogue import canonical_reward_id, catalogue_entry
@@ -83,7 +86,10 @@ def validate_run_purchase(
         ShopRewardType.UNIT_BUFF,
         ShopRewardType.POWER_BUFF,
     }:
-        limit = buff_stack_limit(canonical) if maximum_stacks is None else maximum_stacks
+        limit = (
+            offered_buff_stack_limit(canonical)
+            if maximum_stacks is None else maximum_stacks
+        )
         if limit is not None and current_stacks >= int(limit):
             return PurchaseValidation(PurchaseResult.MAX_STACKS, reward_id, price)
     if run_coins < price:

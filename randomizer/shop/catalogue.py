@@ -8,6 +8,7 @@ from randomizer.rewards.catalogue import (
     BUFF_TARGETS,
     REWARD_POOL,
     buff_stack_limit,
+    offered_buff_stack_limit,
     canonical_reward,
 )
 from randomizer.rewards.definitions import BUFF_TYPES
@@ -168,12 +169,19 @@ def catalogue_entry(reward):
         target_id = str(canonical.get('unit') or '').upper()
         if not target_id or canonical.get('global_buff'):
             return None
+        # Not the reviewed limit but the stacks that do something on this
+        # installation. A submod that already opened the Gharial has taken
+        # its OpenTopped reward away; selling it anyway takes the player's
+        # Ore for nothing.
+        offered = offered_buff_stack_limit(canonical)
+        if offered is not None and int(offered) < 1:
+            return None
         return ShopCatalogueEntry(
             reward_id,
             ShopRewardType.UNIT_BUFF,
             target_id,
             _unit_tiers().get(target_id, 'tier_1'),
-            buff_stack_limit(canonical),
+            offered,
             factions,
             str(canonical.get('buff_type') or '') or None,
         )

@@ -331,6 +331,10 @@ def _target_with_effective_unit_stats(target, effective_values):
             result[target_key] = float(str(raw_value).strip())
         except (TypeError, ValueError):
             pass
+    locomotor = _value_case_insensitive(effective_values, 'Locomotor')
+    if locomotor:
+        # Which scale this unit's Speed is on, and therefore which ceiling.
+        result['locomotor'] = str(locomotor)
     for key in effective_values or {}:
         if str(key).lower() == 'jumpjetspeed':
             # Mental Omega spells this both JumpjetSpeed and JumpJetSpeed.

@@ -375,6 +375,27 @@ def buff_stack_limit(reward):
     return _uncached_buff_stack_limit(reward)
 
 
+def offered_buff_stack_limit(reward):
+    """Return the stacks worth offering on *this* installation.
+
+    ``buff_stack_limit`` is the reviewed catalogue limit and stays that: it is
+    what the Archipelago contract and every saved profile were written
+    against, and it must mean the same thing on every machine. This is the
+    other question -- how many of those stacks actually do something here --
+    and it is what the shop, the purchase gate and the run's reward pool ask.
+    Zero means the reward changes nothing at all and is not offered.
+    """
+    from randomizer.rewards.buff_reach import effective_stack_limit
+
+    reward = canonical_reward(reward)
+    limit = buff_stack_limit(reward)
+    if limit is None or reward.get('power_buff_type'):
+        return limit
+    return effective_stack_limit(
+        reward.get('unit'), reward.get('buff_type'), limit
+    )
+
+
 def effective_buff_count(reward, count):
     limit = buff_stack_limit(reward)
     if limit is None:

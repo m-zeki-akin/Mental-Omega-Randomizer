@@ -703,13 +703,58 @@ MOVEMENT_SPEED_SAFE_CEILINGS = {
 MAX_BUFFED_INFANTRY_SPEED = MOVEMENT_SPEED_SAFE_CEILINGS['infantry']
 
 
+# One Speed point is not one speed. Ground, hover and flying units read the
+# same number on different scales, which Mental Omega's own rules show plainly:
+# the median authored Speed is 6 for drive, walk and ship, 8 for hover, and 23
+# to 24 for fly and jumpjet. ModEnc puts hover at roughly 35% slower than drive
+# at an equal value, and a jumpjet unit does not use Speed at all -- it moves at
+# JumpjetSpeed, a separate number on a larger scale.
+#
+# A single category ceiling therefore stopped the wrong units. A Kirov flies at
+# 24 and was held to the 12 that keeps a Rhino from outrunning its own
+# pathfinding, so speed rewards on every jumpjet did nothing. These are per
+# locomotor, sized above what Mental Omega itself authors for each one (drive
+# tops out at 10, hover 14, fly 26, jumpjet 34): the engine demonstrably
+# handles those, so a reward may reach a little past them and no further.
+MOVEMENT_SPEED_LOCOMOTOR_CEILINGS = {
+    str(name): int(value)
+    for name, value in BUFF_EFFECTS['movement_speed'].get(
+        'locomotor_ceilings', {}
+    ).items()
+}
+MOVEMENT_SPEED_LOCOMOTOR_GUIDS = {
+    str(guid).strip().upper(): str(name)
+    for name, guid in BUFF_EFFECTS['movement_speed'].get(
+        'locomotor_guids', {}
+    ).items()
+}
+
+
+def locomotor_name(value):
+    """Return the reviewed locomotor name for one Locomotor GUID."""
+    return MOVEMENT_SPEED_LOCOMOTOR_GUIDS.get(str(value or '').strip().upper())
+
+
 def movement_speed_ceiling(target):
-    """Return reviewed earned-speed ceiling for one mobile reward target."""
+    """Return reviewed earned-speed ceiling for one mobile reward target.
+
+    The category ceiling is the floor: a locomotor never lowers what its
+    category already allowed, it only lifts it where the engine works on a
+    larger scale.
+    """
     if isinstance(target, dict):
         category = target.get('category')
+        locomotor = locomotor_name(target.get('locomotor'))
     else:
         category = target
-    return MOVEMENT_SPEED_SAFE_CEILINGS.get(str(category or ''))
+        locomotor = None
+    ceiling = MOVEMENT_SPEED_SAFE_CEILINGS.get(str(category or ''))
+    if locomotor is None:
+        return ceiling
+    by_locomotor = MOVEMENT_SPEED_LOCOMOTOR_CEILINGS.get(locomotor)
+    if by_locomotor is None:
+        return ceiling
+    return by_locomotor if ceiling is None else max(ceiling, by_locomotor)
 
 
 def capped_movement_speed(target, count):

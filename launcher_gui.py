@@ -1189,6 +1189,10 @@ def run_self_check():
         # Where the player's own files live, and that moving them there can
         # never be what loses them.
         player_data_contract = validate_player_data_contract()
+        # What the offer clamp is withholding on this installation: rewards
+        # the submod has already granted, or pushed past the speed ceiling.
+        from randomizer.rewards.buff_reach import summary as buff_reach_summary
+        offered_buff_reach = buff_reach_summary()
         undefined_global_names, scanned_modules = scan_undefined_globals()
         # A row that says a unit is buyable and a button that refuses to buy
         # it are two answers to one question. They drifted apart once already:
@@ -1221,6 +1225,7 @@ def run_self_check():
             'authenticity_contract_valid': all(
                 authenticity_contract.values()
             ),
+            'offered_buff_reach': offered_buff_reach,
             'rules_digest_contract': rules_digest_contract,
             'rules_digest_contract_valid': all(
                 rules_digest_contract.values()

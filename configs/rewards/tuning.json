@@ -3,18 +3,60 @@
   "description": "Editable reward stacking, clone construction, retry assistance, and reward-planning tuning. Stat caps clamp the final useful stack to the exact remaining effect; planning reallocates later reward slots.",
   "sections": {
     "buff_effects": {
-      "production": {"factor_per_stack": 0.85, "minimum_multiplier": 0.2, "stack_limit": 10},
-      "cost": {"factor_per_stack": 0.85, "minimum_multiplier": 0.35, "stack_limit": 24},
-      "speed": {"factor_per_stack": 1.1},
-      "armor": {"factor_per_stack": 0.9, "minimum_multiplier": 0.09090909090909091, "stack_limit": 23},
-      "health": {"factor_per_stack": 1.15, "maximum_multiplier": 11.0, "stack_limit": 18},
-      "damage": {"factor_per_stack": 1.15, "maximum_multiplier": 6.0, "stack_limit": 13},
-      "reload": {"factor_per_stack": 0.9, "stack_limit": 40},
-      "range": {"amount_per_stack": 0.5, "maximum_amount": 50.0, "stack_limit": 100},
-      "sight": {"amount_per_stack": 1, "maximum_amount": 100, "stack_limit": 100},
-      "ammo": {"amount_per_stack": 1, "stack_limit": 20},
-      "storage": {"amount_per_stack": 4, "stack_limit": 5},
-      "income": {"amount_per_stack": 5, "stack_limit": 4},
+      "production": {
+        "factor_per_stack": 0.85,
+        "minimum_multiplier": 0.2,
+        "stack_limit": 10
+      },
+      "cost": {
+        "factor_per_stack": 0.85,
+        "minimum_multiplier": 0.35,
+        "stack_limit": 24
+      },
+      "speed": {
+        "factor_per_stack": 1.1
+      },
+      "armor": {
+        "factor_per_stack": 0.9,
+        "minimum_multiplier": 0.09090909090909091,
+        "stack_limit": 23
+      },
+      "health": {
+        "factor_per_stack": 1.15,
+        "maximum_multiplier": 11.0,
+        "stack_limit": 18
+      },
+      "damage": {
+        "factor_per_stack": 1.15,
+        "maximum_multiplier": 6.0,
+        "stack_limit": 13
+      },
+      "reload": {
+        "factor_per_stack": 0.9,
+        "stack_limit": 40
+      },
+      "range": {
+        "amount_per_stack": 0.5,
+        "maximum_amount": 50.0,
+        "stack_limit": 100
+      },
+      "sight": {
+        "amount_per_stack": 1,
+        "maximum_amount": 100,
+        "stack_limit": 100
+      },
+      "ammo": {
+        "amount_per_stack": 1,
+        "stack_limit": 20
+      },
+      "storage": {
+        "amount_per_stack": 4,
+        "stack_limit": 5
+      },
+      "income": {
+        "amount_per_stack": 5,
+        "stack_limit": 4
+      },
       "sensor_sight_bonus": 2,
       "defense_self_heal_fraction": 0.01,
       "maximum_self_heal_fraction": 0.5,
@@ -23,6 +65,20 @@
           "infantry": 8,
           "units": 12,
           "aircraft": 30
+        },
+        "locomotor_ceilings": {
+          "hover": 16,
+          "fly": 32,
+          "jumpjet": 40
+        },
+        "locomotor_guids": {
+          "drive": "{4A582741-9839-11D1-B709-00A024DDAFD1}",
+          "walk": "{4A582744-9839-11D1-B709-00A024DDAFD1}",
+          "hover": "{4A582742-9839-11D1-B709-00A024DDAFD1}",
+          "fly": "{4A582746-9839-11D1-B709-00A024DDAFD1}",
+          "ship": "{2BEA74E1-7CCA-11D3-BE14-00104B62A16C}",
+          "jumpjet": "{92612C46-F71F-11D1-AC9F-006008055BB5}",
+          "mech": "{55D141B8-DB94-11D1-AC98-006008055BB5}"
         }
       }
     },
@@ -30,13 +86,33 @@
       "unit_id_prefix": "MORP",
       "weapon_id_prefix": "MORW",
       "ui_description": "NOSTR:* Granted by Randomizer",
-      "production_gate_keys": ["techlevel", "buildlimit", "prerequisite", "prerequisiteoverride", "prerequisite.negative", "prerequisite.stolentechs", "prerequisite.requiredtheaters", "factoryowners", "factoryowners.forbidden", "builtat"],
-      "production_gate_prefixes": ["prerequisite.list"],
-      "required_weapon_fields": ["Projectile", "Warhead"]
+      "production_gate_keys": [
+        "techlevel",
+        "buildlimit",
+        "prerequisite",
+        "prerequisiteoverride",
+        "prerequisite.negative",
+        "prerequisite.stolentechs",
+        "prerequisite.requiredtheaters",
+        "factoryowners",
+        "factoryowners.forbidden",
+        "builtat"
+      ],
+      "production_gate_prefixes": [
+        "prerequisite.list"
+      ],
+      "required_weapon_fields": [
+        "Projectile",
+        "Warhead"
+      ]
     },
     "mission_assistance": {
       "stack_limit": 10,
-      "direct_buff_types": ["health", "damage", "range"],
+      "direct_buff_types": [
+        "health",
+        "damage",
+        "range"
+      ],
       "reload_when_weapon_rof_above": 1,
       "add_safe_movement_speed": true
     },

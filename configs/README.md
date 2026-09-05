@@ -120,11 +120,23 @@ that overlap only with full reward-plan and 97-map parity coverage.
   nothing.
 
   A consequence worth knowing: the reward catalogue is authored against stock
-  Mental Omega, and on a submod some rewards do nothing. A speed buff on a
-  unit the mod already moved to the safety ceiling, an `OpenTopped` buff on a
-  transport the mod already opened, a weapon buff on a weapon the mod
-  replaced. The self-check reports those under `inert_off_stock` rather than
-  failing, because a modded game must still launch.
+  Mental Omega, and on a submod some rewards do nothing -- an `OpenTopped`
+  buff on a transport the mod already opened, a speed buff on a unit it
+  already pushed past the ceiling. The self-check reports those under
+  `inert_off_stock` rather than failing, because a modded game must still
+  launch, and the shop, the purchase gate and the run's reward pool clamp
+  each reward's stack limit to what still does something. A reward that does
+  nothing at all is not offered. `offered_buff_reach` in the self-check
+  report says how much is being withheld.
+
+  `buff_effects.movement_speed.locomotor_ceilings` exists for the same
+  reason. One Speed point is not one speed: Mental Omega's median authored
+  Speed is 6 for drive, walk and ship, 8 for hover, and 23 to 24 for fly and
+  jumpjet, and a jumpjet unit does not move on `Speed` at all -- it moves on
+  `JumpjetSpeed`. A single category ceiling of 12 therefore froze every
+  jumpjet reward. The ceilings here are per locomotor and only ever lift what
+  the category already allowed, sized above what Mental Omega itself
+  authors (drive tops out at 10, hover 14, fly 26, jumpjet 34).
 
 ## Shop Mode balance
 

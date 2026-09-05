@@ -8,7 +8,7 @@ from randomizer.rewards.access_limits import normalize_access_limits
 from randomizer.rewards.catalogue import (
     ALWAYS_AVAILABLE_TECH_IDS,
     BUFF_TARGETS,
-    buff_stack_limit,
+    offered_buff_stack_limit,
     canonical_reward,
     unit_role_equivalents,
 )
@@ -42,6 +42,9 @@ MAX_REWARDS_ACHIEVED_REWARD = {
 }
 
 
+# The run's reward pool asks for the offered limit rather than the reviewed
+# one, so a buff that does nothing on this installation is retired the moment
+# it would have been drawn instead of filling an offer slot.
 def is_max_rewards_achieved_reward(reward):
     return bool(
         isinstance(reward, dict)
@@ -361,7 +364,7 @@ def plan_seed_rewards(
                     or (not unit and not reward.get('power_buff_type'))
                 )
                 metadata.update({
-                    'limit': buff_stack_limit(reward),
+                    'limit': offered_buff_stack_limit(reward),
                     'count_key': buff_count_key(reward),
                     'unit': unit,
                     'power_id': power_id,
@@ -543,7 +546,7 @@ def plan_seed_rewards(
         record_buff_target(reward)
         limit = metadata.get('limit')
         if 'limit' not in metadata:
-            limit = buff_stack_limit(reward)
+            limit = offered_buff_stack_limit(reward)
         retire_capped_buff(count_key, limit)
 
     def is_unit_access(reward):
@@ -652,7 +655,7 @@ def plan_seed_rewards(
                     continue
                 configured_buff_metadata.append((
                     reward,
-                    buff_stack_limit(reward),
+                    offered_buff_stack_limit(reward),
                     buff_count_key(reward),
                     reward.get('unit'),
                     str(reward.get('superweapon') or '').upper(),
@@ -669,7 +672,7 @@ def plan_seed_rewards(
             metadata = reward_metadata.get(id(reward), {})
             limit = metadata.get('limit')
             if reward.get('kind') != 'buff':
-                limit = buff_stack_limit(reward)
+                limit = offered_buff_stack_limit(reward)
             name = reward.get('name')
             if (
                 reward.get('kind') != 'buff'

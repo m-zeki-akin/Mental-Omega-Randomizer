@@ -255,9 +255,12 @@ def apply_unit_buff_value(values, target, buff_type, count):
         # The ceiling is a per-category safety rule and stays the catalogue's;
         # only the speed it is applied to comes from the unit.
         base_speed = live_value(values, 'Speed', target.get('speed', 1))
-        earned_speed = capped_movement_speed(
-            {**target, 'speed': base_speed}, count
-        )
+        effective = {**target, 'speed': base_speed}
+        for key, value in (values or {}).items():
+            if str(key).lower() == 'locomotor' and str(value).strip():
+                effective['locomotor'] = value
+                break
+        earned_speed = capped_movement_speed(effective, count)
         values['Speed'] = str(earned_speed)
         # A jumpjet unit's Speed is not what carries it across the map:
         # JumpjetSpeed is. Mental Omega authors the two together -- equal on
