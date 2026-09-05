@@ -32,3 +32,9 @@ config/mental_omega_randomizer.yaml
 PROJECT_CONTEXT.md
 assets/Campaign Only Units For All Factions.ini
 price_audit/
+
+# The pristine reference material the authenticity manifest is built from.
+# 90 MB of it, and the manifest is 210 KB, so only the manifest is tracked.
+configs/maps/
+configs/*-original.ini
+configs/Mix-Unprotect*.exe
