@@ -7,6 +7,7 @@ from randomizer.core.integrity import strip_signature
 from .config import SHOP_CONFIG
 from .model import (
     SHOP_PROFILE_SCHEMA_VERSION,
+    SHOP_RUN_COLLECTION_SCHEMA_VERSION,
     SHOP_RUN_SCHEMA_VERSION,
     BuffPurchase,
     MissionEconomyClass,
@@ -15,6 +16,7 @@ from .model import (
     RunStatus,
     ShopProfile,
     ShopRun,
+    ShopRunCollection,
 )
 
 
@@ -486,4 +488,48 @@ def normalize_shop_run(document, *, config=SHOP_CONFIG):
         stock_lock_stage=stock_lock_stage,
         failed_mission_code=failed_mission,
         failed_stage=failed_stage,
+    )
+
+
+def normalize_shop_run_collection(document, *, config=SHOP_CONFIG):
+    """Read the run file, whichever of its two shapes it is in.
+
+    Before runs were a list the file held one bare run document. That shape
+    is still what is on disk for every player who has ever started a run, so
+    it is read as a one-run collection with that run active rather than
+    migrated by a version bump: the run itself did not change, only how many
+    of them the file can hold. Which shape it is is decided by the presence
+    of ``runs``, not by ``schema_version``, because the run document has a
+    version of its own that moves for unrelated reasons.
+    """
+    if document is None:
+        return ShopRunCollection()
+    document = deepcopy(_object(strip_signature(document), 'runs'))
+    if 'runs' not in document:
+        run = normalize_shop_run(document, config=config)
+        return ShopRunCollection(runs=(run,), active_run_id=run.run_id)
+    _version(document, SHOP_RUN_COLLECTION_SCHEMA_VERSION, 'Shop run list')
+    raw_runs = document.get('runs')
+    if not isinstance(raw_runs, list):
+        raise ShopStateError("Shop state field 'runs' must be a list")
+    runs = []
+    seen = set()
+    for index, raw_run in enumerate(raw_runs):
+        run = normalize_shop_run(
+            _object(raw_run, f'runs[{index}]'), config=config
+        )
+        if run.run_id in seen:
+            # Two runs under one id would share victory keys and quietly
+            # merge each other's progress.
+            raise ShopStateError(f'Duplicate Shop run_id {run.run_id!r}')
+        seen.add(run.run_id)
+        runs.append(run)
+    active = _string(document.get('active_run_id'), 'active_run_id')
+    return ShopRunCollection(
+        runs=tuple(runs),
+        # An id naming no stored run is read as no active run rather than
+        # refused: the runs themselves are intact, and "between runs" is a
+        # state the launcher already knows how to open in. Refusing here
+        # would take the corruption path and put a playable save aside.
+        active_run_id=active if active in seen else None,
     )

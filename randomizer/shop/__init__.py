@@ -30,8 +30,13 @@ from .model import (
     RunStatus,
     ShopProfile,
     ShopRun,
+    ShopRunCollection,
 )
-from .state import normalize_shop_profile, normalize_shop_run
+from .state import (
+    normalize_shop_profile,
+    normalize_shop_run,
+    normalize_shop_run_collection,
+)
 from .summary import (
     reward_breakdown_lines,
     run_summary_lines,
@@ -64,6 +69,7 @@ __all__ = (
     'ShopProgressionService',
     'ShopRepository',
     'ShopRun',
+    'ShopRunCollection',
     'ShopTransitionError',
     'apply_mission_failure',
     'apply_mission_difficulty_assist',
@@ -84,6 +90,7 @@ __all__ = (
     'modifier_effects',
     'normalize_shop_profile',
     'normalize_shop_run',
+    'normalize_shop_run_collection',
     'permanent_unit_price',
     'permanent_upgrade_price',
     'random_ap_unit_entitlement_ids',

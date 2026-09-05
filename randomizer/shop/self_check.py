@@ -102,6 +102,7 @@ from .modifiers import (
 )
 from .model import (
     SHOP_ACCESS_REWARD_MODE,
+    SHOP_RUN_COLLECTION_SCHEMA_VERSION,
     BuffPurchase,
     MissionEconomyClass,
     MissionOffer,
@@ -1287,6 +1288,138 @@ def _phase_integrity_checks():
         'shop_state_legacy_name_adopted_valid': legacy_name_valid,
     }
 
+
+def _run_list_checks():
+    """Prove the run file holds several runs without losing any of them.
+
+    A player keeps more than one run open and returns to whichever they feel
+    like, so the file that used to hold one run holds a list. Everything here
+    is a way that could go wrong quietly: the run already on disk failing to
+    survive the conversion, a save on one run overwriting another, a crash
+    mid-commit restoring only the run being committed, or two runs sharing an
+    id and therefore sharing each other's victory keys.
+    """
+    def make_run(run_id, stage=1, coins=100):
+        return ShopRun(
+            run_id=run_id,
+            seed=f'RUN-LIST-{run_id}',
+            status=RunStatus.ACTIVE,
+            stage=stage,
+            run_length=8,
+            run_coins=coins,
+        )
+
+    with TemporaryDirectory(prefix='mo-shop-run-list-check-') as temporary:
+        root = Path(temporary)
+        paths = ShopPersistencePaths(
+            profile=root / 'shop_profile.dat',
+            run=root / 'shop_run.dat',
+            transaction=root / 'shop_transaction.dat',
+            backup_dir=root / 'backups',
+        )
+
+        # The shape every existing player has on disk: one bare run document.
+        stored = make_run('run-list-existing', stage=4, coins=777)
+        atomic_write_json(paths.run, sign(stored.to_dict()), indent=None)
+        stored_bytes = paths.run.read_bytes()
+
+        repository = ShopRepository(paths)
+        runs, active = repository.list_runs()
+        migration_valid = bool(
+            repository.load_run() == stored
+            and len(runs) == 1
+            and active == stored.run_id
+            and 'runs' in read_opaque_object(paths.run)
+            and (paths.backup_dir / 'shop_run.dat.pre-multirun').read_bytes()
+            == stored_bytes
+        )
+
+        second = make_run('run-list-second', coins=50)
+        repository.save_run(second)
+        runs, active = repository.list_runs()
+        second_run_valid = bool(
+            len(runs) == 2
+            and runs[0] == stored
+            and active == second.run_id
+            and repository.load_run() == second
+        )
+
+        resumed = repository.select_run(stored.run_id)
+        advanced = make_run(stored.run_id, stage=5, coins=1)
+        repository.save_run(advanced)
+        runs, _active = repository.list_runs()
+        selection_valid = bool(
+            resumed == stored
+            and runs[0] == advanced
+            and runs[1] == second
+        )
+
+        repository.delete_run(stored.run_id)
+        runs, active = repository.list_runs()
+        # Which run to resume is the player's choice; deleting the one they
+        # were in must not silently drop them into another.
+        deletion_valid = bool(
+            len(runs) == 1
+            and active is None
+            and repository.load_run() is None
+        )
+
+        repository.select_run(second.run_id)
+        repository.save_run(make_run('run-list-third', stage=2))
+        committed = make_run(second.run_id, stage=6, coins=9)
+        repository.prepare_commit(
+            ShopProfile(meta_coins=42), committed, 'run-list:victory'
+        )
+        reopened = ShopRepository(paths)
+        recovered_profile, recovered_run = reopened.load()
+        runs, active = reopened.list_runs()
+        recovery_valid = bool(
+            recovered_profile.meta_coins == 42
+            and recovered_run == committed
+            and {run.run_id for run in runs}
+            == {second.run_id, 'run-list-third'}
+            and active == second.run_id
+            and not paths.transaction.exists()
+        )
+
+        # A journal left behind by the version that wrote one run.
+        atomic_write_json(paths.transaction, sign({
+            'schema_version': SHOP_TRANSACTION_SCHEMA_VERSION,
+            'transaction_id': 'run-list:legacy-journal',
+            'profile': ShopProfile(meta_coins=7).to_dict(),
+            'run': make_run('run-list-third', stage=6).to_dict(),
+        }), indent=None)
+        reopened = ShopRepository(paths)
+        legacy_profile, legacy_run = reopened.load()
+        runs, _active = reopened.list_runs()
+        legacy_journal_valid = bool(
+            legacy_profile.meta_coins == 7
+            and legacy_run.run_id == 'run-list-third'
+            and legacy_run.stage == 6
+            and len(runs) == 2
+        )
+
+        atomic_write_json(paths.run, sign({
+            'schema_version': SHOP_RUN_COLLECTION_SCHEMA_VERSION,
+            'active_run_id': 'run-list-twin',
+            'runs': [
+                make_run('run-list-twin').to_dict(),
+                make_run('run-list-twin', stage=3).to_dict(),
+            ],
+        }), indent=None)
+        try:
+            ShopRepository(paths).load_run()
+            duplicate_rejected = False
+        except ShopPersistenceError:
+            duplicate_rejected = True
+
+    return {
+        'shop_run_list_migration_valid': migration_valid,
+        'shop_run_list_isolation_valid': second_run_valid and selection_valid,
+        'shop_run_list_deletion_valid': deletion_valid,
+        'shop_run_list_recovery_valid': recovery_valid and legacy_journal_valid,
+        'shop_run_list_duplicate_rejected_valid': duplicate_rejected,
+    }
 
 def _phase_six_checks():
     identity = 'ap-v1:shop-purchase-self-check'
@@ -2772,6 +2905,7 @@ def validate_shop_domain():
     }
     details.update(_phase_two_checks(mission_pool))
     details.update(_phase_integrity_checks())
+    details.update(_run_list_checks())
     details.update(_phase_four_checks())
     details.update(_phase_five_checks())
     details.update(_phase_six_checks())

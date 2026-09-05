@@ -3,13 +3,14 @@
 from __future__ import annotations
 
 from copy import deepcopy
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from enum import Enum
 from typing import Any, Mapping
 
 
 SHOP_PROFILE_SCHEMA_VERSION = 1
 SHOP_RUN_SCHEMA_VERSION = 2
+SHOP_RUN_COLLECTION_SCHEMA_VERSION = 1
 SHOP_ACCESS_REWARD_MODE = 'Chaos'
 
 
@@ -400,6 +401,80 @@ class ShopRun:
             'stock_lock_stage': self.stock_lock_stage,
             'failed_mission_code': self.failed_mission_code,
             'failed_stage': self.failed_stage,
+        }
+
+
+@dataclass(frozen=True)
+class ShopRunCollection:
+    """Every stored run, plus which one the player is currently in.
+
+    One player keeps several runs open at once and returns to whichever they
+    feel like, so the run file holds a list rather than a single document. It
+    stays one file with one signature: the runs share a save, and a crash
+    mid-commit must not be able to restore one of them without the others.
+
+    ``active_run_id`` may be ``None`` -- between runs, and after the active
+    one is deleted. Nothing is auto-selected in its place: which run to
+    resume is the player's choice, never a guess made on their behalf.
+    """
+
+    runs: tuple[ShopRun, ...] = ()
+    active_run_id: str | None = None
+    schema_version: int = SHOP_RUN_COLLECTION_SCHEMA_VERSION
+
+    def active(self) -> ShopRun | None:
+        return self.run(self.active_run_id)
+
+    def run(self, run_id: str | None) -> ShopRun | None:
+        if not run_id:
+            return None
+        for run in self.runs:
+            if run.run_id == run_id:
+                return run
+        return None
+
+    def with_run(self, run: ShopRun, *, activate: bool = True):
+        """Return this collection with ``run`` stored, in place if present."""
+        replaced = False
+        runs = []
+        for stored in self.runs:
+            if stored.run_id == run.run_id:
+                runs.append(run)
+                replaced = True
+            else:
+                runs.append(stored)
+        if not replaced:
+            runs.append(run)
+        return replace(
+            self,
+            runs=tuple(runs),
+            active_run_id=(
+                run.run_id if activate else self.active_run_id
+            ),
+        )
+
+    def without_run(self, run_id: str):
+        runs = tuple(
+            stored for stored in self.runs if stored.run_id != run_id
+        )
+        return replace(
+            self,
+            runs=runs,
+            active_run_id=(
+                None if self.active_run_id == run_id else self.active_run_id
+            ),
+        )
+
+    def selecting(self, run_id: str | None):
+        if run_id is not None and self.run(run_id) is None:
+            raise KeyError(run_id)
+        return replace(self, active_run_id=run_id)
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            'schema_version': self.schema_version,
+            'active_run_id': self.active_run_id,
+            'runs': [run.to_dict() for run in self.runs],
         }
 
 

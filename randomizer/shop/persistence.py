@@ -17,7 +17,12 @@ from randomizer.core.paths import (
 from randomizer.core.integrity import MODIFIED, SIGNED, sign, verify
 from randomizer.core.storage import atomic_write_opaque, read_opaque_object
 
-from .state import normalize_shop_profile, normalize_shop_run
+from .model import ShopRunCollection
+from .state import (
+    normalize_shop_profile,
+    normalize_shop_run,
+    normalize_shop_run_collection,
+)
 
 
 SHOP_TRANSACTION_SCHEMA_VERSION = 1
@@ -152,18 +157,55 @@ class ShopRepository:
             self._write_signed(self.paths.profile, normalized)
         return profile
 
-    def _read_run(self):
+    def _keep_pre_multirun_copy(self):
+        """Copy the one-run file aside, once, before it becomes a list.
+
+        Nothing about the conversion is lossy, but it rewrites the only file
+        holding a run in progress, and a player who hits a bug in it has no
+        other copy. The backup is written before the first rewrite and never
+        overwritten afterwards, so it stays the save as it was on the last
+        version that could not read a list.
+        """
+        backup = self.paths.backup_dir / f'{self.paths.run.name}.pre-multirun'
+        if backup.exists() or not self.paths.run.is_file():
+            return
+        try:
+            self.paths.backup_dir.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(self.paths.run, backup)
+        except OSError as exc:
+            # A backup that cannot be written is worth saying so, but it is
+            # not worth refusing to load a run the player can still play.
+            log_event(
+                'shop_run_backup_failed',
+                level=logging.WARNING,
+                error=str(exc),
+            )
+
+    def _read_run_collection(self):
         if not self.paths.run.is_file():
-            return None
+            return ShopRunCollection()
         try:
             raw = self._read_signed(self.paths.run, 'run')
-            run = normalize_shop_run(raw)
+            legacy_shape = isinstance(raw, dict) and 'runs' not in raw
+            collection = normalize_shop_run_collection(raw)
         except Exception as exc:
             self._raise_invalid('Shop run', self.paths.run, exc)
-        normalized = run.to_dict()
+        normalized = collection.to_dict()
         if raw != sign(normalized):
+            if legacy_shape:
+                self._keep_pre_multirun_copy()
             self._write_signed(self.paths.run, normalized)
-        return run
+        return collection
+
+    def _write_run_collection(self, collection):
+        """Write the run list, or remove the file once it holds nothing."""
+        if not collection.runs:
+            self.paths.run.unlink(missing_ok=True)
+            return
+        self._write_signed(self.paths.run, collection.to_dict())
+
+    def _read_run(self):
+        return self._read_run_collection().active()
 
     def load_profile(self):
         with self._lock:
@@ -191,10 +233,48 @@ class ShopRepository:
             self._write_signed(self.paths.profile, normalized.to_dict())
 
     def save_run(self, run):
+        """Store one run and make it the active one.
+
+        Callers hold a run they loaded and hand it back changed, so this
+        writes over the stored run of the same id and leaves every other run
+        exactly as it was.
+        """
         with self._lock:
             self.recover_pending_transaction()
             normalized = normalize_shop_run(run.to_dict())
-            self._write_signed(self.paths.run, normalized.to_dict())
+            self._write_run_collection(
+                self._read_run_collection().with_run(normalized)
+            )
+
+    def list_runs(self):
+        """Return every stored run, and which id is active."""
+        with self._lock:
+            self.recover_pending_transaction()
+            collection = self._read_run_collection()
+            return collection.runs, collection.active_run_id
+
+    def select_run(self, run_id):
+        """Make one stored run the one ``load_run`` returns."""
+        with self._lock:
+            self.recover_pending_transaction()
+            collection = self._read_run_collection()
+            try:
+                selected = collection.selecting(run_id)
+            except KeyError:
+                raise ShopPersistenceError(
+                    f'No stored Shop run {run_id!r}'
+                ) from None
+            self._write_run_collection(selected)
+            return selected.active()
+
+    def delete_run(self, run_id):
+        """Forget one stored run. Deleting the active one leaves none active."""
+        with self._lock:
+            self.recover_pending_transaction()
+            collection = self._read_run_collection()
+            if collection.run(run_id) is None:
+                raise ShopPersistenceError(f'No stored Shop run {run_id!r}')
+            self._write_run_collection(collection.without_run(run_id))
 
     def prepare_commit(self, profile, run, transaction_id):
         """Durably record exact targets before either state file changes."""
@@ -207,13 +287,21 @@ class ShopRepository:
             normalized_run = (
                 None if run is None else normalize_shop_run(run.to_dict())
             )
+            # The journal names the exact file contents to restore, and the
+            # run file holds every run -- so a commit that touches one run
+            # carries the others through unchanged rather than replaying a
+            # file with only the committed run left in it. ``run=None`` still
+            # means what it always meant: no runs at all, which is how a
+            # profile reset clears the file.
+            collection = (
+                ShopRunCollection() if normalized_run is None
+                else self._read_run_collection().with_run(normalized_run)
+            )
             document = {
                 'schema_version': SHOP_TRANSACTION_SCHEMA_VERSION,
                 'transaction_id': transaction_id,
                 'profile': normalized_profile.to_dict(),
-                'run': (
-                    None if normalized_run is None else normalized_run.to_dict()
-                ),
+                'runs': collection.to_dict(),
             }
             self._write_signed(self.paths.transaction, document)
 
@@ -252,15 +340,24 @@ class ShopRepository:
                     'transaction_id'
                 ]:
                     raise ValueError('Shop transaction_id must be non-empty')
-                if 'run' not in document:
-                    raise ValueError('Shop transaction has no run target')
                 profile = normalize_shop_profile(document.get('profile'))
-                run_document = document['run']
-                run = (
-                    None
-                    if run_document is None
-                    else normalize_shop_run(run_document)
-                )
+                if 'runs' in document:
+                    collection = normalize_shop_run_collection(
+                        document['runs']
+                    )
+                elif 'run' in document:
+                    # A journal left behind by a version that wrote one run.
+                    # Its target is that run, merged into whatever else the
+                    # run file has since grown to hold.
+                    run_document = document['run']
+                    collection = (
+                        ShopRunCollection() if run_document is None
+                        else self._read_run_collection().with_run(
+                            normalize_shop_run(run_document)
+                        )
+                    )
+                else:
+                    raise ValueError('Shop transaction has no run target')
             except Exception as exc:
                 self._raise_invalid(
                     'Shop transaction', self.paths.transaction, exc
@@ -268,10 +365,7 @@ class ShopRepository:
             self._write_signed(
                 self.paths.profile, self._flag_integrity(profile).to_dict()
             )
-            if run is None:
-                self.paths.run.unlink(missing_ok=True)
-            else:
-                self._write_signed(self.paths.run, run.to_dict())
+            self._write_run_collection(collection)
             self.paths.transaction.unlink(missing_ok=True)
             return True
 
