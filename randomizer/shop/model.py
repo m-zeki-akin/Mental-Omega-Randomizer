@@ -152,12 +152,12 @@ class ShopPriceScale:
     ``tier_prices`` and ``stolen_tech`` are (low, high) pairs: the tier
     decides the range and the unit's credit cost decides where inside it the
     unit lands. A scale that wants one flat number sets both ends to it.
-    Two multipliers sit on top, and they are not the same rule.
-    ``premium_target_multiplier`` covers everything nobody can field two of --
-    hero units, one-off buildings, stolen tech, campaign units -- and prices
-    what fielding one for a run is worth. ``excluded_target_multiplier``
-    covers only what the Reward Pool groups name, and prices owning a campaign
-    unit forever. The sets differ, so the knobs stay separate.
+    ``premium_target_multiplier`` sits on top for every one-off: anything
+    the game build-limits, anything gated behind stolen tech, and the campaign
+    units the Reward Pool groups name. One rule with a number per scale --
+    splitting it by *why* something is a one-off produced Tanya at list price
+    beside Boris at four times it, which is not a distinction anyone playing
+    can see.
     """
     name: str
     tier_prices: Mapping[str, tuple[int, int]]
@@ -170,7 +170,6 @@ class ShopPriceScale:
     cost_window_trim_percent: int
     rounding_step: int
     premium_target_multiplier: int
-    excluded_target_multiplier: int
 
 
 @dataclass(frozen=True)

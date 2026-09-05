@@ -274,41 +274,20 @@ def _scale(config, name):
     return config.price_scales[name]
 
 
-def excluded_target_surcharge(
-    price, target_id, scale, config: ShopModeConfig = SHOP_CONFIG
-):
-    """Return the price after the Reward Pool premium for this scale.
-
-    The Reward Pool groups name the units and powers no skirmish game offers.
-    Ticking a box takes them out of a run's random stock; it never took them
-    out of the permanent shop, because a player who wants one particular story
-    unit should not have to untick a box to buy it.
-
-    What they should not get is the ordinary price. Owning one of these
-    outright, for every run from here on, is meant to be expensive whether or
-    not the box happens to be ticked -- the surcharge is a property of the
-    unit, not of a setting.
-
-    This is not the same rule as the one-off premium in unit_pricing, which
-    asks what fielding something nobody else can field is worth for one run.
-    This one asks what owning a campaign unit forever is worth, over a smaller
-    set, and only the Gem scale charges it.
-    """
-    multiplier = max(1, int(scale.excluded_target_multiplier))
-    if multiplier == 1:
-        return price
-    if str(target_id).upper() not in _surcharged_target_ids(config):
-        return price
-    return price * multiplier
-
-
 def permanent_target_surcharged(
     target_id, *, config: ShopModeConfig = SHOP_CONFIG
 ):
-    """Return whether owning this target permanently carries the premium."""
-    return (
-        int(config.price_scales['permanent_gem'].excluded_target_multiplier) > 1
-        and str(target_id).upper() in _surcharged_target_ids(config)
+    """Return whether this target carries the one-off premium in Gems.
+
+    Kept here rather than re-exported so the screens have one name to ask,
+    but the rule itself lives in unit_pricing: a one-off is a one-off, and
+    whether it costs extra is a property of the scale.
+    """
+    from .unit_pricing import premium_target
+
+    return bool(
+        int(config.price_scales['permanent_gem'].premium_target_multiplier) > 1
+        and premium_target(target_id, config)
     )
 
 
@@ -337,12 +316,8 @@ def permanent_unit_price(target_id, *, config: ShopModeConfig = SHOP_CONFIG):
     from a table -- see randomizer/shop/unit_pricing.py for why cost alone was
     the wrong axis.
     """
-    scale = _scale(config, 'permanent_gem')
-    return excluded_target_surcharge(
-        unit_access_price(target_id, scale, config=config),
-        target_id,
-        scale,
-        config,
+    return unit_access_price(
+        target_id, _scale(config, 'permanent_gem'), config=config
     )
 
 

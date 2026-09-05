@@ -1462,14 +1462,14 @@ class ShopPolishController(ShopArchipelagoController):
             entry is not None
             and permanent_target_surcharged(entry.target_id)
         )
-        multiplier = gem_scale.excluded_target_multiplier
+        multiplier = gem_scale.premium_target_multiplier
         return (
             f'{reward_id}\nPermanent local entitlement. '
             'Selectable in future Shop run loadouts.'
             + (f'\nPrice: {reason}.' if reason else '')
             + (
-                '\nCampaign-only or superweapon target: owning '
-                f'one outright always costs {multiplier}x.'
+                '\nOne of a kind, stolen tech, or campaign-only: '
+                f'owning one outright always costs {multiplier}x.'
                 if surcharged else ''
             )
         )

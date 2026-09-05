@@ -187,7 +187,7 @@ def _validate_price_scales(sections, path, invalid):
             for key in (
                 'unique_infantry', 'unique_unit', 'flagged_power_price',
                 'buff_percent_of_access', 'rounding_step',
-                'premium_target_multiplier', 'excluded_target_multiplier',
+                'premium_target_multiplier',
             )
         ):
             invalid(f'Invalid Shop Mode price_scales.{name} prices', path)

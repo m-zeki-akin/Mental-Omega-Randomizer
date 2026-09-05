@@ -1517,7 +1517,14 @@ def _gem_pricing_checks():
     band, a hero must ignore the band, and a Cloning Vat must not be mistaken
     for a hero just because only one of it can be built.
     """
-    pricing = SHOP_CONFIG.price_scales['permanent_gem']
+    # The band, the flat prices and the tier ordering are all claims about
+    # what a unit is worth before the one-off premium multiplies it, so they
+    # are measured on the scale with that knob at 1 and the premium is
+    # asserted separately below. Measuring them on the live scale would make
+    # every one-off look out of band and prove nothing about the model.
+    pricing = replace(
+        SHOP_CONFIG.price_scales['permanent_gem'], premium_target_multiplier=1
+    )
     report = unit_access_price_report(pricing)
     access_targets = {
         entry.target_id for entry in shop_catalogue()
@@ -1587,8 +1594,8 @@ def _gem_pricing_checks():
             for _target, price in unique_units
         )
     )
-    # A one-of-a-kind building is limited for balance, not because it is a
-    # hero, and pricing an Ore Purifier as one would be absurd.
+    # A build-limited building is limited for balance, not because it is a
+    # hero, so it keeps its band and only the one-off premium moves it.
     limited_building_valid = bool(
         limited_buildings
         and all(
@@ -1600,6 +1607,7 @@ def _gem_pricing_checks():
     # same treatment rather than a second copy of the reasoning.
     ore = SHOP_CONFIG.price_scales['run_ore']
     ore_report = unit_access_price_report(ore)
+    live_gem = SHOP_CONFIG.price_scales['permanent_gem']
     # One-offs are out of the band by design: hero units and stolen tech are
     # flat-priced, and everything premium carries a multiplier on top that
     # would put it above its tier's ceiling.
@@ -1617,21 +1625,28 @@ def _gem_pricing_checks():
     # And the premium is exactly the multiplier over what the same unit would
     # cost without it -- measured against the scale with the knob turned off,
     # so this cannot pass by restating the code that computes it.
-    plain_ore = replace(ore, premium_target_multiplier=1)
-    ore_premium = sorted(target for target in ore_report if premium_target(target))
+    premium_targets = sorted(
+        target for target in ore_report if premium_target(target)
+    )
     premium_valid = bool(
-        ore_premium
-        and ore.premium_target_multiplier > 1
+        premium_targets
         and all(
-            unit_access_price(target, ore)
-            == unit_access_price(target, plain_ore)
-            * ore.premium_target_multiplier
-            for target in ore_premium
-        )
-        and all(
-            unit_access_price(target, ore)
-            == unit_access_price(target, plain_ore)
-            for target in ore_banded
+            scale.premium_target_multiplier > 1
+            and all(
+                unit_access_price(target, scale)
+                == unit_access_price(
+                    target, replace(scale, premium_target_multiplier=1)
+                ) * scale.premium_target_multiplier
+                for target in premium_targets
+            )
+            and all(
+                unit_access_price(target, scale)
+                == unit_access_price(
+                    target, replace(scale, premium_target_multiplier=1)
+                )
+                for target in ore_banded
+            )
+            for scale in (ore, live_gem)
         )
     )
     # Upgrades are a fixed fraction of what their target costs, on whichever
@@ -1840,8 +1855,12 @@ def validate_shop_domain():
         # for being one no skirmish game offers.
         and permanent_unit_price('STARDUSTB') == 3000
         and permanent_unit_price('STARDUSTB') == unit_access_price(
-            'STARDUSTB', SHOP_CONFIG.price_scales['permanent_gem']
-        ) * SHOP_CONFIG.price_scales['permanent_gem'].excluded_target_multiplier
+            'STARDUSTB',
+            replace(
+                SHOP_CONFIG.price_scales['permanent_gem'],
+                premium_target_multiplier=1,
+            ),
+        ) * SHOP_CONFIG.price_scales['permanent_gem'].premium_target_multiplier
         and unavailable_price_valid
         and starting_run_coins(starting_capital_level=999) == 1250
         and starting_credit_upgrade.max_level == 20
@@ -2453,20 +2472,28 @@ def validate_shop_domain():
                 })
             )
         ),
-        # Owning a campaign-only unit outright always costs a multiple,
-        # whether or not its Reward Pool box happens to be ticked: the
-        # premium belongs to the unit. Ore is deliberately exempt -- a single
-        # run's price is not the place to charge it.
+        # One rule, two numbers. Every one-off costs its scale's multiple on
+        # both currencies, and an ordinary unit costs list price on both. The
+        # named three are the three ways in: a build-limited hero, a
+        # build-limited building, and a defense limited to two rather than one
+        # -- that last is what the old 'BuildLimit == 1' reading missed.
         'shop_exclusion_gem_surcharge_valid': bool(
             surcharge_targets
-            and gem_scale.excluded_target_multiplier > 1
-            and ore_scale.excluded_target_multiplier == 1
+            and gem_scale.premium_target_multiplier > 1
+            and ore_scale.premium_target_multiplier > 1
             and all(
                 permanent_unit_price(target) == unit_access_price(
-                    target, gem_scale
-                ) * gem_scale.excluded_target_multiplier
+                    target, replace(gem_scale, premium_target_multiplier=1)
+                ) * gem_scale.premium_target_multiplier
+                and run_unit_price(target) == unit_access_price(
+                    target, replace(ore_scale, premium_target_multiplier=1)
+                ) * ore_scale.premium_target_multiplier
                 and permanent_target_surcharged(target)
                 for target in surcharge_targets
+            )
+            and all(
+                premium_target(target)
+                for target in ('TANY', 'NACLON', 'GAHYPE')
             )
             and not permanent_target_surcharged('E1')
             and permanent_unit_price('E1') == unit_access_price(

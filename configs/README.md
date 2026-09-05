@@ -196,12 +196,14 @@ and defenses are not heroes** -- an Ore Purifier is limited for balance -- so
 they keep their tier range.
 
 `premium_target_multiplier` then applies to every one-off, which is a wider
-set than the flat prices cover: anything with `BuildLimit=1` whatever its
-category, anything gated behind stolen tech, and anything a Reward Pool group
-names. The same set is held out of the per-tier cost window, and that is the
-more important half. A Cloning Vat costs 3,000 credits and takes a tier band
-like any building, so leaving it in the window stretched Tier 3 to 3,000 and
-pushed every ordinary tank toward the bottom of its range.
+set than the flat prices cover: anything the game build-limits **at any
+number**, anything gated behind stolen tech, and anything a Reward Pool group
+names. Reading the limit as `== 1` missed six entries the game caps at two or
+three, all of them 1,000-2,500 credit defenses, which is exactly the wrong
+half to miss. The same set is held out of the per-tier cost window, and that
+is the more important half: a Cloning Vat costs 3,000 credits and takes a tier
+band like any building, so leaving it in stretched Tier 3's window and pushed
+every ordinary tank toward the bottom of its range.
 
 `power_tier_prices` and `flagged_power_price` price superweapons and aid
 powers, which have no credit cost to read, so their tier decides outright.
@@ -216,13 +218,14 @@ a number. Only the Ore scale has anything to charge it on: the Gem shop sells
 units, not unit upgrades. The Gem figure is kept so both scales stay the same
 shape.
 
-`excluded_target_multiplier` is the second multiplier, and it is not the same
-rule. It covers only what the Reward Pool groups name, and it prices *owning*
-a campaign unit forever rather than fielding one for a run. Owning one is
-meant to be expensive whether or not its box happens to be ticked, so the
-premium belongs to the unit rather than to a setting. The two knobs stay
-separate because the sets differ and each scale wants a different one: Ore
-charges the one-off premium and no ownership premium, Gems the reverse.
+There is deliberately only one such rule. An earlier version split it -- one
+multiplier for build-limited units, another for Reward Pool ones -- and the
+result was Tanya at list price beside Boris at four times it, two heroes with
+the same build limit and the same job. Whether a unit is rare because the game
+caps it, because it has to be stolen, or because no skirmish game offers it is
+not a distinction a player can see, so it is not a distinction the price
+draws. Reward Pool membership still matters for what a run *offers*; it just
+no longer prices anything by itself.
 
 Cost, category, build limit, and stolen-tech status all come from the live
 roster, so a submod that reprices a unit reprices its Shop price with it.

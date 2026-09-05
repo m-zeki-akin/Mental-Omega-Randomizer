@@ -78,7 +78,11 @@ def _unit_traits():
         traits[unit_id.upper()] = {
             'cost': max(0, cost),
             'category': str(target.get('category') or ''),
-            'unique': build_limit == 1,
+            # Any build limit at all. A defense you may have three of is
+            # still a thing the game refuses to let you spam, and the
+            # BuildLimit=2 entries cost 1,750-2,500 credits -- exactly the
+            # units that were dragging their tier's window up.
+            'unique': build_limit >= 1,
             'stolen_tech': bool(
                 str(_template_value(values, 'Prerequisite.StolenTechs') or '')
                 .strip()
