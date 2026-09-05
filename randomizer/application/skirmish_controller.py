@@ -131,7 +131,20 @@ class SkirmishController:
     def on_launch_selected(self):
         if not self.skirmish_mode_selected():
             return super().on_launch_selected()
-        self.launch_skirmish_offer(0)
+        # The main Launch button has no card under it, so it only acts when
+        # there is one battle it could mean: the one already committed to,
+        # or a challenge, which is offered alone.
+        run = self.skirmish_run
+        if run is None or run.status is not RunStatus.ACTIVE:
+            self.skirmish_message_var.set('Start a run first.')
+            return
+        if run.committed_offer is not None:
+            self.launch_skirmish_offer(run.committed_offer)
+        elif len(run.offers) == 1:
+            self.launch_skirmish_offer(0)
+        else:
+            self.workspace_tabs.select(self.skirmish_tab)
+            self.skirmish_message_var.set('Choose a battle card.')
 
     def on_progression_mode_changed(self, event=None):
         # After the other modes have arranged the workspace: the mode that is
@@ -188,6 +201,16 @@ class SkirmishController:
 
     def skirmish_country(self, variable):
         return self._skirmish_country_by_label.get(variable.get())
+
+    def skirmish_enemy_text(self, offer):
+        """Name the armies this battle is fought against."""
+        names = []
+        for index in offer.enemy_countries:
+            country = country_by_index(index)
+            names.append(
+                f'{country.side} {country.label}' if country else str(index)
+            )
+        return ', '.join(names)
 
     def skirmish_army_text(self, run):
         player = country_by_index(run.player_country)
@@ -340,13 +363,14 @@ class SkirmishController:
             )
             card['name'].set(offer.map_name or offer.map_path)
             missing = entry is None
+            enemies = self.skirmish_enemy_text(offer)
             card['detail'].set(
                 'This map is not installed any more.' if missing
-                else describe_offer(offer)
+                else f'{describe_offer(offer)}\n{enemies}'
             )
             card['tooltip'].text = (
                 f'{offer.map_name}\n{describe_offer(offer)}\n'
-                f'{offer.seats} seats'
+                f'against {enemies}\n{offer.seats} seats'
             )
             self._show_skirmish_preview(
                 card, entry.preview if entry is not None else None
