@@ -62,7 +62,8 @@
       "Classic",
       "Mission List",
       "Grid Mode",
-      "Shop Mode"
+      "Shop Mode",
+      "Skirmish Shop"
     ],
     "default_progression_mode": "Mission List",
     "player_colors": [
