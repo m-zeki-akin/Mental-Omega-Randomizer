@@ -37,6 +37,7 @@ from randomizer.skirmish.spawn import (
     AI_HANDICAP_NORMAL,
     SkirmishHouse,
     skirmish_spawn_ini_text,
+    write_skirmish_spawn_ini,
 )
 
 
@@ -83,10 +84,18 @@ class SkirmishController:
     def skirmish_launch_active(self):
         return getattr(self, '_skirmish_launch', None) is not None
 
-    def randomizer_launch_active(self):
-        if self.skirmish_launch_active():
-            return True
-        return super().randomizer_launch_active()
+    def skirmish_launch_blocked(self):
+        """Whether something is already playing.
+
+        Deliberately not ``randomizer_launch_active``: that one is true
+        whenever a randomizer run exists, which is most of the time and has
+        nothing to do with whether a game is open.
+        """
+        return bool(
+            self.game_process_running()
+            or self.skirmish_launch_active()
+            or getattr(self, 'shop_launch_active', lambda: False)()
+        )
 
     def on_new_seed(self):
         if not self.skirmish_mode_selected():
@@ -220,7 +229,7 @@ class SkirmishController:
         entry = self.selected_skirmish_map()
         self.skirmish_launch_button.configure(
             state='normal'
-            if entry is not None and not self.randomizer_launch_active()
+            if entry is not None and not self.skirmish_launch_blocked()
             else 'disabled'
         )
         if entry is None:
@@ -292,7 +301,7 @@ class SkirmishController:
         return tuple(houses)
 
     def launch_skirmish(self):
-        if self.randomizer_launch_active():
+        if self.skirmish_launch_blocked():
             self.skirmish_message_var.set(
                 'Wait for the running game to close.'
             )
@@ -349,7 +358,8 @@ class SkirmishController:
         self.cleanup_generated_root_maps()
         entry = battle['map']
         shutil.copy2(entry.path, SPAWN_MAP_INI)
-        SPAWN_INI.write_text(
+        write_skirmish_spawn_ini(
+            SPAWN_INI,
             skirmish_spawn_ini_text(
                 map_name=entry.name,
                 player_country=battle['player'].index,
@@ -361,7 +371,6 @@ class SkirmishController:
                 # launcher locks its missions to rather than the client's.
                 options={'GameSpeed': str(battle['game_speed'])},
             ),
-            encoding='utf-8',
         )
         self.write_launch_options(battle['difficulty'], battle['game_speed'])
         return True

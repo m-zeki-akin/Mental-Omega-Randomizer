@@ -153,3 +153,15 @@ def skirmish_spawn_ini_text(
         ):
             lines.append(f'Multi{multi}={position}')
     return '\r\n'.join(lines) + '\r\n'
+
+
+def write_skirmish_spawn_ini(path, text):
+    """Write the spawn file with the line endings it was built with.
+
+    The lines are joined with CRLF, which is what the client writes. Writing
+    that through the default text mode translates every newline again and
+    puts CR CR LF on disk; the engine tolerates it, but there is no reason
+    to hand it something no other tool produces.
+    """
+    with open(path, 'w', encoding='utf-8', newline='') as handle:
+        handle.write(text)

@@ -22,10 +22,19 @@ from ._dependencies import (
 
 class WindowController:
 
+    def game_process_running(self):
+        """Whether a game this launcher started is still open.
+
+        Not to be confused with ``randomizer_launch_active``, which asks
+        whether a randomizer run is in effect and is true with no game
+        running at all.
+        """
+        process = getattr(self, 'active_game_process', None)
+        return process is not None and process.poll() is None
+
     def close_launcher(self):
         """Keep cleanup polling alive until an active game safely exits."""
-        process = getattr(self, 'active_game_process', None)
-        if process is not None and process.poll() is None:
+        if self.game_process_running():
             self._close_after_game = True
             self.withdraw()
             return

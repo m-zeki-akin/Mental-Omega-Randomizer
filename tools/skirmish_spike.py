@@ -245,7 +245,9 @@ def main(argv=None):
         if path.is_file():
             shutil.copy2(path, path.with_suffix(path.suffix + '.pre-spike'))
     shutil.copy2(chosen['path'], spawnmap)
-    spawn.write_text(text, encoding='utf-8')
+    from randomizer.skirmish.spawn import write_skirmish_spawn_ini
+
+    write_skirmish_spawn_ini(spawn, text)
     print(f'wrote {spawnmap.name} from {chosen["path"].name}')
     print(f'wrote {spawn.name} ({len(text.splitlines())} lines)')
 
