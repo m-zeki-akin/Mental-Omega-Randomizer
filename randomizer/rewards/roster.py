@@ -858,6 +858,26 @@ def validate_unit_buff_application_contracts():
             for key, value in (values or {}).items()
         }
 
+    def dead_from(sequence):
+        """Return the first stack after which a buff never changes again.
+
+        A single flat stack is not a dead reward. Self-healing at 90 hit
+        points steps 1, 2, 3, 4, 4, 5, 6: stack five rounds onto stack four
+        and stack six moves again. Reporting the first repeat -- and stopping
+        there -- called that reward dead from stack five when 45 of its 50
+        stacks still work. A ceiling is the case that really is dead: once
+        speed clamps it never moves again.
+
+        ``sequence[0]`` is the unbuffed value, so a return of 1 means the
+        reward does nothing at all.
+        """
+        for index in range(1, len(sequence)):
+            if all(
+                later == sequence[index - 1] for later in sequence[index:]
+            ):
+                return index
+        return None
+
     for reward in UNIT_BUFF_REWARDS:
         unit_id = str(reward.get('unit') or '').upper()
         buff_type = str(reward.get('buff_type') or '')
@@ -870,7 +890,7 @@ def validate_unit_buff_application_contracts():
             continue
 
         if buff_type in {'damage', 'range', 'reload'}:
-            previous = None
+            sequence = [()]
             for stack in range(1, count + 1):
                 current = []
                 for peer_id in sorted(
@@ -921,15 +941,14 @@ def validate_unit_buff_application_contracts():
                                 str(missile_id).upper(),
                                 tuple(sorted(normalized(values).items())),
                             ))
-                current = tuple(current)
-                if not current or current == previous:
-                    report_failure(
-                        unit_id,
-                        f'{unit_id}/{buff_type} stack {stack} changes no '
-                        'direct weapon field',
-                    )
-                    break
-                previous = current
+                sequence.append(tuple(current))
+            stops = dead_from(sequence)
+            if stops is not None:
+                report_failure(
+                    unit_id,
+                    f'{unit_id}/{buff_type} changes no direct weapon field '
+                    f'from stack {stops} of {count}',
+                )
             continue
 
         if buff_type == 'veteran':
@@ -951,7 +970,8 @@ def validate_unit_buff_application_contracts():
         if target.get('global_production') and buff_type == 'production':
             continue
         before = dict(templates.get(unit_id, {}))
-        previous = normalized(before)
+        sequence = [normalized(before)]
+        unapplied = None
         for stack in range(1, count + 1):
             after = dict(before)
             try:
@@ -963,16 +983,25 @@ def validate_unit_buff_application_contracts():
                 )
             except (KeyError, TypeError, ValueError) as exc:
                 errors.append(f'{unit_id}/{buff_type} failed: {exc}')
+                unapplied = stack
                 break
-            current = normalized(after)
-            if not applied or current == previous:
-                report_failure(
-                    unit_id,
-                    f'{unit_id}/{buff_type} stack {stack} changes no clone '
-                    'field',
-                )
+            if not applied:
+                unapplied = stack
                 break
-            previous = current
+            sequence.append(normalized(after))
+        if unapplied is not None:
+            report_failure(
+                unit_id,
+                f'{unit_id}/{buff_type} stack {unapplied} applies nothing',
+            )
+            continue
+        stops = dead_from(sequence)
+        if stops is not None:
+            report_failure(
+                unit_id,
+                f'{unit_id}/{buff_type} changes no clone field from stack '
+                f'{stops} of {count}',
+            )
 
     if errors:
         raise ValueError(
