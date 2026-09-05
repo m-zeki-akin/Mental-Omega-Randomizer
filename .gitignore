@@ -48,3 +48,10 @@ tools/build_rules_digest.py
 authenticity_cache.json
 self_check.json
 configs/Mix-Unprotect*.exe
+
+# Machine-specific build variant. The committed build_exe.ps1 pins the
+# Python and Tcl/Tk the release is built against; a maintainer whose
+# toolchain differs keeps their adaptation here and deploy.ps1 picks it
+# up, without that adaptation reaching anyone else.
+build_exe.local.ps1
+dist/
