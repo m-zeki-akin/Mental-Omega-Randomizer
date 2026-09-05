@@ -79,9 +79,20 @@ PACING_DIFFICULTY_WEIGHTS = {
     # it, so one step here moves the whole run, not a single mission.
     'permanent_enemy_buffs_per_challenge': Fraction(4),
     'stage_length': Fraction(-1),
+    # One more taken off the shelf each challenge is one more enemy buff, so
+    # it is worth what one more drawn buff is worth.
+    'enemy_hate_draft_count': Fraction(4),
+    # Answering the arsenal adds no buffs at all; it makes the same number
+    # land where they hurt. Scored per twenty points, so the whole range is
+    # worth a little over one extra buff per challenge -- a first estimate,
+    # and the one number here that playtesting is most likely to move.
+    'enemy_adaptive_draft_percent': Fraction(1),
 }
 # Income moves in larger units than the counts, so score it per ten percent.
-PACING_DIFFICULTY_STEPS = {'stage_income_percent_per_stage': 10}
+PACING_DIFFICULTY_STEPS = {
+    'stage_income_percent_per_stage': 10,
+    'enemy_adaptive_draft_percent': 20,
+}
 # Fields where moving away from the baseline is a concession whichever way it
 # goes. Stage length is the one: shorter stages mean more challenges but reach
 # the escalating tiers sooner, longer stages mean the reverse, and a player

@@ -181,7 +181,9 @@ proves too steep.
 `enemy_adaptive_draft_percent` decides how much of that draw answers the
 player. At `0` it is the uniform roll it used to be; at the shipped `60`, six
 tenths of the weight goes to the effects that respond to what the player has
-bought and four tenths stays uniform.
+bought and four tenths stays uniform. It is a run-pacing setting rather than
+a fixed rule: the player sets it before a run, it freezes there, and it is
+priced -- see the pacing paragraph below.
 
 Weighting reads two things: the arsenal tiers and categories the player owns,
 and the buff types they have stacked. A tier effect scores the *product* of
@@ -221,6 +223,26 @@ stages against the two or three the challenge already draws, where every stage
 would have more than tripled the escalation rate. A mirror that is locked at
 this tier or already at its ceiling is skipped and the next-dearest decline is
 taken instead. `0` switches it off.
+
+Both are `RUN_PACING_SETTINGS`, beside `shop_enemy_buffs_per_challenge`, and
+that placement is the point rather than a convenience. A run's pacing choices
+are chosen before it starts, frozen into `reward_settings` so the rules cannot
+change mid-run, and scored by `pacing_difficulty` into the Gem payout: harder
+pays more and easier pays less, so a player cannot farm permanent upgrades by
+turning the enemy down. Leaving these two as fixed behaviour would have made
+runs harder while paying exactly what they paid before, which is the one thing
+the pacing economy exists to prevent.
+
+`enemy_hate_draft_count` is weighted at 4 -- the same as
+`permanent_enemy_buffs_per_challenge`, because one more taken off the shelf is
+one more enemy buff. `enemy_adaptive_draft_percent` is weighted at 1 per
+twenty points, since it adds no buffs at all and only makes the same number
+land where they hurt; the full range is worth a little over one extra buff per
+challenge. That second figure is a first estimate and the likeliest number
+here for playtesting to move. Turning both off from the shipped defaults
+scores -7 and pays 30% Gems; setting both to maximum reaches the 200% ceiling.
+
+
 
 Determinism is unchanged. Weights come from run state and the choice from the
 same seeded digest, so a replayed run escalates identically. The victory

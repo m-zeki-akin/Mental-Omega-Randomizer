@@ -223,6 +223,13 @@ RUN_PACING_SETTINGS = {
         'permanent_enemy_buffs_per_challenge', 0, 4
     ),
     'shop_stage_length': ('stage_length', 3, 8),
+    # How much of a challenge's enemy draw answers what the player bought.
+    # Zero is the uniform roll this replaced.
+    'shop_enemy_adaptive_draft_percent': (
+        'enemy_adaptive_draft_percent', 0, 100
+    ),
+    # How many of the upgrades left unbought on the shelf the enemy takes.
+    'shop_enemy_hate_draft_count': ('enemy_hate_draft_count', 0, 4),
 }
 
 

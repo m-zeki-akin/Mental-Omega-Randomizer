@@ -786,6 +786,8 @@ def _build_right_panel(self, main_frame):
         'shop_stage_income_percent': 'Ore income per stage (%)',
         'shop_enemy_buffs_per_challenge': 'Enemy buffs for first Challenge',
         'shop_stage_length': 'Missions per stage',
+        'shop_enemy_adaptive_draft_percent': 'Enemy answers your arsenal (%)',
+        'shop_enemy_hate_draft_count': 'Enemy takes what you leave',
     }
     for index, (key, (_field, low, high)) in enumerate(
         RUN_PACING_SETTINGS.items()
@@ -802,7 +804,7 @@ def _build_right_panel(self, main_frame):
             cell, text=pacing_labels.get(key, key),
             style='Shop.Help.TLabel',
         ).pack(anchor='w')
-        step = 10 if key == 'shop_stage_income_percent' else 1
+        step = 10 if key.endswith('_percent') else 1
         ttk.Spinbox(
             cell,
             from_=low,
