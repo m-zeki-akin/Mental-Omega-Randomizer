@@ -795,6 +795,31 @@ def _shop_checks():
         == ('Guardian GI Mobility I x2',)
     )
 
+    # Nothing on any faction's list takes Ore without changing a unit. The
+    # campaign grants veterancy on the house and raises a build limit by
+    # building a clone; neither reaches a skirmish, so neither is sold.
+    from randomizer.rewards.catalogue import BUFF_TARGETS
+    from randomizer.rewards.roster import _installed_sections
+
+    sections = _installed_sections()
+    sold = [
+        upgrade for side in ('Allies', 'Soviets', 'Epsilon', 'Foehn')
+        for upgrade in faction_upgrades(side)
+    ]
+    delivers_valid = bool(
+        sold
+        and not any(
+            upgrade.buff_type in {'veteran', 'build_limit', 'building_limit'}
+            for upgrade in sold
+        )
+        and all(
+            unit_rules(
+                upgrade.unit, upgrade.buff_type, 1, sections, BUFF_TARGETS
+            )
+            for upgrade in sold
+        )
+    )
+
     # A purchase becomes an edit on the unit's own section, read off the
     # unit as this installation has it.
     installed = {
@@ -824,6 +849,7 @@ def _shop_checks():
         'skirmish_ally_shops_alone_valid': ally_valid,
         'skirmish_shelf_valid': shelf_valid,
         'skirmish_upgrade_effect_valid': effect_valid,
+        'skirmish_upgrade_delivers_valid': delivers_valid,
         'skirmish_upgrade_rules_valid': rules_valid,
     }
 

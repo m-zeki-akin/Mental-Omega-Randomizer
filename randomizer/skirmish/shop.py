@@ -64,11 +64,26 @@ def faction_upgrades(side):
     would not notice -- a speed buff on a unit a submod already has at the
     ceiling -- is not offered, which is the same clamp the campaign shop
     applies at its own offer time.
+
+    Nor is one this mode cannot deliver. The campaign grants veterancy on
+    the house and raises a build limit by building a clone of the unit;
+    a skirmish has neither a house of its own nor clones, so those buffs
+    would take Ore and change nothing. An upgrade is sold here only if it
+    writes at least one key onto a unit in this installation.
     """
     from randomizer.rewards.buff_reach import effective_stack_limit
-    from randomizer.rewards.catalogue import UNIT_BUFF_REWARDS, buff_stack_limit
+    from randomizer.rewards.catalogue import (
+        BUFF_TARGETS,
+        UNIT_BUFF_REWARDS,
+        buff_stack_limit,
+    )
     from randomizer.rewards.display import buff_effect_lines
+    from randomizer.rewards.roster import _installed_sections
     from randomizer.shop.economy import run_buff_price
+
+    from .rules import unit_rules
+
+    installed = _installed_sections()
 
     wanted = str(side or '').strip().lower()
     upgrades = []
@@ -87,6 +102,8 @@ def faction_upgrades(side):
             unit, buff_type, buff_stack_limit(reward) or 1
         )
         if limit <= 0:
+            continue
+        if not unit_rules(unit, buff_type, 1, installed, BUFF_TARGETS):
             continue
         effect = buff_effect_lines(
             reward, 1, include_label=False, include_stack=False
