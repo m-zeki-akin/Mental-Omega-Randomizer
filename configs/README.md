@@ -178,6 +178,38 @@ the full vocabulary that becomes 44, 70 and 140, and saturation moves to stage
 `permanent_enemy_buffs_per_challenge` and `enemy_buff_escalation_stages` if it
 proves too steep.
 
+`enemy_adaptive_draft_percent` decides how much of that draw answers the
+player. At `0` it is the uniform roll it used to be; at the shipped `60`, six
+tenths of the weight goes to the effects that respond to what the player has
+bought and four tenths stays uniform.
+
+Weighting reads two things: the arsenal tiers and categories the player owns,
+and the buff types they have stacked. A tier effect scores the *product* of
+the two, so `tier3_damage` matters only to a player who both owns Tier 3 units
+and bought the armour it answers -- one without the other scores nothing. The
+counters are asymmetric on purpose: armour is answered with firepower and
+firepower with armour, so committing to one pole pushes toward the other
+rather than into a wall. `cloak` is the one hard counter in the catalogue --
+enemy `sensors` reveal cloaked and submerged units and are worth exactly
+nothing against a player who never bought stealth, which under a uniform draw
+made it a dead card.
+
+The uniform four tenths is not decoration. It keeps every unlocked effect
+reachable however lopsided the arsenal, so no branch is ever closed off and a
+reactive enemy never becomes a predictable one. A player who has committed to
+nothing gets no adaptation at all.
+
+The draw reads what the player *owns*, not what they field: the launcher
+cannot see a mission being played. That is the more interesting rule anyway --
+buying a branch and never using it is a real feint, and the counter it draws
+is the price of the bluff.
+
+Determinism is unchanged. Weights come from run state and the choice from the
+same seeded digest, so a replayed run escalates identically. The victory
+message names what the enemy took and why; an adaptation nobody can see is
+indistinguishable from the difficulty quietly rising, which is the one way
+this fails.
+
 Order within the tiers is reviewed rather than mechanical. Stat buffs open
 first because they scale a fight the player can still read. `sensors` -- the
 enemy seeing cloaked units -- opens a tier after its stat siblings, and all

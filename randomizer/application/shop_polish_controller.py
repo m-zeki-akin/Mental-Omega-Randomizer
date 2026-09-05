@@ -1548,6 +1548,14 @@ class ShopPolishController(ShopArchipelagoController):
                 ' | Upgrades: ' + ', '.join(paid.granted_upgrade_ids)
                 if paid.granted_upgrade_ids else ''
             )
+            # An enemy that answers the player's arsenal and never says so is
+            # indistinguishable from the difficulty quietly rising, which is
+            # the one way this mechanic fails.
+            + (
+                ' | Enemy took: '
+                + ', '.join(transition.enemy_draft_notes)
+                if transition.enemy_draft_notes else ''
+            )
         )
         if transition.run.status is RunStatus.COMPLETED:
             self.shop_panels.select(self.shop_summary_panel)

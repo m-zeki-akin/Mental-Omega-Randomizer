@@ -66,45 +66,58 @@ def unlocked_enemy_buff_ids(stage, config: ShopModeConfig = SHOP_CONFIG):
     )
 
 
-def drawn_enemy_buff_ids(
+def _enemy_draft_notes(buff_ids, reasons):
+    """Return one readable line per distinct buff the challenge handed over."""
+    from randomizer.rewards.enemy_scaling import ENEMY_BUFF_BY_ID
+
+    notes = []
+    for buff_id in dict.fromkeys(buff_ids):
+        name = ENEMY_BUFF_BY_ID.get(buff_id, {}).get('name', buff_id)
+        count = sum(1 for item in buff_ids if item == buff_id)
+        label = f'{name} x{count}' if count > 1 else str(name)
+        reason = reasons.get(buff_id)
+        notes.append(f'{label} ({reason})' if reason else label)
+    return tuple(notes)
+
+
+def drawn_enemy_buff_ids_with_reasons(
     run, mission_code, config: ShopModeConfig = SHOP_CONFIG
 ):
-    """Return the permanent enemy buffs a challenge victory adds.
+    """Return the permanent enemy buffs a challenge adds, and why each one.
 
     Deterministic from the run seed like every other Shop roll, so a
     replayed run produces the same escalation. Draws respect the stack
     ceiling each buff declares in the shared enemy-scaling contract, so a
     saturated buff is skipped rather than silently wasted.
+
+    The draw is weighted toward what answers the player's arsenal rather than
+    uniform; see :mod:`randomizer.shop.enemy_draft`. It is a mix and not a
+    rule -- ``enemy_adaptive_draft_percent`` of the weight responds and the
+    remainder stays uniform, so committing to a branch is answered by degrees
+    and never closed off.
     """
     from randomizer.rewards.enemy_scaling import ENEMY_SCALING_BUFF_STACK_LIMITS
+    from randomizer.shop.enemy_draft import draw_enemy_buff_ids
 
     unlocked = unlocked_enemy_buff_ids(run.stage, config)
     if not unlocked:
-        return ()
-    counts = Counter(run.permanent_enemy_buff_ids)
-    drawn = []
-    wanted = enemy_buffs_for_stage(run.stage, config)
-    for index in range(wanted * 8):
-        if len(drawn) >= wanted:
-            break
-        available = [
-            buff_id for buff_id in unlocked
-            if counts[buff_id] < ENEMY_SCALING_BUFF_STACK_LIMITS.get(
-                buff_id, 1
-            )
-        ]
-        if not available:
-            break
-        digest = sha256(
-            f'shop_permanent_enemy_buff\0{run.seed}\0{run.stage}\0'
-            f'{mission_code}\0{index}'.encode('utf-8')
-        ).digest()
-        choice = available[
-            int.from_bytes(digest[:4], 'big') % len(available)
-        ]
-        counts[choice] += 1
-        drawn.append(choice)
-    return tuple(drawn)
+        return (), {}
+    return draw_enemy_buff_ids(
+        run,
+        mission_code,
+        unlocked,
+        enemy_buffs_for_stage(run.stage, config),
+        Counter(run.permanent_enemy_buff_ids),
+        ENEMY_SCALING_BUFF_STACK_LIMITS,
+        config,
+    )
+
+
+def drawn_enemy_buff_ids(
+    run, mission_code, config: ShopModeConfig = SHOP_CONFIG
+):
+    """Return the permanent enemy buffs a challenge victory adds."""
+    return drawn_enemy_buff_ids_with_reasons(run, mission_code, config)[0]
 
 
 @dataclass(frozen=True)
@@ -121,6 +134,11 @@ class VictoryTransition:
     reward: CurrencyReward
     victory_key: str
     changed: bool
+    # What the enemy took from this challenge and why, in the player's terms.
+    # Carried on the transition rather than the run because it is a fact about
+    # this moment: the arsenal it answered has already moved on by the time
+    # the run is next summarised.
+    enemy_draft_notes: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -507,9 +525,9 @@ def apply_mission_victory(
     )
     # A challenge victory permanently strengthens the AI for the rest of
     # the run. That escalation is what the tier payout multiplier pays for.
-    earned_enemy_buffs = (
-        drawn_enemy_buff_ids(run, mission_code, config)
-        if challenge_stage else ()
+    earned_enemy_buffs, enemy_draft_reasons = (
+        drawn_enemy_buff_ids_with_reasons(run, mission_code, config)
+        if challenge_stage else ((), {})
     )
     # Winning a mission strengthens the roster actually being fielded: a
     # couple of upgrades spread across owned units and powers, plus one unit
@@ -597,7 +615,14 @@ def apply_mission_victory(
     )
     updated_run = normalize_shop_run(updated_run.to_dict(), config=config)
     return VictoryTransition(
-        updated_profile, updated_run, reward, key, True
+        updated_profile,
+        updated_run,
+        reward,
+        key,
+        True,
+        enemy_draft_notes=_enemy_draft_notes(
+            earned_enemy_buffs, enemy_draft_reasons
+        ),
     )
 
 

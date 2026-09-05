@@ -199,6 +199,9 @@ class ShopModeConfig:
     challenge_reward_multiplier_percent: int
     permanent_enemy_buffs_per_challenge: int
     enemy_buff_escalation_stages: int
+    # How much of a challenge's enemy draw answers the player's
+    # arsenal; the rest stays uniform so no branch is ever closed.
+    enemy_adaptive_draft_percent: int
     mission_offer_count: int
     unit_inventory_size: int
     power_inventory_size: int

@@ -1189,6 +1189,11 @@ def run_self_check():
         # Where the player's own files live, and that moving them there can
         # never be what loses them.
         player_data_contract = validate_player_data_contract()
+        # Proof that the enemy's escalation answers the player's arsenal
+        # rather than only appearing to: a weighting that degenerated to
+        # uniform would look identical from outside.
+        from randomizer.shop.enemy_draft import validate_enemy_draft_contract
+        enemy_draft_contract = validate_enemy_draft_contract()
         # What the offer clamp is withholding on this installation: rewards
         # the submod has already granted, or pushed past the speed ceiling.
         from randomizer.rewards.buff_reach import summary as buff_reach_summary
@@ -1226,6 +1231,8 @@ def run_self_check():
                 authenticity_contract.values()
             ),
             'offered_buff_reach': offered_buff_reach,
+            'enemy_draft_contract': enemy_draft_contract,
+            'enemy_draft_contract_valid': all(enemy_draft_contract.values()),
             'rules_digest_contract': rules_digest_contract,
             'rules_digest_contract_valid': all(
                 rules_digest_contract.values()
@@ -1452,6 +1459,7 @@ def run_self_check():
                 'mission_launch_contract_valid',
                 'authenticity_contract_valid',
                 'rules_digest_contract_valid',
+                'enemy_draft_contract_valid',
                 'player_data_contract_valid',
                 'permanent_purchase_gate_shared',
                 'undefined_globals_valid',
