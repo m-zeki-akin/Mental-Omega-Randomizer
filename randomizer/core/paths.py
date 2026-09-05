@@ -126,6 +126,10 @@ STATE_PATH = APP_DIR / 'randomizer_state.json'
 SHOP_PROFILE_PATH = APP_DIR / 'shop_profile.dat'
 SHOP_RUN_PATH = APP_DIR / 'shop_run.dat'
 SHOP_TRANSACTION_PATH = APP_DIR / 'shop_transaction.dat'
+# Skirmish runs share no profile and no meta progression -- one session
+# does not touch another -- so the mode keeps a single file holding its
+# list of runs, and there is no second document to stay consistent with.
+SKIRMISH_RUNS_PATH = APP_DIR / 'skirmish_runs.dat'
 BACKUP_DIR = APP_DIR / 'backups'
 EXTRACTED_MAP_DIR = APP_DIR / 'extracted_maps'
 GENERATED_MAP_DIR = APP_DIR / 'generated_maps'

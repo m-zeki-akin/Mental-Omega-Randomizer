@@ -8,8 +8,13 @@ the same thing on a developer's checkout as on a player's game folder.
 """
 
 from configparser import ConfigParser
+from dataclasses import dataclass, replace
 from pathlib import Path
 from tempfile import TemporaryDirectory
+
+from randomizer.core.integrity import sign
+from randomizer.core.storage import atomic_write_json
+from randomizer.shop.model import RunStatus
 
 from .factions import (
     SKIRMISH_SIDES,
@@ -171,6 +176,7 @@ def _result_checks():
         ),
     }
 
+
 def _parsed(text):
     parser = ConfigParser(strict=False)
     parser.optionxform = str
@@ -314,6 +320,213 @@ def _country_checks():
     }
 
 
+@dataclass(frozen=True)
+class SimpleCountry:
+    """Stands in for an installed country when there are no rules to read."""
+
+    index: int
+
+
+def _fixture_pool(directory, count, *, prefix='map', seats=6):
+    """Return maps that exist, so a draw can be checked without a game."""
+    from .maps import read_map_pool
+
+    for index in range(count):
+        (directory / f'{prefix}{index:02d}.map').write_text(
+            MAP_FIXTURE
+            .replace('MaxPlayer=4', f'MaxPlayer={seats}')
+            .replace('NumberStartingPoints=3', f'NumberStartingPoints={seats}')
+            .replace('(3) Self Check Valley', f'({seats}) Fixture {index:02d}'),
+            encoding='utf-8',
+        )
+    return read_map_pool(directory, cache=False)
+
+
+def _run_checks():
+    from .model import DEFAULT_LIVES
+    from .persistence import (
+        SkirmishPersistenceError,
+        SkirmishPersistencePaths,
+        SkirmishRepository,
+    )
+    from .progression import is_challenge_battle, offers_for, tier_for
+    from .transitions import (
+        commit_offer,
+        offer_battles,
+        record_defeat,
+        record_victory,
+        start_run,
+    )
+
+    countries = skirmish_countries() or tuple(
+        SimpleCountry(index) for index in range(12)
+    )
+    with TemporaryDirectory(prefix='mo-skirmish-run-check-') as temporary:
+        root = Path(temporary)
+        maps_dir = root / 'MapsMO'
+        standard = maps_dir / 'Standard'
+        challenge = maps_dir / 'Challenge'
+        standard.mkdir(parents=True)
+        challenge.mkdir(parents=True)
+        standard_pool = _fixture_pool(standard, 12, prefix='std')
+        challenge_pool = _fixture_pool(challenge, 4, prefix='chl', seats=5)
+
+        run = start_run(
+            run_id='check-run',
+            seed='SKIRMISH-CHECK',
+            player_country=0,
+            ally_country=3,
+            created='2026-09-06',
+        )
+        # A tier is five battles and the fifth is the challenge.
+        cadence_valid = bool(
+            [tier_for(battle) for battle in (1, 5, 6, 10, 11)]
+            == [1, 1, 2, 2, 3]
+            and not is_challenge_battle(4)
+            and is_challenge_battle(5)
+            and not is_challenge_battle(6)
+            and is_challenge_battle(10)
+        )
+
+        first = offers_for(
+            run, standard_pool, challenge_pool, maps_dir, countries
+        )
+        again = offers_for(
+            run, standard_pool, challenge_pool, maps_dir, countries
+        )
+        offers_valid = bool(
+            len(first) == 3
+            and first == again
+            and not any(offer.challenge for offer in first)
+            # Stored as a path relative to MapsMO, so a moved installation
+            # still finds the map and the pool it came from is readable.
+            and all(
+                offer.map_path.startswith('Standard/') for offer in first
+            )
+            and all(offer.enemy_countries for offer in first)
+            and len({offer.map_path for offer in first}) == 3
+        )
+
+        # Taking one and winning it moves the run on.
+        run = commit_offer(offer_battles(run, first), 1)
+        won = record_victory(run)
+        victory_valid = bool(
+            won.battle == 2
+            and won.won_battles == 1
+            and not won.offers
+            and won.committed_offer is None
+        )
+
+        # A defeat costs a life and leaves the battle where it was.
+        lost = record_defeat(run)
+        defeat_valid = bool(
+            lost.battle == run.battle
+            and lost.revivals_used == 1
+            and lost.lives_left == DEFAULT_LIVES - 1
+            and lost.status is RunStatus.ACTIVE
+            and record_defeat(
+                commit_offer(record_defeat(commit_offer(lost, 1)), 1)
+            ).status is RunStatus.FAILED
+        )
+
+        # The challenge battle offers one map and no choice, and the pool
+        # comes back whole once it has been through.
+        closing = replace(won, battle=5)
+        seen = []
+        for _round in range(len(challenge_pool)):
+            offers = offers_for(
+                closing, standard_pool, challenge_pool, maps_dir, countries
+            )
+            closing = record_victory(
+                commit_offer(offer_battles(closing, offers), 0)
+            )
+            seen.append(offers[0].map_path)
+            closing = replace(closing, battle=closing.battle + 4)
+        after = offers_for(
+            closing, standard_pool, challenge_pool, maps_dir, countries
+        )
+        challenge_valid = bool(
+            len(seen) == len(challenge_pool)
+            and len(set(seen)) == len(challenge_pool)
+            and all(path.startswith('Challenge/') for path in seen)
+            and len(closing.used_challenge_maps) == len(challenge_pool)
+            # Exhausted, so the next challenge draws from the whole pool
+            # again rather than offering nothing.
+            and len(after) == 1
+            and after[0].challenge
+        )
+
+        paths = SkirmishPersistencePaths(
+            runs=root / 'skirmish_runs.dat',
+            backup_dir=root / 'backups',
+        )
+        repository = SkirmishRepository(paths)
+        stored = repository.save_run(commit_offer(offer_battles(run, first), 0))
+        reopened = SkirmishRepository(paths).load_run()
+        second = repository.save_run(
+            start_run(
+                run_id='check-run-2',
+                seed='SKIRMISH-CHECK-2',
+                player_country=6,
+                ally_country=9,
+            )
+        )
+        runs, active = SkirmishRepository(paths).list_runs()
+        storage_valid = bool(
+            reopened == stored
+            and reopened.committed() == first[0]
+            and len(runs) == 2
+            and active == second.run_id
+            and runs[0].run_id == 'check-run'
+        )
+        repository.select_run('check-run')
+        repository.delete_run('check-run-2')
+        runs, active = SkirmishRepository(paths).list_runs()
+        selection_valid = bool(
+            len(runs) == 1
+            and active == 'check-run'
+            and SkirmishRepository(paths).load_run().run_id == 'check-run'
+        )
+
+        # A run whose map the installation no longer has still loads: the
+        # offer is unplayable, the run is not lost.
+        missing = replace(
+            stored,
+            offers=(replace(first[0], map_path='Standard/gone.map'),),
+            committed_offer=0,
+        )
+        repository.save_run(missing)
+        survives_missing_map = bool(
+            SkirmishRepository(paths).load_run().committed().map_path
+            == 'Standard/gone.map'
+        )
+
+        atomic_write_json(paths.runs, sign({
+            'schema_version': 1,
+            'active_run_id': 'twin',
+            'runs': [
+                replace(stored, run_id='twin').to_dict(),
+                replace(stored, run_id='twin', battle=3).to_dict(),
+            ],
+        }), indent=None)
+        try:
+            SkirmishRepository(paths).load_run()
+            duplicate_rejected = False
+        except SkirmishPersistenceError:
+            duplicate_rejected = True
+
+    return {
+        'skirmish_tier_cadence_valid': cadence_valid,
+        'skirmish_offers_deterministic_valid': offers_valid,
+        'skirmish_victory_valid': victory_valid,
+        'skirmish_defeat_costs_a_life_valid': defeat_valid,
+        'skirmish_challenge_pool_valid': challenge_valid,
+        'skirmish_run_storage_valid': storage_valid and selection_valid,
+        'skirmish_run_survives_missing_map_valid': survives_missing_map,
+        'skirmish_run_duplicate_rejected_valid': duplicate_rejected,
+    }
+
+
 def validate_skirmish_contract():
     """Return the skirmish self-check rows, plus what the pools hold."""
     report = {}
@@ -321,6 +534,7 @@ def validate_skirmish_contract():
     report.update(_result_checks())
     report.update(_map_reader_checks())
     report.update(_country_checks())
+    report.update(_run_checks())
     report['skirmish_map_pools'] = (
         summarize_map_pools()
         if STANDARD_POOL_DIR.is_dir() or CHALLENGE_POOL_DIR.is_dir()
