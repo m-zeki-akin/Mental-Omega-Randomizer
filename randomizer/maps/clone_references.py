@@ -314,6 +314,10 @@ def _target_with_effective_unit_stats(target, effective_values):
         ('passengers', 'Passengers'),
         ('cost', 'Cost'),
         ('speed', 'Speed'),
+        # A jumpjet unit moves at JumpjetSpeed, not Speed. Mental Omega keeps
+        # the two equal on 33 of the 36 rostered jumpjets, so a speed reward
+        # that writes only Speed leaves the unit flying at its old pace.
+        ('jumpjet_speed', 'JumpjetSpeed'),
     ):
         raw_value = _value_case_insensitive(effective_values, rules_key)
         if raw_value is None:
@@ -327,6 +331,13 @@ def _target_with_effective_unit_stats(target, effective_values):
             result[target_key] = float(str(raw_value).strip())
         except (TypeError, ValueError):
             pass
+    for key in effective_values or {}:
+        if str(key).lower() == 'jumpjetspeed':
+            # Mental Omega spells this both JumpjetSpeed and JumpJetSpeed.
+            # Write back the one the unit already uses rather than adding a
+            # second key beside it.
+            result['jumpjet_speed_key'] = str(key)
+            break
     if 'passengers' in target:
         raw_passengers = _value_case_insensitive(
             effective_values, 'Passengers'

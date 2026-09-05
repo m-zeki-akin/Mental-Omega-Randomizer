@@ -254,12 +254,34 @@ def apply_unit_buff_value(values, target, buff_type, count):
     elif buff_type == 'speed':
         # The ceiling is a per-category safety rule and stays the catalogue's;
         # only the speed it is applied to comes from the unit.
-        values['Speed'] = str(capped_movement_speed(
-            {**target, 'speed': live_value(
-                values, 'Speed', target.get('speed', 1)
-            )},
-            count,
-        ))
+        base_speed = live_value(values, 'Speed', target.get('speed', 1))
+        earned_speed = capped_movement_speed(
+            {**target, 'speed': base_speed}, count
+        )
+        values['Speed'] = str(earned_speed)
+        # A jumpjet unit's Speed is not what carries it across the map:
+        # JumpjetSpeed is. Mental Omega authors the two together -- equal on
+        # 33 of the 36 rostered jumpjets, and 9 against 15 on the Hand of
+        # Ereshkigal -- so the reward scales the pair rather than setting
+        # them equal, and a unit that has no JumpjetSpeed is left alone.
+        # JumpjetClimb is deliberately untouched: the data shows it is not a
+        # function of speed (the Gravitus flies at 12 and climbs at 24) and
+        # it governs how the unit lands.
+        jumpjet = live_value(
+            values, 'JumpjetSpeed', target.get('jumpjet_speed')
+        )
+        if jumpjet and base_speed > 0 and earned_speed != base_speed:
+            key = next(
+                (
+                    name for name in values
+                    if str(name).lower() == 'jumpjetspeed'
+                ),
+                target.get('jumpjet_speed_key') or 'JumpjetSpeed',
+            )
+            values[key] = str(max(
+                int(round(jumpjet)),
+                int(round(jumpjet * earned_speed / base_speed)),
+            ))
     elif buff_type == 'armor':
         multiplier = stacking_multiplier('armor', count)
         current_strength = resolved_safe_strength(target, values)

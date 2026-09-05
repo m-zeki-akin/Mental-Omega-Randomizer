@@ -670,6 +670,52 @@ def validate_unit_buff_application_contracts():
             for key, value in (values or {}).items()
         }
 
+    installed = _installed_sections()
+
+    def installed_number(section, key):
+        for name, value in (section or {}).items():
+            if str(name).lower() == key:
+                try:
+                    return float(str(value).strip())
+                except (TypeError, ValueError):
+                    return 0.0
+        return 0.0
+
+    def fielded_weapon_stats(unit_id, peer_target):
+        """Return the weapons the clone fires, with the stats it fires them at.
+
+        The catalogue records stock Mental Omega's weapon names, and a submod
+        renames them: this installation's Bomb Buggy fires DemobombBuggy where
+        the catalogue says Demobomb. Map generation already handles that --
+        maps/clone_builder pulls every direct weapon off the clone body, reads
+        its installed values, and skips any catalogue weapon the clone does
+        not reference. This has to ask the same question, or it reports a
+        working reward as dead.
+        """
+        template = templates.get(unit_id, {})
+        referenced = direct_weapon_ids(template)
+        if peer_target.get('power_payload_only'):
+            # Payload-only identities are cloned from live rules at launch and
+            # have no production template to read weapons off.
+            referenced.update(
+                str(weapon_id).upper()
+                for weapon_id in peer_target.get('weapons', {})
+            )
+        stats = {}
+        for weapon_id, base_stats in (peer_target.get('weapons') or {}).items():
+            if str(weapon_id).upper() in referenced:
+                stats[str(weapon_id).upper()] = base_stats
+        for weapon_id in sorted(referenced - set(stats)):
+            section = installed.get(weapon_id)
+            if not section:
+                continue
+            stats[weapon_id] = {
+                'damage': installed_number(section, 'damage'),
+                'rof': installed_number(section, 'rof'),
+                'range': installed_number(section, 'range'),
+            }
+        return stats
+
     def dead_from(sequence):
         """Return the first stack after which a buff never changes again.
 
@@ -709,19 +755,9 @@ def validate_unit_buff_application_contracts():
                     linked_buff_variant_ids(unit_id) or {unit_id}
                 ):
                     peer_target = BUFF_TARGETS.get(peer_id, target)
-                    direct_ids = direct_weapon_ids(templates.get(peer_id, {}))
-                    if peer_target.get('power_payload_only'):
-                        # Installed payload-only identities are cloned from
-                        # live rules, not bundled production templates.
-                        direct_ids.update(
-                            str(weapon_id).upper()
-                            for weapon_id in peer_target.get('weapons', {})
-                        )
                     for weapon_id, stats in sorted(
-                        peer_target.get('weapons', {}).items()
+                        fielded_weapon_stats(peer_id, peer_target).items()
                     ):
-                        if str(weapon_id).upper() not in direct_ids:
-                            continue
                         changed = {}
                         if apply_weapon_buff_value(
                             changed,
