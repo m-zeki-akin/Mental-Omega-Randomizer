@@ -41,6 +41,8 @@ class Upgrade:
     description: str
     price: int
     limit: int
+    # What one stack does, in the campaign shop's own words.
+    effect: str = ''
 
     @property
     def key(self):
@@ -65,6 +67,7 @@ def faction_upgrades(side):
     """
     from randomizer.rewards.buff_reach import effective_stack_limit
     from randomizer.rewards.catalogue import UNIT_BUFF_REWARDS, buff_stack_limit
+    from randomizer.rewards.display import buff_effect_lines
     from randomizer.shop.economy import run_buff_price
 
     wanted = str(side or '').strip().lower()
@@ -85,6 +88,9 @@ def faction_upgrades(side):
         )
         if limit <= 0:
             continue
+        effect = buff_effect_lines(
+            reward, 1, include_label=False, include_stack=False
+        )
         upgrades.append(Upgrade(
             unit=unit,
             buff_type=buff_type,
@@ -92,6 +98,7 @@ def faction_upgrades(side):
             description=str(reward.get('description') or ''),
             price=int(run_buff_price(unit)),
             limit=int(limit),
+            effect=effect[0] if effect else buff_type.replace('_', ' '),
         ))
     return tuple(sorted(upgrades, key=lambda item: (item.price, item.name)))
 
@@ -176,6 +183,17 @@ def ally_shopping(run, side, coins):
         purchases = purchase_stacks(purchases, chosen)
         coins -= chosen.price
     return purchases, coins
+
+
+def purchase_labels(purchases, side):
+    """Return one readable line per purchase, for showing what was bought."""
+    named = {upgrade.key: upgrade for upgrade in faction_upgrades(side)}
+    lines = []
+    for purchase in purchases or ():
+        upgrade = named.get(purchase.key)
+        name = upgrade.name if upgrade else f'{purchase.unit} {purchase.buff_type}'
+        lines.append(f'{name} x{purchase.stacks}')
+    return tuple(sorted(lines))
 
 
 def purchase_summary(purchases):

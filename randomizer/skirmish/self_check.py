@@ -705,6 +705,7 @@ def _shop_checks():
         battle_reward,
         faction_upgrades,
         owned_stacks,
+        purchase_labels,
         purchase_stacks,
         shelf_for,
     )
@@ -779,6 +780,21 @@ def _shop_checks():
         and shelf != shelf_for(replace(run, battle=2), 'Allies')
     )
 
+    # A price tag is no use without what it buys, so every upgrade says
+    # what one stack does in the campaign shop's own words rather than in
+    # the internal name of the buff.
+    effect_valid = bool(
+        shelf
+        and all(
+            upgrade.effect
+            and upgrade.effect != upgrade.buff_type.replace('_', ' ')
+            for upgrade in faction_upgrades('Allies')
+        )
+        # And what an army owns can be named, for the ally that shops unseen.
+        and purchase_labels(bought.purchases, 'Allies')
+        == ('Guardian GI Mobility I x2',)
+    )
+
     # A purchase becomes an edit on the unit's own section, read off the
     # unit as this installation has it.
     installed = {
@@ -807,6 +823,7 @@ def _shop_checks():
         'skirmish_purchase_valid': purchase_valid,
         'skirmish_ally_shops_alone_valid': ally_valid,
         'skirmish_shelf_valid': shelf_valid,
+        'skirmish_upgrade_effect_valid': effect_valid,
         'skirmish_upgrade_rules_valid': rules_valid,
     }
 

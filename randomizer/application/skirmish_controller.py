@@ -52,7 +52,11 @@ from randomizer.skirmish.persistence import (
 )
 from randomizer.skirmish.progression import describe_offer, offers_for
 from randomizer.skirmish.rules import apply_upgrades_to_map
-from randomizer.skirmish.shop import owned_stacks, shelf_for
+from randomizer.skirmish.shop import (
+    owned_stacks,
+    purchase_labels,
+    shelf_for,
+)
 from randomizer.skirmish.results import (
     last_game_result,
     read_debug_log_tail,
@@ -298,6 +302,9 @@ class SkirmishController:
         eligible = tuple(
             country for country in countries if country.side not in sides
         )
+        # The fallback covers one case only: an installation whose whole
+        # country list is the player's own side, where there is no enemy
+        # left to draw. A battle against someone beats no battle at all.
         return eligible or countries
 
     def offer_skirmish_battles(self, run):
@@ -474,7 +481,7 @@ class SkirmishController:
             owned = owned_stacks(run.purchases, upgrade.unit, upgrade.buff_type)
             tree.insert('', 'end', iid=str(index), values=(
                 upgrade.name,
-                upgrade.buff_type.replace('_', ' '),
+                upgrade.effect,
                 f'{owned} / {upgrade.limit}',
                 upgrade.price,
             ))
@@ -492,7 +499,24 @@ class SkirmishController:
             f'Bought: {bought} upgrade{"" if bought == 1 else "s"}'
             f'   ally: {ally_bought}'
         )
+        self.refresh_skirmish_owned_tooltip(run)
         self.refresh_skirmish_shop_buttons()
+
+    def refresh_skirmish_owned_tooltip(self, run):
+        """Say what both armies have bought, since the ally shops unseen."""
+        tooltip = getattr(self, 'skirmish_owned_tooltip', None)
+        if tooltip is None:
+            return
+        ally = country_by_index(run.ally_country)
+        mine = purchase_labels(run.purchases, self.skirmish_side(run))
+        theirs = purchase_labels(
+            run.ally_purchases, ally.side if ally else ''
+        )
+        lines = ['Yours:'] + [f'  {line}' for line in mine or ('nothing yet',)]
+        lines += [
+            f'{ally.display if ally else "Ally"}:'
+        ] + [f'  {line}' for line in theirs or ('nothing yet',)]
+        tooltip.text = '\n'.join(lines)
 
     def selected_skirmish_upgrade(self):
         tree = getattr(self, 'skirmish_shop_tree', None)

@@ -17,8 +17,8 @@ RUN_COLUMNS = (
     ('seed', 'Seed', 130),
 )
 SHELF_COLUMNS = (
-    ('name', 'Upgrade', 250),
-    ('effect', 'Effect', 140),
+    ('name', 'Upgrade', 240),
+    ('effect', 'What one stack does', 250),
     ('owned', 'Owned', 70),
     ('price', 'Ore', 60),
 )
@@ -290,13 +290,16 @@ def _build_shop(self, parent):
         state='disabled',
     )
     self.skirmish_buy_button.grid(row=2, column=0, sticky='w', pady=(6, 0))
-    ttk.Label(
+    owned_label = ttk.Label(
         shop,
         textvariable=self.skirmish_owned_var,
         style='Shop.Help.TLabel',
         wraplength=420,
         justify='left',
-    ).grid(row=2, column=1, sticky='e', pady=(6, 0))
+    )
+    owned_label.grid(row=2, column=1, sticky='e', pady=(6, 0))
+    # The ally shops on its own, so what it bought is only visible here.
+    self.skirmish_owned_tooltip = WidgetTooltip(owned_label, '')
     return shop
 
 
