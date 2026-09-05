@@ -55,3 +55,7 @@ configs/Mix-Unprotect*.exe
 # up, without that adaptation reaching anyone else.
 build_exe.local.ps1
 dist/
+
+# CodeGraph's local index. A per-machine database and its daemon files;
+# indexing is each maintainer's own decision.
+.codegraph/
