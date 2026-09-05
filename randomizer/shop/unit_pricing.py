@@ -50,46 +50,110 @@ def _template_value(values, key):
     return None
 
 
+def _installed_rules_sections():
+    """Return the rules the installation actually loads, keyed by section.
+
+    Read through the cameo module, which already resolves the chain the engine
+    resolves: a loose rulesmo.ini in the game folder outranks everything, and
+    among the archives the highest-numbered expandmo wins. Imported here
+    rather than at module load so the shop package stays importable where
+    there is no game folder at all.
+    """
+    try:
+        from randomizer.ui.cameos import installed_rules_registry
+        _superweapons, sections = installed_rules_registry(synchronous=True)
+    except Exception:
+        return {}
+    return {
+        str(name).upper(): {str(k).lower(): v for k, v in values.items()}
+        for name, values in (sections or {}).items()
+    }
+
+
+def _int_value(text):
+    try:
+        return int(str(text or '').strip() or 0)
+    except ValueError:
+        return 0
+
+
 def _unit_traits():
-    """Return the roster facts pricing needs, per unit id."""
+    """Return the facts pricing needs, per unit id.
+
+    Cost, build limit and stolen-tech status come from the installed rules
+    wherever the installation has a section for the unit. The committed
+    roster is a bake of stock Mental Omega and drifts from what is actually
+    installed: it puts Tanya at 1,500 credits where the shipped rules say
+    2,500, Centurion at 3,000 against 5,000, and it carries BuildLimits that
+    belong to the randomizer's own player clones rather than to the game.
+    Pricing off the bake meant a submod, or a patch, repriced nothing.
+
+    The bake stays as the fallback, and has to: nineteen sellable units are
+    campaign-only and have no section in the installed rules at all.
+    """
     cached = _CACHE.get('traits')
     if cached is not None:
         return cached
     templates = randomizer_unit_template_values()
+    installed = _installed_rules_sections()
     traits = {}
     for unit_id, values in templates.items():
-        target = BUFF_TARGETS.get(unit_id.upper()) or {}
-        try:
-            build_limit = int(
-                str(_template_value(values, 'BuildLimit') or '').strip() or 0
+        unit_id = unit_id.upper()
+        target = BUFF_TARGETS.get(unit_id) or {}
+        section = installed.get(unit_id)
+        if section is not None:
+            cost = _int_value(section.get('cost'))
+            build_limit = _int_value(section.get('buildlimit'))
+            stolen = bool(
+                str(section.get('prerequisite.stolentechs') or '').strip()
             )
-        except ValueError:
-            build_limit = 0
-        # The roster section is asked for the cost first. BUFF_TARGETS carries
-        # one for anything buildable but not for special buildings, and a
-        # Cloning Vat priced as though it were free would sit at the bottom of
-        # its band for no reason. This is the same number the game reads.
-        try:
-            cost = int(str(_template_value(values, 'Cost') or '').strip() or 0)
-        except ValueError:
-            cost = 0
-        if cost <= 0:
-            cost = int(target.get('cost') or 0)
-        traits[unit_id.upper()] = {
-            'cost': max(0, cost),
-            'category': str(target.get('category') or ''),
-            # Any build limit at all. A defense you may have three of is
-            # still a thing the game refuses to let you spam, and the
-            # BuildLimit=2 entries cost 1,750-2,500 credits -- exactly the
-            # units that were dragging their tier's window up.
-            'unique': build_limit >= 1,
-            'stolen_tech': bool(
+            source = 'installed_rules'
+        else:
+            cost = _int_value(_template_value(values, 'Cost'))
+            build_limit = _int_value(_template_value(values, 'BuildLimit'))
+            stolen = bool(
                 str(_template_value(values, 'Prerequisite.StolenTechs') or '')
                 .strip()
-            ),
+            )
+            source = 'baked_roster'
+        if cost <= 0:
+            # BUFF_TARGETS carries a cost for anything buildable but not for
+            # special buildings, and a Cloning Vat priced as though it were
+            # free would sit at the bottom of its band for no reason.
+            fallback = int(target.get('cost') or 0)
+            if fallback > 0:
+                cost, source = fallback, 'buff_targets'
+        traits[unit_id] = {
+            'cost': max(0, cost),
+            'cost_source': source,
+            'category': str(target.get('category') or ''),
+            # Any build limit at all: a defense you may have three of is
+            # still something the game refuses to let you spam.
+            'unique': build_limit >= 1,
+            'build_limit': build_limit,
+            'stolen_tech': stolen,
         }
     _CACHE['traits'] = traits
     return traits
+
+
+def installed_rules_section(target_id):
+    """Return one unit's installed rules section, for reporting."""
+    return _installed_rules_sections().get(str(target_id).upper(), {})
+
+
+def unit_cost_sources():
+    """Return how many units each cost source accounts for.
+
+    A complete fallback and a correct read look identical from the outside,
+    and a development run has no game folder, so the counts are reported
+    rather than assumed.
+    """
+    counts = {}
+    for values in _unit_traits().values():
+        source = values.get('cost_source') or 'unknown'
+        counts[source] = counts.get(source, 0) + 1
+    return counts
 
 
 def unit_pricing_traits(target_id):
@@ -114,32 +178,42 @@ def _priced_by_band(traits, scale):
     return not (_unique_price(traits, scale) or traits.get('stolen_tech'))
 
 
-def premium_target(target_id, config: ShopModeConfig = SHOP_CONFIG):
-    """Return whether a unit is a one-off rather than something you field.
+def one_off_target(target_id):
+    """Return whether the game itself refuses to let you field many.
 
-    Three things land here: a unit nobody can build two of, whatever its
-    category; a unit that has to be stolen; and a unit the Reward Pool groups
-    name, which is to say one no skirmish game offers at all.
+    A build limit at any number, or a unit that has to be stolen. What this
+    is worth is worth for a run: you have the thing no one else has while it
+    lives, which is what the Ore premium is charging for.
+    """
+    traits = unit_pricing_traits(target_id)
+    return bool(traits.get('unique') or traits.get('stolen_tech'))
 
-    They are grouped because they distort the same two things. Their prices
-    are the reason a tier's ordinary units looked cheap -- a 5,000 credit
-    superunit dragged its tier's cost window up and pushed everything else
-    toward the bottom of the band -- so they are kept out of that window
-    entirely. And having one for a run is worth more than the band or the flat
-    price says, so the scale's premium multiplier applies on top.
 
-    The Reward Pool set is read through the economy, which already derives it
-    for the permanent surcharge; the import is deferred because economy reads
-    this module at load.
+def reward_pool_target(target_id, config: ShopModeConfig = SHOP_CONFIG):
+    """Return whether a Reward Pool group names this unit.
+
+    A different kind of rare: not capped, simply absent from any skirmish
+    game. What that is worth is worth forever, which is what the Gem
+    multiplier is charging for. Read through the economy, which already
+    derives the set; the import is deferred because economy reads this module
+    at load.
     """
     from .economy import _surcharged_target_ids
 
-    normalized = str(target_id).upper()
-    traits = unit_pricing_traits(normalized)
+    return str(target_id).upper() in _surcharged_target_ids(config)
+
+
+def premium_target(target_id, config: ShopModeConfig = SHOP_CONFIG):
+    """Return whether a unit is priced as rare, for either reason.
+
+    The two reasons are charged separately -- see the two functions above --
+    but they distort the tier cost window identically, so the window asks
+    this one question. Their prices are why a tier's ordinary units looked
+    cheap: a 10,000 credit superunit dragged its tier's window up and pushed
+    everything else toward the bottom of the band.
+    """
     return bool(
-        traits.get('unique')
-        or traits.get('stolen_tech')
-        or normalized in _surcharged_target_ids(config)
+        one_off_target(target_id) or reward_pool_target(target_id, config)
     )
 
 
@@ -242,8 +316,10 @@ def _access_value(target_id, scale, config):
             scale,
             config,
         )
-    if premium_target(target_id, config):
+    if one_off_target(target_id):
         flat *= max(1, int(scale.premium_target_multiplier))
+    if reward_pool_target(target_id, config):
+        flat *= max(1, int(scale.reward_pool_multiplier))
     return flat
 
 

@@ -2297,7 +2297,7 @@ class ShopController(ShopPolishController):
                     # it whenever the surcharge applies -- a player who
                     # cannot afford the row is exactly the one who needs to
                     # know the number is not the normal price.
-                    f'{state} • One-off premium'
+                    f'{state} • Reward Pool surcharge'
                     if surcharged and entry.reward_id not in owned else state,
                     gem_text(price),
                 ),

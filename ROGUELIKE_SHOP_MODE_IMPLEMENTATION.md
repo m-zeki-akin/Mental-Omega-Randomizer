@@ -875,21 +875,35 @@ stolen tech takes the higher of the two. Unique *buildings* keep their range
 -- an Ore Purifier is limited for balance, not because it is a hero, and the
 raw BuildLimit flag does not make that distinction for you.
 
-Every one-off then costs **twice** that in Ore and **four times** in Gems:
-anything the game build-limits at any number, anything gated behind stolen
-tech, and the campaign units the Reward Pool groups name. 77 of the 294
-sellable units. The same set is kept out of the per-tier cost window, which is
-the half that fixes the complaint it came from -- a 3,000 credit Cloning Vat
-stretched Tier 3's window and left ordinary tanks bunched near the bottom of
-their range. With the one-offs out, Tier 3's window is 750-2,500, set by
-buildable capital ships, and its ordinary units use the whole 160-240 band.
+Two multipliers sit on top, over different sets, because the currencies buy
+different things. A **one-off** -- build-limited at any number, or gated
+behind stolen tech -- costs twice as much in Ore: you are paying for having
+the thing nobody else has, for this run. A **Reward Pool** unit, one no
+skirmish game offers at all, costs four times as much in Gems: you are paying
+to own it forever. Boris is both and pays each on its own currency; Tanya is
+build-limited but not campaign-only, so Ore charges her and Gems do not.
 
-One rule, two numbers, and that is the second attempt. The first split it in
-two -- a build-limit premium and a Reward Pool premium, each on one currency
--- which priced Tanya at 500 Gems next to Boris at 2,000: same build limit,
-same job, same tier. Nor did reading the limit as `== 1` do what it claimed:
-six entries the game caps at two or three, 1,000-2,500 credit defenses, stayed
-in the average and paid nothing.
+Both sets are held out of the per-tier cost window, which is the half that
+fixes the complaint it came from: a 10,000 credit superunit stretched Tier 3's
+window and left ordinary tanks bunched near the bottom of their range.
+
+**Costs come from the rules the installation loads**, not from the committed
+roster. A loose `rulesmo.ini` in the game folder outranks everything; among
+the archives the highest-numbered `expandmo` carrying the section wins -- the
+order the engine resolves, reached through the same code the cameo reader
+already uses. The roster bake stays as the fallback for the nineteen
+campaign-only units that have no section, and only for those: 307 of 326
+templates price off installed rules. This matters because the bake drifts.
+It has Tanya at 1,500 credits where the shipped rules say 2,500, Centurion at
+3,000 against 5,000, Stardust Bomber at 5,000 against 10,000 -- and it carries
+BuildLimits that are the randomizer's own clone policy rather than the game's,
+which is why six defenses briefly read as one-offs when they are not
+build-limited at all.
+
+The counts are in the self-check output as `unit_cost_sources`, and a frozen
+build fails if fewer than 250 units priced off installed rules. A complete
+fallback and a correct read produce the same shape of answer, and only one of
+them is right.
 
 One upgrade stack costs 25% of what its target costs, and only Ore ever
 charges it. The cheapest Tier 1 unit lands exactly on `minimum_shop_price`,

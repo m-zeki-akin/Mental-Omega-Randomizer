@@ -152,12 +152,13 @@ class ShopPriceScale:
     ``tier_prices`` and ``stolen_tech`` are (low, high) pairs: the tier
     decides the range and the unit's credit cost decides where inside it the
     unit lands. A scale that wants one flat number sets both ends to it.
-    ``premium_target_multiplier`` sits on top for every one-off: anything
-    the game build-limits, anything gated behind stolen tech, and the campaign
-    units the Reward Pool groups name. One rule with a number per scale --
-    splitting it by *why* something is a one-off produced Tanya at list price
-    beside Boris at four times it, which is not a distinction anyone playing
-    can see.
+    Two multipliers sit on top and both are per scale, because the two
+    currencies are buying different things. ``premium_target_multiplier``
+    covers one-offs -- anything the game build-limits, anything gated behind
+    stolen tech -- and prices what fielding one for a run is worth, so Ore
+    charges it and Gems do not. ``reward_pool_multiplier`` covers what the
+    Reward Pool groups name, the units no skirmish game offers at all, and
+    prices owning one forever, so Gems charge it and Ore does not.
     """
     name: str
     tier_prices: Mapping[str, tuple[int, int]]
@@ -170,6 +171,7 @@ class ShopPriceScale:
     cost_window_trim_percent: int
     rounding_step: int
     premium_target_multiplier: int
+    reward_pool_multiplier: int
 
 
 @dataclass(frozen=True)

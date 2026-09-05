@@ -168,7 +168,8 @@
         "buff_percent_of_access": 25,
         "cost_window_trim_percent": 5,
         "rounding_step": 10,
-        "premium_target_multiplier": 2
+        "premium_target_multiplier": 2,
+        "reward_pool_multiplier": 1
       },
       "permanent_gem": {
         "name": "permanent_gem",
@@ -185,7 +186,8 @@
         "buff_percent_of_access": 25,
         "cost_window_trim_percent": 5,
         "rounding_step": 10,
-        "premium_target_multiplier": 4
+        "premium_target_multiplier": 1,
+        "reward_pool_multiplier": 4
       }
     },
     "permanent_upgrades": {

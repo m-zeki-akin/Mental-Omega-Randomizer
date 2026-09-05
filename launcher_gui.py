@@ -11,6 +11,7 @@ from randomizer.core.diagnostics import event as log_event
 from randomizer.core.runtime_cleanup import sweep_stale_runtime_directories
 from randomizer.core.paths import (
     APP_DIR,
+    FROZEN,
     GAME_EXE,
     GAME_LAUNCHER_EXE,
     GAME_ROOT,
@@ -1171,6 +1172,18 @@ def run_self_check():
             'static_configs_valid': len(static_config_paths) == len(REQUIRED_STATIC_CONFIGS),
             'shop_domain_valid': shop_domain['valid'],
             'shop_domain': shop_domain,
+            # Shop prices read Cost and BuildLimit from the rules the
+            # installation actually loads. Falling back to the committed bake
+            # is correct for the handful of campaign-only units that have no
+            # section, and wrong for everything else -- but the two look
+            # identical from the outside, so the count is asserted rather
+            # than trusted. Only a frozen build has a game folder to read.
+            'unit_costs_from_installed_rules': (
+                not FROZEN
+                or shop_domain.get('unit_cost_sources', {}).get(
+                    'installed_rules', 0
+                ) >= 250
+            ),
             'archipelago_client_contract_valid': (
                 archipelago_client_contract_valid
             ),
@@ -1349,6 +1362,7 @@ def run_self_check():
                 'lightning_storm_cameo_extracted',
                 'static_configs_valid',
                 'shop_domain_valid',
+                'unit_costs_from_installed_rules',
                 'undefined_globals_valid',
                 'archipelago_client_contract_valid',
                 'randomizer_unit_roster_valid',

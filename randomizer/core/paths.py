@@ -2,6 +2,8 @@
 import sys
 from pathlib import Path
 
+import os
+
 FROZEN = bool(getattr(sys, 'frozen', False))
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 SOURCE_DIR = PROJECT_ROOT
@@ -15,7 +17,13 @@ if FROZEN:
     APP_DIR = GAME_ROOT / 'RandomizerLauncherData'
 else:
     APP_DIR = SOURCE_DIR
-    GAME_ROOT = SOURCE_DIR.parent
+    # Development runs sit beside the repository, not inside an installation,
+    # so anything read from the installed game -- rules, art, archives -- is
+    # absent and silently falls back to committed data. Pointing this at a
+    # real install is the only way a check that reads installed rules can
+    # fail in development instead of passing on stock values.
+    _override = os.environ.get('MO_RANDOMIZER_GAME_ROOT', '').strip()
+    GAME_ROOT = Path(_override).resolve() if _override else SOURCE_DIR.parent
 GAME_LAUNCHER_EXE = GAME_ROOT / 'Syringe.exe'
 GAME_EXE = GAME_ROOT / 'gamemd.exe'
 SPAWN_INI = GAME_ROOT / 'spawn.ini'

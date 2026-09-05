@@ -195,15 +195,10 @@ makes them worth having is that no one else can field one. **Unique buildings
 and defenses are not heroes** -- an Ore Purifier is limited for balance -- so
 they keep their tier range.
 
-`premium_target_multiplier` then applies to every one-off, which is a wider
-set than the flat prices cover: anything the game build-limits **at any
-number**, anything gated behind stolen tech, and anything a Reward Pool group
-names. Reading the limit as `== 1` missed six entries the game caps at two or
-three, all of them 1,000-2,500 credit defenses, which is exactly the wrong
-half to miss. The same set is held out of the per-tier cost window, and that
-is the more important half: a Cloning Vat costs 3,000 credits and takes a tier
-band like any building, so leaving it in stretched Tier 3's window and pushed
-every ordinary tank toward the bottom of its range.
+`premium_target_multiplier` then applies to every one-off: anything the game
+build-limits **at any number**, whatever its category, and anything gated
+behind stolen tech. It prices what fielding one for a run is worth, so the Ore
+scale charges it and the Gem scale sets it to 1.
 
 `power_tier_prices` and `flagged_power_price` price superweapons and aid
 powers, which have no credit cost to read, so their tier decides outright.
@@ -218,14 +213,28 @@ a number. Only the Ore scale has anything to charge it on: the Gem shop sells
 units, not unit upgrades. The Gem figure is kept so both scales stay the same
 shape.
 
-There is deliberately only one such rule. An earlier version split it -- one
-multiplier for build-limited units, another for Reward Pool ones -- and the
-result was Tanya at list price beside Boris at four times it, two heroes with
-the same build limit and the same job. Whether a unit is rare because the game
-caps it, because it has to be stolen, or because no skirmish game offers it is
-not a distinction a player can see, so it is not a distinction the price
-draws. Reward Pool membership still matters for what a run *offers*; it just
-no longer prices anything by itself.
+`reward_pool_multiplier` is the second, over a different set and for a
+different reason: what the Reward Pool groups name is not capped, it is simply
+absent from every skirmish game. That is worth something forever rather than
+for a run, so the Gem scale charges it and the Ore scale sets it to 1. A unit
+that is both -- Boris is build-limited *and* campaign-only -- pays each
+multiplier on its own currency, not both on one.
+
+Both sets are held out of the per-tier cost window, which is the more
+important half. A one-off's price is the reason a tier's ordinary units looked
+cheap: leaving a 10,000 credit superunit in stretched Tier 3's window and
+pushed every ordinary tank toward the bottom of its range.
+
+Cost, build limit and stolen-tech status are read from **the rules the
+installation actually loads** -- a loose `rulesmo.ini` in the game folder
+first, then the highest-numbered `expandmo` archive that carries the section,
+which is the order the engine itself resolves. The committed roster under
+`configs/Randomizer*.ini` is only the fallback, for the nineteen campaign-only
+units that have no section anywhere in the installed rules. It is a bake of
+stock Mental Omega and drifts: it has Tanya at 1,500 credits where the shipped
+rules say 2,500 and Centurion at 3,000 against 5,000, and it carries
+BuildLimits belonging to the randomizer's own player clones rather than to the
+game. Pricing off the bake meant a submod repriced nothing.
 
 Cost, category, build limit, and stolen-tech status all come from the live
 roster, so a submod that reprices a unit reprices its Shop price with it.

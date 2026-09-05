@@ -112,8 +112,11 @@ from .purchases import apply_validated_run_purchase, validate_run_purchase
 from .unit_pricing import (
     UNIQUE_INFANTRY_CATEGORIES,
     UNIQUE_UNIT_CATEGORIES,
+    one_off_target,
     power_access_price,
     premium_target,
+    reward_pool_target,
+    unit_cost_sources,
     unit_access_price,
     unit_access_price_report,
     unit_buff_price,
@@ -1523,7 +1526,9 @@ def _gem_pricing_checks():
     # asserted separately below. Measuring them on the live scale would make
     # every one-off look out of band and prove nothing about the model.
     pricing = replace(
-        SHOP_CONFIG.price_scales['permanent_gem'], premium_target_multiplier=1
+        SHOP_CONFIG.price_scales['permanent_gem'],
+        premium_target_multiplier=1,
+        reward_pool_multiplier=1,
     )
     report = unit_access_price_report(pricing)
     access_targets = {
@@ -1608,6 +1613,14 @@ def _gem_pricing_checks():
     ore = SHOP_CONFIG.price_scales['run_ore']
     ore_report = unit_access_price_report(ore)
     live_gem = SHOP_CONFIG.price_scales['permanent_gem']
+
+    def multiplier(target, scale):
+        factor = 1
+        if one_off_target(target):
+            factor *= scale.premium_target_multiplier
+        if reward_pool_target(target):
+            factor *= scale.reward_pool_multiplier
+        return factor
     # One-offs are out of the band by design: hero units and stolen tech are
     # flat-priced, and everything premium carries a multiplier on top that
     # would put it above its tier's ceiling.
@@ -1625,28 +1638,31 @@ def _gem_pricing_checks():
     # And the premium is exactly the multiplier over what the same unit would
     # cost without it -- measured against the scale with the knob turned off,
     # so this cannot pass by restating the code that computes it.
-    premium_targets = sorted(
-        target for target in ore_report if premium_target(target)
+    def plain(scale):
+        return replace(
+            scale, premium_target_multiplier=1, reward_pool_multiplier=1
+        )
+
+    one_offs = sorted(target for target in ore_report if one_off_target(target))
+    pool_targets = sorted(
+        target for target in ore_report if reward_pool_target(target)
     )
     premium_valid = bool(
-        premium_targets
+        one_offs
+        and pool_targets
+        # Each currency charges exactly one of the two, and they are not the
+        # same set: Ore prices fielding a one-off for a run, Gems price owning
+        # a campaign unit forever.
+        and ore.premium_target_multiplier > 1
+        and ore.reward_pool_multiplier == 1
+        and live_gem.reward_pool_multiplier > 1
+        and live_gem.premium_target_multiplier == 1
         and all(
-            scale.premium_target_multiplier > 1
-            and all(
-                unit_access_price(target, scale)
-                == unit_access_price(
-                    target, replace(scale, premium_target_multiplier=1)
-                ) * scale.premium_target_multiplier
-                for target in premium_targets
-            )
-            and all(
-                unit_access_price(target, scale)
-                == unit_access_price(
-                    target, replace(scale, premium_target_multiplier=1)
-                )
-                for target in ore_banded
-            )
+            unit_access_price(target, scale) == unit_access_price(
+                target, plain(scale)
+            ) * multiplier(target, scale)
             for scale in (ore, live_gem)
+            for target in ore_report
         )
     )
     # Upgrades are a fixed fraction of what their target costs, on whichever
@@ -1690,6 +1706,7 @@ def _gem_pricing_checks():
         ) == 3
     )
     return {
+        'unit_cost_sources': unit_cost_sources(),
         'gem_price_coverage_valid': coverage_valid,
         'ore_price_tier_band_valid': ore_band_valid,
         'ore_price_premium_multiplier_valid': premium_valid,
@@ -2479,22 +2496,26 @@ def validate_shop_domain():
         # -- that last is what the old 'BuildLimit == 1' reading missed.
         'shop_exclusion_gem_surcharge_valid': bool(
             surcharge_targets
-            and gem_scale.premium_target_multiplier > 1
-            and ore_scale.premium_target_multiplier > 1
+            and gem_scale.reward_pool_multiplier > 1
             and all(
                 permanent_unit_price(target) == unit_access_price(
-                    target, replace(gem_scale, premium_target_multiplier=1)
-                ) * gem_scale.premium_target_multiplier
-                and run_unit_price(target) == unit_access_price(
-                    target, replace(ore_scale, premium_target_multiplier=1)
-                ) * ore_scale.premium_target_multiplier
+                    target,
+                    replace(
+                        gem_scale,
+                        premium_target_multiplier=1,
+                        reward_pool_multiplier=1,
+                    ),
+                ) * gem_scale.reward_pool_multiplier
                 and permanent_target_surcharged(target)
                 for target in surcharge_targets
             )
-            and all(
-                premium_target(target)
-                for target in ('TANY', 'NACLON', 'GAHYPE')
-            )
+            # Build limits come from the installed rules, so any number of
+            # them counts and a Cloning Vat capped at two is a one-off just
+            # as a hero capped at one is. Tanya is the control: build-limited
+            # but not campaign-only, so Ore charges her and Gems do not.
+            and all(one_off_target(target) for target in ('TANY', 'NACLON'))
+            and unit_pricing_traits('NACLON').get('build_limit') == 2
+            and not reward_pool_target('TANY')
             and not permanent_target_surcharged('E1')
             and permanent_unit_price('E1') == unit_access_price(
                 'E1', gem_scale

@@ -193,6 +193,7 @@ def load_shop_mode_config() -> ShopModeConfig:
                         'cost_window_trim_percent',
                         'rounding_step',
                         'premium_target_multiplier',
+                        'reward_pool_multiplier',
                     )
                 },
             )

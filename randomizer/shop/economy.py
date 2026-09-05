@@ -277,17 +277,18 @@ def _scale(config, name):
 def permanent_target_surcharged(
     target_id, *, config: ShopModeConfig = SHOP_CONFIG
 ):
-    """Return whether this target carries the one-off premium in Gems.
+    """Return whether owning this target permanently costs a multiple.
 
-    Kept here rather than re-exported so the screens have one name to ask,
-    but the rule itself lives in unit_pricing: a one-off is a one-off, and
-    whether it costs extra is a property of the scale.
+    The Gem scale charges for one thing only: that no skirmish game offers
+    the unit at all. Being build-limited is a different kind of rare and the
+    Ore scale is where it is charged, so a hero anyone can train -- Tanya --
+    is list price here and a campaign-only one is not.
     """
-    from .unit_pricing import premium_target
+    from .unit_pricing import reward_pool_target
 
     return bool(
-        int(config.price_scales['permanent_gem'].premium_target_multiplier) > 1
-        and premium_target(target_id, config)
+        int(config.price_scales['permanent_gem'].reward_pool_multiplier) > 1
+        and reward_pool_target(target_id, config)
     )
 
 
