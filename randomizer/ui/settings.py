@@ -42,9 +42,10 @@ def open_sub_weight_window(self, section):
         window.lift()
         window.focus_set()
         return window
-    window = tk.Toplevel(self.root)
+    # The application object is the Tk root itself, not something holding one.
+    window = tk.Toplevel(self)
     window.title(section['title'])
-    window.transient(self.root)
+    window.transient(self)
     frame = ttk.Frame(window, padding=12)
     frame.grid(row=0, column=0, sticky='nsew')
     window.columnconfigure(0, weight=1)
