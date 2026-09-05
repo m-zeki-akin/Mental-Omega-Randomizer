@@ -16,6 +16,7 @@ from .model import (
     SKIRMISH_RUN_COLLECTION_SCHEMA_VERSION,
     SKIRMISH_RUN_SCHEMA_VERSION,
     BattleOffer,
+    UpgradePurchase,
     SkirmishRun,
     SkirmishRunCollection,
 )
@@ -85,6 +86,35 @@ def normalize_battle_offer(document, field='offer'):
     )
 
 
+def normalize_purchases(value, field):
+    """Read a purchase list, adding up any repeats of the same upgrade."""
+    if value is None:
+        return ()
+    if not isinstance(value, list):
+        raise SkirmishStateError(f'Skirmish field {field!r} must be a list')
+    combined = {}
+    for index, raw in enumerate(value):
+        record = _object(raw, f'{field}[{index}]')
+        unit = _string(
+            record.get('unit'), f'{field}[{index}].unit', required=True
+        ).upper()
+        buff_type = _string(
+            record.get('buff_type'),
+            f'{field}[{index}].buff_type',
+            required=True,
+        )
+        stacks = _int(
+            record.get('stacks'), f'{field}[{index}].stacks',
+            minimum=1, default=1,
+        )
+        key = (unit, buff_type)
+        combined[key] = combined.get(key, 0) + stacks
+    return tuple(
+        UpgradePurchase(unit, buff_type, stacks)
+        for (unit, buff_type), stacks in combined.items()
+    )
+
+
 def normalize_skirmish_run(document):
     document = deepcopy(_object(strip_signature(document), 'run'))
     _version(document, SKIRMISH_RUN_SCHEMA_VERSION, 'Skirmish run')
@@ -124,6 +154,11 @@ def normalize_skirmish_run(document):
         lives=_int(document.get('lives'), 'lives', minimum=1, default=1),
         revivals_used=_int(document.get('revivals_used'), 'revivals_used'),
         coins=_int(document.get('coins'), 'coins'),
+        purchases=normalize_purchases(document.get('purchases'), 'purchases'),
+        ally_coins=_int(document.get('ally_coins'), 'ally_coins'),
+        ally_purchases=normalize_purchases(
+            document.get('ally_purchases'), 'ally_purchases'
+        ),
         offers=parsed_offers,
         committed_offer=committed,
         won_battles=_int(document.get('won_battles'), 'won_battles'),

@@ -22,6 +22,7 @@ import re
 
 from randomizer.core.paths import GAME_ROOT
 
+from .mapfile import merge_into_map
 from .maps import MAPS_DIR
 
 
@@ -189,77 +190,13 @@ def map_code_path(mode):
 
 
 def merge_map_code(map_path, code_path):
-    """Merge one of the mode INIs into a copy of the map, as the client does.
-
-    The client consolidates the two files: a key the mode INI names replaces
-    the map's, and a section the map does not have is added. Appending the
-    file instead would leave the map's own value first, and the reader keeps
-    the first it sees -- which is exactly the value the mode meant to change.
-    """
-    map_path = Path(map_path)
+    """Merge one of the mode INIs into the map copied into place."""
     code = _sections(
         Path(code_path).read_text(encoding='utf-8', errors='ignore')
     )
-    if not code:
-        return 0
-    original = map_path.read_bytes().decode('utf-8', errors='ignore')
-    # These maps are written with bare line feeds. Rewriting them as CRLF
-    # would change every line of a file the merge has no business reshaping.
-    newline = '\r\n' if '\r\n' in original else '\n'
-    lines = original.splitlines()
-    # Where each section starts and ends, in the order the map has them.
-    bounds = {}
-    current = None
-    start = 0
-    for index, line in enumerate(lines):
-        header = re.match(r'^\[(.+?)\]\s*$', line.strip())
-        if not header:
-            continue
-        if current is not None:
-            bounds.setdefault(current, (start, index))
-        current = header.group(1).strip()
-        start = index + 1
-    if current is not None:
-        bounds.setdefault(current, (start, len(lines)))
-
-    applied = 0
-    additions = []
-    # Rewritten from the bottom up so earlier line numbers stay valid.
-    for section in sorted(
-        code, key=lambda name: bounds.get(name, (len(lines), 0))[0],
-        reverse=True,
-    ):
-        values = _values(code[section])
-        if not values:
-            continue
-        if section not in bounds:
-            additions.append((section, values))
-            continue
-        begin, end = bounds[section]
-        body = lines[begin:end]
-        for key, value in values.items():
-            replaced = False
-            for offset, line in enumerate(body):
-                stripped = line.split(';', 1)[0].strip()
-                if '=' not in stripped:
-                    continue
-                if stripped.split('=', 1)[0].strip().lower() == key.lower():
-                    body[offset] = f'{key}={value}'
-                    replaced = True
-                    break
-            if not replaced:
-                body.append(f'{key}={value}')
-            applied += 1
-        lines[begin:end] = body
-    for section, values in reversed(additions):
-        lines.append('')
-        lines.append(f'[{section}]')
-        for key, value in values.items():
-            lines.append(f'{key}={value}')
-            applied += 1
-    with open(map_path, 'w', encoding='utf-8', newline='') as handle:
-        handle.write(newline.join(lines) + newline)
-    return applied
+    return merge_into_map(
+        map_path, {name: _values(body) for name, body in code.items()}
+    )
 
 
 def challenge_map_paths():

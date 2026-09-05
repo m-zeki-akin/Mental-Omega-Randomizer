@@ -16,6 +16,12 @@ RUN_COLUMNS = (
     ('status', 'Status', 80),
     ('seed', 'Seed', 130),
 )
+SHELF_COLUMNS = (
+    ('name', 'Upgrade', 250),
+    ('effect', 'Effect', 140),
+    ('owned', 'Owned', 70),
+    ('price', 'Ore', 60),
+)
 
 
 def _combo(parent, variable, values, width=26, on_change=None):
@@ -151,7 +157,7 @@ def _build_run_header(self, parent):
     """The row shown while a run is being played."""
     header = ttk.Frame(parent)
     self.skirmish_header_frame = header
-    header.columnconfigure(4, weight=1)
+    header.columnconfigure(5, weight=1)
     ttk.Label(
         header,
         textvariable=self.skirmish_progress_var,
@@ -163,6 +169,12 @@ def _build_run_header(self, parent):
         textvariable=self.skirmish_army_var,
         style='Shop.Help.TLabel',
     ).grid(row=0, column=1, sticky='w', padx=(0, 12))
+    ttk.Label(
+        header,
+        textvariable=self.skirmish_ore_var,
+        font=('Segoe UI', 10, 'bold'),
+        style='Shop.Ore.TLabel',
+    ).grid(row=0, column=4, sticky='w', padx=(0, 12))
     self.skirmish_run_list_button = ttk.Button(
         header,
         text='Saved Runs...',
@@ -234,6 +246,60 @@ def _build_battle_cards(self, parent):
     return cards
 
 
+def _build_shop(self, parent):
+    """The upgrades on the shelf between battles."""
+    shop = ttk.LabelFrame(parent, text='Upgrades', padding=8)
+    self.skirmish_shop_frame = shop
+    shop.columnconfigure(0, weight=1)
+    shop.rowconfigure(1, weight=1)
+    ttk.Label(
+        shop,
+        textvariable=self.skirmish_shop_help_var,
+        style='Muted.TLabel',
+        wraplength=620,
+        justify='left',
+    ).grid(row=0, column=0, columnspan=2, sticky='ew', pady=(0, 6))
+    tree_frame = ttk.Frame(shop)
+    tree_frame.grid(row=1, column=0, columnspan=2, sticky='nsew')
+    tree = ttk.Treeview(
+        tree_frame,
+        columns=tuple(column for column, _heading, _width in SHELF_COLUMNS),
+        show='headings',
+        selectmode='browse',
+        height=6,
+    )
+    for column, heading, width in SHELF_COLUMNS:
+        tree.heading(column, text=heading)
+        tree.column(column, width=width, minwidth=50, stretch=True)
+    scrollbar = ttk.Scrollbar(tree_frame, orient='vertical', command=tree.yview)
+    tree.configure(yscrollcommand=scrollbar.set)
+    tree.grid(row=0, column=0, sticky='nsew')
+    scrollbar.grid(row=0, column=1, sticky='ns')
+    tree_frame.columnconfigure(0, weight=1)
+    tree_frame.rowconfigure(0, weight=1)
+    scroll_owner(tree_frame, target=tree, units=3)
+    for widget in (tree, scrollbar):
+        claim_wheel(widget)
+    tree.bind('<Double-1>', lambda _event: self.buy_selected_skirmish_upgrade())
+    tree.bind('<<TreeviewSelect>>', self.refresh_skirmish_shop_buttons)
+    self.skirmish_shop_tree = tree
+    self.skirmish_buy_button = ttk.Button(
+        shop,
+        text='Buy Upgrade',
+        command=self.buy_selected_skirmish_upgrade,
+        state='disabled',
+    )
+    self.skirmish_buy_button.grid(row=2, column=0, sticky='w', pady=(6, 0))
+    ttk.Label(
+        shop,
+        textvariable=self.skirmish_owned_var,
+        style='Shop.Help.TLabel',
+        wraplength=420,
+        justify='left',
+    ).grid(row=2, column=1, sticky='e', pady=(6, 0))
+    return shop
+
+
 def build_skirmish_tab(self, workspace_tabs):
     tab = ttk.Frame(workspace_tabs, padding=8)
     self.skirmish_tab = tab
@@ -243,9 +309,10 @@ def build_skirmish_tab(self, workspace_tabs):
     _build_setup(self, tab)
     _build_run_header(self, tab)
     _build_battle_cards(self, tab)
+    _build_shop(self, tab)
 
     actions = ttk.Frame(tab)
-    actions.grid(row=3, column=0, sticky='ew', pady=(8, 0))
+    actions.grid(row=4, column=0, sticky='ew', pady=(8, 0))
     self.skirmish_new_run_button = ttk.Button(
         actions,
         text='New Run',

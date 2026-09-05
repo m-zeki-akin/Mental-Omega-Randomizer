@@ -16,6 +16,13 @@ from randomizer.shop.model import RunStatus
 
 from .model import DEFAULT_LIVES, SkirmishRun
 from .progression import is_challenge_battle
+from .shop import (
+    ally_shopping,
+    battle_reward,
+    owned_stacks,
+    purchase_stacks,
+    STARTING_ORE,
+)
 
 
 class SkirmishTransitionError(RuntimeError):
@@ -42,6 +49,8 @@ def start_run(
         player_country=int(player_country),
         ally_country=int(ally_country),
         lives=max(1, int(lives)),
+        coins=STARTING_ORE,
+        ally_coins=STARTING_ORE,
     )
 
 
@@ -67,8 +76,13 @@ def commit_offer(run, index):
     return replace(run, committed_offer=index)
 
 
-def record_victory(run, *, coins=0):
-    """Advance to the next battle, keeping what the challenge pool has seen."""
+def record_victory(run, *, ally_side=None):
+    """Advance to the next battle, paying for it and letting the ally shop.
+
+    What a battle pays is decided by the tier it was fought in and nothing
+    else. Paying by score would make a won battle worth dragging out, and a
+    run's difficulty is not something to grind around.
+    """
     offer = run.committed()
     if offer is None:
         raise SkirmishTransitionError('No battle was committed')
@@ -77,14 +91,41 @@ def record_victory(run, *, coins=0):
     used = run.used_challenge_maps
     if offer.challenge and offer.map_path not in used:
         used = used + (offer.map_path,)
+    reward = battle_reward(run.battle, challenge=offer.challenge)
+    ally_purchases, ally_coins = (
+        (run.ally_purchases, run.ally_coins + reward) if not ally_side
+        else ally_shopping(run, ally_side, run.ally_coins + reward)
+    )
     return replace(
         run,
         battle=run.battle + 1,
         won_battles=run.won_battles + 1,
-        coins=run.coins + max(0, int(coins)),
+        coins=run.coins + reward,
+        ally_coins=ally_coins,
+        ally_purchases=ally_purchases,
         offers=(),
         committed_offer=None,
         used_challenge_maps=used,
+    )
+
+
+def buy_upgrade(run, upgrade):
+    """Spend Ore on one more stack of an upgrade."""
+    if run.status is not RunStatus.ACTIVE:
+        raise SkirmishTransitionError('This run is over')
+    owned = owned_stacks(run.purchases, upgrade.unit, upgrade.buff_type)
+    if owned >= upgrade.limit:
+        raise SkirmishTransitionError(
+            f'{upgrade.name} is already at its limit'
+        )
+    if run.coins < upgrade.price:
+        raise SkirmishTransitionError(
+            f'{upgrade.name} costs {upgrade.price} Ore; you have {run.coins}'
+        )
+    return replace(
+        run,
+        coins=run.coins - upgrade.price,
+        purchases=purchase_stacks(run.purchases, upgrade),
     )
 
 

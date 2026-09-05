@@ -60,6 +60,26 @@ class BattleOffer:
 
 
 @dataclass(frozen=True)
+class UpgradePurchase:
+    """How many times one upgrade has been bought in a run."""
+
+    unit: str
+    buff_type: str
+    stacks: int = 1
+
+    @property
+    def key(self):
+        return (self.unit, self.buff_type)
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            'unit': self.unit,
+            'buff_type': self.buff_type,
+            'stacks': self.stacks,
+        }
+
+
+@dataclass(frozen=True)
 class SkirmishRun:
     run_id: str
     seed: str
@@ -72,6 +92,11 @@ class SkirmishRun:
     lives: int = DEFAULT_LIVES
     revivals_used: int = 0
     coins: int = 0
+    purchases: tuple[UpgradePurchase, ...] = ()
+    # The ally shops for itself, out of its own earnings and its own
+    # faction's list, so the two armies grow apart over a run.
+    ally_coins: int = 0
+    ally_purchases: tuple[UpgradePurchase, ...] = ()
     offers: tuple[BattleOffer, ...] = ()
     committed_offer: int | None = None
     won_battles: int = 0
@@ -113,6 +138,11 @@ class SkirmishRun:
             'lives': self.lives,
             'revivals_used': self.revivals_used,
             'coins': self.coins,
+            'purchases': [item.to_dict() for item in self.purchases],
+            'ally_coins': self.ally_coins,
+            'ally_purchases': [
+                item.to_dict() for item in self.ally_purchases
+            ],
             'offers': [offer.to_dict() for offer in self.offers],
             'committed_offer': self.committed_offer,
             'won_battles': self.won_battles,

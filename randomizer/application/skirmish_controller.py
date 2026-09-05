@@ -51,6 +51,8 @@ from randomizer.skirmish.persistence import (
     SkirmishRepository,
 )
 from randomizer.skirmish.progression import describe_offer, offers_for
+from randomizer.skirmish.rules import apply_upgrades_to_map
+from randomizer.skirmish.shop import owned_stacks, shelf_for
 from randomizer.skirmish.results import (
     last_game_result,
     read_debug_log_tail,
@@ -62,6 +64,7 @@ from randomizer.skirmish.spawn import (
 )
 from randomizer.skirmish.transitions import (
     SkirmishTransitionError,
+    buy_upgrade,
     commit_offer,
     give_up,
     offer_battles,
@@ -95,6 +98,10 @@ class SkirmishController:
         self.skirmish_progress_var = tk.StringVar(value='No run')
         self.skirmish_army_var = tk.StringVar(value='')
         self.skirmish_message_var = tk.StringVar(value='')
+        self.skirmish_ore_var = tk.StringVar(value='Ore: 0')
+        self.skirmish_shop_help_var = tk.StringVar(value='')
+        self.skirmish_owned_var = tk.StringVar(value='')
+        self._skirmish_shelf = ()
         self._skirmish_country_by_label = {}
         self._skirmish_preview_images = {}
         self._skirmish_launch = None
@@ -273,6 +280,26 @@ class SkirmishController:
         )
         self.refresh_skirmish_mode()
 
+    def skirmish_enemy_pool(self, run):
+        """Return the countries a battle may be fought against.
+
+        Never the player's side and never the ally's: a unit upgrade is
+        written onto the unit itself and the engine gives it to everyone
+        fielding that unit, so an enemy of the same side would be handed
+        the run's own purchases.
+        """
+        countries = skirmish_countries()
+        sides = {
+            country.side for country in (
+                country_by_index(run.player_country),
+                country_by_index(run.ally_country),
+            ) if country is not None
+        }
+        eligible = tuple(
+            country for country in countries if country.side not in sides
+        )
+        return eligible or countries
+
     def offer_skirmish_battles(self, run):
         """Put this battle's offers on the table, drawing them if needed."""
         if run.offers:
@@ -282,7 +309,7 @@ class SkirmishController:
             skirmish_map_pool(),
             challenge_map_pool(),
             MAPS_DIR,
-            skirmish_countries(),
+            self.skirmish_enemy_pool(run),
         )
         if not offers:
             raise SkirmishTransitionError(
@@ -351,9 +378,15 @@ class SkirmishController:
             self.skirmish_cards_frame.grid(
                 row=2, column=0, sticky='nsew', pady=(8, 0)
             )
+            self.skirmish_shop_frame.grid(
+                row=3, column=0, sticky='nsew', pady=(8, 0)
+            )
             self.refresh_skirmish_cards(run)
+            self.refresh_skirmish_shop(run)
         else:
             self.skirmish_cards_frame.grid_remove()
+            self.skirmish_shop_frame.grid_remove()
+            self.skirmish_ore_var.set(f'Ore: {run.coins}')
         self.refresh_skirmish_run_window()
 
     def refresh_skirmish_cards(self, run):
@@ -421,6 +454,102 @@ class SkirmishController:
         # it, and the label then shows nothing.
         self._skirmish_preview_images[id(card)] = image
         label.configure(image=image, text='')
+
+    # -- the shop ---------------------------------------------------------
+
+    def skirmish_side(self, run):
+        country = country_by_index(run.player_country)
+        return country.side if country else ''
+
+    def refresh_skirmish_shop(self, run):
+        if not hasattr(self, 'skirmish_shop_tree'):
+            return
+        self.skirmish_ore_var.set(f'Ore: {run.coins}')
+        side = self.skirmish_side(run)
+        self._skirmish_shelf = shelf_for(run, side)
+        tree = self.skirmish_shop_tree
+        selected = set(tree.selection())
+        tree.delete(*tree.get_children())
+        for index, upgrade in enumerate(self._skirmish_shelf):
+            owned = owned_stacks(run.purchases, upgrade.unit, upgrade.buff_type)
+            tree.insert('', 'end', iid=str(index), values=(
+                upgrade.name,
+                upgrade.buff_type.replace('_', ' '),
+                f'{owned} / {upgrade.limit}',
+                upgrade.price,
+            ))
+        restored = [item for item in selected if item in set(tree.get_children())]
+        if restored:
+            tree.selection_set(restored)
+        self.skirmish_shop_help_var.set(
+            f'{side} upgrades only, and only upgrades -- a run fields what '
+            'its country fields. The shelf changes with every battle, and '
+            'your ally spends its own Ore on its own army.'
+        )
+        bought = sum(purchase.stacks for purchase in run.purchases)
+        ally_bought = sum(purchase.stacks for purchase in run.ally_purchases)
+        self.skirmish_owned_var.set(
+            f'Bought: {bought} upgrade{"" if bought == 1 else "s"}'
+            f'   ally: {ally_bought}'
+        )
+        self.refresh_skirmish_shop_buttons()
+
+    def selected_skirmish_upgrade(self):
+        tree = getattr(self, 'skirmish_shop_tree', None)
+        if tree is None:
+            return None
+        selection = tree.selection()
+        if not selection:
+            return None
+        index = int(selection[0])
+        if index >= len(self._skirmish_shelf):
+            return None
+        return self._skirmish_shelf[index]
+
+    def refresh_skirmish_shop_buttons(self, _event=None):
+        if not hasattr(self, 'skirmish_buy_button'):
+            return
+        run = self.skirmish_run
+        upgrade = self.selected_skirmish_upgrade()
+        affordable = bool(
+            run is not None
+            and upgrade is not None
+            and run.status is RunStatus.ACTIVE
+            and run.coins >= upgrade.price
+            and owned_stacks(run.purchases, upgrade.unit, upgrade.buff_type)
+            < upgrade.limit
+            and not self.skirmish_launch_blocked()
+        )
+        self.skirmish_buy_button.configure(
+            state='normal' if affordable else 'disabled'
+        )
+
+    def buy_selected_skirmish_upgrade(self):
+        run = self.skirmish_run
+        upgrade = self.selected_skirmish_upgrade()
+        if run is None or upgrade is None:
+            return
+        if self.skirmish_launch_blocked():
+            self.skirmish_message_var.set('Wait for the running game to close.')
+            return
+        try:
+            run = buy_upgrade(run, upgrade)
+        except SkirmishTransitionError as exc:
+            self.skirmish_message_var.set(str(exc))
+            return
+        self.skirmish_run = self.skirmish_repository.save_run(run)
+        log_event(
+            'skirmish_upgrade_bought',
+            run_id=run.run_id,
+            unit=upgrade.unit,
+            buff_type=upgrade.buff_type,
+            price=upgrade.price,
+            coins_left=run.coins,
+        )
+        self.skirmish_message_var.set(
+            f'Bought {upgrade.name} for {upgrade.price} Ore.'
+        )
+        self.refresh_skirmish_mode()
 
     # -- the saved runs ---------------------------------------------------
 
@@ -612,6 +741,7 @@ class SkirmishController:
             'houses': self.skirmish_houses(run, offer),
             'seed': offer.seed,
             'player_name': SKIRMISH_PLAYER_NAME,
+            'purchases': run.purchases + run.ally_purchases,
             # Read here rather than in the worker: these come off Tk
             # variables, and Tk is not safe to touch from another thread.
             'difficulty': self.get_selected_difficulty_value(),
@@ -667,6 +797,10 @@ class SkirmishController:
                 options=options,
             ),
         )
+        # What the run has bought is written onto the units themselves, in
+        # the map this battle is played on. The ally's purchases go in too:
+        # they are its own army's, and no enemy shares a side with either.
+        apply_upgrades_to_map(SPAWN_MAP_INI, battle['purchases'])
         self.write_launch_options(battle['difficulty'], battle['game_speed'])
         return True
 
@@ -783,7 +917,10 @@ class SkirmishController:
         won = bool(result is not None and result.won)
         try:
             if won:
-                run = self.offer_skirmish_battles(record_victory(run))
+                ally = country_by_index(run.ally_country)
+                run = self.offer_skirmish_battles(record_victory(
+                    run, ally_side=ally.side if ally else None
+                ))
                 message = (
                     f'Victory on {entry.name} — {result.kills} kills, '
                     f'{result.lost} lost, score {result.score:,}. '

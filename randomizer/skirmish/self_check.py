@@ -29,6 +29,7 @@ from .maps import (
     summarize_map_pools,
 )
 from .results import last_game_result, result_blocks
+from .transitions import SkirmishTransitionError
 from .spawn import (
     AI_DIFFICULTY_HARD,
     SkirmishHouse,
@@ -692,6 +693,123 @@ def _challenge_checks():
         'skirmish_challenge_map_code_valid': merge_valid,
     }
 
+def _shop_checks():
+    from .model import UpgradePurchase
+    from .rules import unit_rules
+    from .shop import (
+        BATTLE_REWARD,
+        REWARD_PER_TIER,
+        STARTING_ORE,
+        Upgrade,
+        ally_shopping,
+        battle_reward,
+        faction_upgrades,
+        owned_stacks,
+        purchase_stacks,
+        shelf_for,
+    )
+    from .transitions import buy_upgrade, start_run
+
+    # Fixed by the tier the battle was fought in, and doubled for a
+    # challenge. Never by score: a score can be farmed by dragging a won
+    # battle out, and the difficulty is not something to grind around.
+    reward_valid = bool(
+        battle_reward(1) == BATTLE_REWARD
+        and battle_reward(4) == BATTLE_REWARD
+        and battle_reward(6) == BATTLE_REWARD + REWARD_PER_TIER
+        and battle_reward(11) == BATTLE_REWARD + 2 * REWARD_PER_TIER
+        and battle_reward(5, challenge=True) == BATTLE_REWARD * 2
+    )
+
+    run = start_run(
+        run_id='shop-check',
+        seed='SHOP-CHECK',
+        player_country=0,
+        ally_country=3,
+    )
+    cheap = Upgrade(
+        unit='GGI', buff_type='speed', name='Cheap', description='',
+        price=50, limit=2,
+    )
+    dear = Upgrade(
+        unit='GGI', buff_type='health', name='Dear', description='',
+        price=STARTING_ORE + 1, limit=5,
+    )
+    bought = buy_upgrade(buy_upgrade(run, cheap), cheap)
+    try:
+        buy_upgrade(bought, cheap)
+        limit_refused = False
+    except SkirmishTransitionError:
+        limit_refused = True
+    try:
+        buy_upgrade(run, dear)
+        price_refused = False
+    except SkirmishTransitionError:
+        price_refused = True
+    purchase_valid = bool(
+        bought.coins == STARTING_ORE - 2 * cheap.price
+        and owned_stacks(bought.purchases, 'GGI', 'speed') == 2
+        and limit_refused
+        and price_refused
+        # A second buff on the same unit is its own purchase.
+        and len(purchase_stacks(bought.purchases, dear)) == 2
+    )
+
+    # An ally spends what it has, on its own faction's list, and stops when
+    # nothing left is affordable.
+    ally_purchases, ally_left = ally_shopping(run, 'Soviets', 400)
+    soviet = {upgrade.key for upgrade in faction_upgrades('Soviets')}
+    allied = {upgrade.key for upgrade in faction_upgrades('Allies')}
+    ally_valid = bool(
+        ally_purchases
+        and all(purchase.key in soviet for purchase in ally_purchases)
+        and not any(
+            purchase.key in allied - soviet for purchase in ally_purchases
+        )
+        and 0 <= ally_left < 400
+    )
+
+    # The shelf is the run's own: same seed and battle, same shelf, and
+    # nothing on it belongs to another faction.
+    shelf = shelf_for(run, 'Allies')
+    shelf_valid = bool(
+        shelf
+        and shelf == shelf_for(run, 'Allies')
+        and all(upgrade.key in allied for upgrade in shelf)
+        and shelf != shelf_for(replace(run, battle=2), 'Allies')
+    )
+
+    # A purchase becomes an edit on the unit's own section, read off the
+    # unit as this installation has it.
+    installed = {
+        'FIXTUNIT': {'Speed': '6', 'Strength': '200', 'Primary': 'FIXTGUN'},
+        'FIXTGUN': {'Damage': '50', 'ROF': '40', 'Range': '5'},
+    }
+    targets = {
+        'FIXTUNIT': {
+            'speed': 6, 'strength': 200, 'category': 'units',
+            'weapons': {'FIXTGUN': {'damage': 50, 'rof': 40, 'range': 5}},
+        },
+    }
+    speed_rules = unit_rules('FIXTUNIT', 'speed', 3, installed, targets)
+    damage_rules = unit_rules('FIXTUNIT', 'damage', 3, installed, targets)
+    rules_valid = bool(
+        set(speed_rules) == {'FIXTUNIT'}
+        and int(speed_rules['FIXTUNIT']['Speed']) > 6
+        and set(damage_rules) == {'FIXTGUN'}
+        and int(damage_rules['FIXTGUN']['Damage']) > 50
+        # A unit the catalogue does not describe is not written about.
+        and unit_rules('NOSUCH', 'speed', 1, installed, targets) == {}
+    )
+
+    return {
+        'skirmish_battle_reward_valid': reward_valid,
+        'skirmish_purchase_valid': purchase_valid,
+        'skirmish_ally_shops_alone_valid': ally_valid,
+        'skirmish_shelf_valid': shelf_valid,
+        'skirmish_upgrade_rules_valid': rules_valid,
+    }
+
 def validate_skirmish_contract():
     """Return the skirmish self-check rows, plus what the pools hold."""
     report = {}
@@ -701,6 +819,7 @@ def validate_skirmish_contract():
     report.update(_country_checks())
     report.update(_run_checks())
     report.update(_challenge_checks())
+    report.update(_shop_checks())
     report['skirmish_map_pools'] = (
         summarize_map_pools()
         if STANDARD_POOL_DIR.is_dir() or CHALLENGE_POOL_DIR.is_dir()
