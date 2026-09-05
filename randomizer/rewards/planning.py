@@ -21,7 +21,6 @@ from randomizer.rewards.weights import (
     normalize_reward_weights,
     power_buff_weight_type,
     reward_selection_weight,
-    reward_weights_are_default,
     unit_buff_weight_type,
 )
 
@@ -50,6 +49,59 @@ def is_max_rewards_achieved_reward(reward):
         isinstance(reward, dict)
         and reward.get('max_rewards_achieved') is True
     )
+
+
+def summarize_plan_supply(plan):
+    """Return what a finished plan actually contains, by weight group.
+
+    Weights cannot create supply. Access rewards are spent once each and are
+    a tenth of the pool; buffs restack and are the rest, so a seed whose
+    access pool runs dry quietly fills the remaining slots with upgrades and
+    the settings look broken. This is the number that explains it: how many
+    slots there were, and how many of them access could reach.
+    """
+    from randomizer.rewards.weights import main_reward_weight_type
+
+    counts = {}
+    exhausted = 0
+    for rewards in (plan or {}).values():
+        for reward in rewards or ():
+            if not isinstance(reward, dict):
+                continue
+            if is_max_rewards_achieved_reward(reward):
+                exhausted += 1
+                continue
+            group = main_reward_weight_type(reward)
+            counts[group] = counts.get(group, 0) + 1
+    total = sum(counts.values()) + exhausted
+    access = sum(
+        counts.get(group, 0)
+        for group in ('unit_unlocks', 'power_unlocks', 'special_unlocks')
+    )
+    return {
+        'slots': total,
+        'access': access,
+        'access_percent': int(round(100 * access / total)) if total else 0,
+        'exhausted': exhausted,
+        'by_group': dict(sorted(counts.items())),
+    }
+
+
+def summarize_plan_supply_line(summary):
+    """Return one log line describing what a seed's rewards turned out to be."""
+    if not summary or not summary.get('slots'):
+        return 'Reward plan: no slots.'
+    groups = ', '.join(
+        f'{group} {count}'
+        for group, count in summary['by_group'].items()
+    )
+    line = (
+        f'Reward plan: {summary["slots"]} slot(s), '
+        f'{summary["access"]} access ({summary["access_percent"]}%) -- {groups}'
+    )
+    if summary['exhausted']:
+        line += f'; {summary["exhausted"]} slot(s) had nothing left to give'
+    return line
 
 
 def plan_seed_rewards(
@@ -100,7 +152,12 @@ def plan_seed_rewards(
     unit_buff_counts = {}
     power_buff_counts = {}
     reward_weights = normalize_reward_weights(reward_weights)
-    use_weighted_draws = not reward_weights_are_default(reward_weights)
+    # Weighted draws used to switch on only when a player moved a slider off
+    # its default, so the shipped experience was a hardcoded cadence -- try an
+    # access, take a buff every fifth slot -- that no setting could reach.
+    # Leaving the sliders alone now means playing the configured weights
+    # rather than a different algorithm.
+    use_weighted_draws = True
     blocked_names = {
         canonical_reward({'name': str(name)}).get('name', str(name))
         for name in blocked_reward_names
@@ -313,11 +370,7 @@ def plan_seed_rewards(
                 tech_ids = frozenset(tech_ids_for_rewards([reward]))
                 unit = reward.get('unit')
                 power_id = str(reward.get('superweapon') or '').upper()
-                main_type = (
-                    main_reward_weight_type(reward)
-                    if use_weighted_draws
-                    else None
-                )
+                main_type = main_reward_weight_type(reward)
                 metadata = {
                     'tech_ids': tech_ids,
                     'unit_access': any(
@@ -336,7 +389,7 @@ def plan_seed_rewards(
                     ),
                     'selection_weight': reward_selection_weight(
                         reward, reward_weights
-                    ) if use_weighted_draws else 1,
+                    ),
                     'main_type': main_type,
                     'target_key': (
                         ('power', power_id)
@@ -345,7 +398,7 @@ def plan_seed_rewards(
                     ),
                     'sub_type': (
                         unit_buff_weight_type(reward.get('buff_type'))
-                        if main_type == 'unit_buffs'
+                        if main_type in {'unit_buffs', 'economy'}
                         else power_buff_weight_type(
                             reward.get('power_buff_type')
                         )
@@ -753,10 +806,15 @@ def plan_seed_rewards(
                 if target_key not in last_buff_target_keys
             ] or list(by_target)
             selected_target_key = rng.choice(target_keys)
-            source_reward = rng.choice(by_target[selected_target_key])
+            source_reward = weighted_pick(by_target[selected_target_key])
         else:
             selected_target_key = None
-            source_reward = rng.choice(candidates)
+            # Being the last resort is no reason to ignore the weights. This
+            # path used to pick uniformly, which is how one mission ended up
+            # showing Starting Credits four times: once everything else was
+            # spent, the few repeatable rewards left were equally likely
+            # however hard a player had turned them down.
+            source_reward = weighted_pick(candidates)
         reward = dict(source_reward)
         if reward.get('kind') == 'buff':
             record_drawn_buff(reward)
@@ -769,6 +827,27 @@ def plan_seed_rewards(
         else:
             record_access_reward(reward)
         return reward
+
+    def weighted_pick(candidates):
+        """Choose one reward by its own selection weight, zero excluded."""
+        candidates = list(candidates)
+        if not candidates:
+            return None
+        weights = [
+            max(0, int(reward_metadata.get(id(candidate), {}).get(
+                'selection_weight', 1
+            )))
+            for candidate in candidates
+        ]
+        total = sum(weights)
+        if total <= 0:
+            return rng.choice(candidates)
+        position = rng.randrange(total)
+        for candidate, weight in zip(candidates, weights):
+            position -= weight
+            if position < 0:
+                return candidate
+        return candidates[-1]
 
     def weighted_choice(items, weight_for):
         """Draw from relative weights normalized by their active total."""
@@ -844,7 +923,7 @@ def plan_seed_rewards(
             return None
         candidates = groups[main_type]
 
-        if main_type == 'unit_buffs':
+        if main_type in {'unit_buffs', 'economy'}:
             candidates = weighted_round_candidates(
                 buff_pool_id_by_code[code], main_type, candidates
             )
@@ -876,7 +955,7 @@ def plan_seed_rewards(
 
         if not candidates:
             return None
-        if main_type in {'unit_buffs', 'power_buffs'}:
+        if main_type in {'unit_buffs', 'power_buffs', 'economy'}:
             least_buffs = None
             least_candidates = []
             for candidate in candidates:
@@ -895,7 +974,7 @@ def plan_seed_rewards(
         source_reward = rng.choice(candidates)
         reward = dict(source_reward)
         if reward.get('kind') == 'buff':
-            if main_type in {'unit_buffs', 'power_buffs'}:
+            if main_type in {'unit_buffs', 'power_buffs', 'economy'}:
                 consume_weighted_target(
                     buff_pool_id_by_code[code], main_type, source_reward
                 )

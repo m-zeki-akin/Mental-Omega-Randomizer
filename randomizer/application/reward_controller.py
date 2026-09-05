@@ -24,6 +24,8 @@ from ._dependencies import (
     normalize_starting_reward_types,
     parse_missions,
     plan_seed_rewards,
+    summarize_plan_supply,
+    summarize_plan_supply_line,
     mission_player_production_houses,
     mission_production_families,
     mission_reward_class,
@@ -1014,7 +1016,7 @@ class RewardController:
                 arsenal = self.mission_arsenal(code)
                 arsenal_units.update(arsenal_unit_ids(arsenal))
                 arsenal_powers.update(arsenal_power_ids(arsenal))
-        return plan_seed_rewards(
+        plan = plan_seed_rewards(
             mission_codes,
             seed,
             slots_by_code,
@@ -1053,6 +1055,20 @@ class RewardController:
                 )
                 else self.active_reward_settings().get('access_limits')
             ),
+        )
+        # What the seed turned out to be, not what was asked for. Weights
+        # cannot create supply: access rewards are spent once each and are a
+        # tenth of the pool, so a seed that runs out of them fills the rest
+        # with upgrades and no slider explains why.
+        supply = summarize_plan_supply(plan)
+        log_event('reward_plan_supply', **supply)
+        self._last_reward_plan_supply = supply
+        return plan
+
+    def last_reward_plan_supply_line(self):
+        """Return the one line describing the last plan this seed produced."""
+        return summarize_plan_supply_line(
+            getattr(self, '_last_reward_plan_supply', None)
         )
 
     def mission_reward_summary(self, code):

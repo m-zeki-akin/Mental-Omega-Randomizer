@@ -23,9 +23,12 @@ MAIN_REWARD_WEIGHT_TYPES = (
         'description': 'Campaign/map-only Special unit and building access rewards.',
     },
     {
-        'id': 'production',
-        'label': 'Production increase',
-        'description': 'Faction-wide production and construction speed rewards.',
+        'id': 'economy',
+        'label': 'Economy',
+        'description': (
+            'Starting credits, faction-wide production speed, unit cost and '
+            'build time, refinery income, and harvester capacity.'
+        ),
     },
     {
         'id': 'unit_buffs',
@@ -38,6 +41,13 @@ MAIN_REWARD_WEIGHT_TYPES = (
         'description': 'Upgrades for already-unlocked superweapons and aid powers.',
     },
 )
+
+# Buff types that are about the economy rather than a unit's fighting stats.
+# They classify into the Economy main group, which exists so that Starting
+# Credits has somewhere to live that is not a group of one.
+ECONOMY_BUFF_TYPES = frozenset({
+    'starting_credits', 'cost', 'production', 'income', 'storage',
+})
 
 UNIT_BUFF_WEIGHT_TYPES = (
     ('speed', 'Movement'),
@@ -60,6 +70,7 @@ UNIT_BUFF_WEIGHT_TYPES = (
     ('build_limit', 'Unique / hero unit limit'),
     ('building_limit', 'Special building limit'),
     ('income', 'Special building income'),
+    ('starting_credits', 'Starting credits'),
     ('other', 'Other existing buffs'),
 )
 
@@ -78,10 +89,33 @@ _MAIN_IDS = tuple(item['id'] for item in MAIN_REWARD_WEIGHT_TYPES)
 _UNIT_BUFF_IDS = tuple(item[0] for item in UNIT_BUFF_WEIGHT_TYPES)
 _POWER_BUFF_IDS = tuple(item[0] for item in POWER_BUFF_WEIGHT_TYPES)
 
+# Not uniform, because the pool is not uniform and never was. There are 3,402
+# unit buffs against 225 unit unlocks, and a buff restacks where an unlock is
+# spent once, so equal weights do not mean an equal mix -- they mean buffs.
+# These are what the launcher considers a normal run: unlocking things is the
+# point, upgrading them is the texture, and the economy is seasoning.
+DEFAULT_MAIN_WEIGHTS = {
+    'unit_unlocks': 100,
+    'power_unlocks': 55,
+    'special_unlocks': 35,
+    'unit_buffs': 45,
+    'power_buffs': 20,
+    'economy': 15,
+}
+
+# Starting Credits is one reward with a stack limit, so at an equal weight it
+# reappears far more often than any single unit's upgrade line. It reads as
+# filler at that rate, which is what it looked like when it turned up four
+# times on one mission.
+DEFAULT_UNIT_BUFF_WEIGHTS = {'starting_credits': 25}
+
 DEFAULT_REWARD_WEIGHTS = {
-    'main': {item_id: DEFAULT_REWARD_WEIGHT for item_id in _MAIN_IDS},
+    'main': dict(DEFAULT_MAIN_WEIGHTS),
     'unit_buffs': {
-        item_id: DEFAULT_REWARD_WEIGHT for item_id in _UNIT_BUFF_IDS
+        item_id: DEFAULT_UNIT_BUFF_WEIGHTS.get(
+            item_id, DEFAULT_REWARD_WEIGHT
+        )
+        for item_id in _UNIT_BUFF_IDS
     },
     'power_buffs': {
         item_id: DEFAULT_REWARD_WEIGHT for item_id in _POWER_BUFF_IDS
@@ -111,12 +145,25 @@ def normalize_reward_weights(value):
         section_source = source.get(section)
         if not isinstance(section_source, dict):
             section_source = {}
+        fallbacks = {
+            'main': DEFAULT_MAIN_WEIGHTS,
+            'unit_buffs': DEFAULT_UNIT_BUFF_WEIGHTS,
+        }.get(section, {})
         normalized[section] = {
             item_id: clamp_reward_weight(
-                section_source.get(item_id, DEFAULT_REWARD_WEIGHT)
+                section_source.get(
+                    item_id,
+                    fallbacks.get(item_id, DEFAULT_REWARD_WEIGHT),
+                )
             )
             for item_id in item_ids
         }
+    # A settings file written before the Economy group named it 'production'.
+    # Carry that choice over rather than silently resetting it.
+    if isinstance(source.get('main'), dict) and 'economy' not in source['main']:
+        legacy = source['main'].get('production')
+        if legacy is not None:
+            normalized['main']['economy'] = clamp_reward_weight(legacy)
     return normalized
 
 
@@ -141,10 +188,8 @@ def main_reward_weight_type(reward):
     if reward.get('kind') == 'buff':
         if reward.get('power_buff_type'):
             return 'power_buffs'
-        if reward.get('buff_type') == 'starting_credits':
-            return 'production'
-        if reward.get('global_buff') and reward.get('buff_type') == 'production':
-            return 'production'
+        if str(reward.get('buff_type') or '') in ECONOMY_BUFF_TYPES:
+            return 'economy'
         return 'unit_buffs'
     if reward.get('kind') == 'superweapon':
         return 'power_unlocks'
@@ -167,7 +212,10 @@ def reward_selection_weight(reward, weights):
         weight = weights['main'][main_type]
         unit_weights = weights['unit_buffs']
         power_weights = weights['power_buffs']
-    if main_type == 'unit_buffs':
+    if main_type in {'unit_buffs', 'economy'}:
+        # Economy shares the unit-buff sub-weights: they are the same buff
+        # types, only grouped by what they do rather than where they apply,
+        # so a player who turned Cost down keeps it down.
         sub_type = unit_buff_weight_type(reward.get('buff_type'))
         weight *= unit_weights[sub_type]
     elif main_type == 'power_buffs':

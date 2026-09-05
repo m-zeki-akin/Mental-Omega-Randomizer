@@ -28,6 +28,8 @@ from randomizer.rewards.planning import (
     MAX_REWARDS_ACHIEVED_REWARD,
     is_max_rewards_achieved_reward,
     plan_seed_rewards,
+    summarize_plan_supply,
+    summarize_plan_supply_line,
 )
 from randomizer.rewards.arsenal import (
     ARSENAL_FACTIONS,
