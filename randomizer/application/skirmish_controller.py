@@ -24,6 +24,7 @@ from tkinter import messagebox
 
 from randomizer.core.diagnostics import event as log_event
 from randomizer.core.paths import (
+    DEBUG_LOG,
     GAME_EXE,
     GAME_LAUNCHER_EXE,
     GAME_ROOT,
@@ -31,6 +32,10 @@ from randomizer.core.paths import (
 )
 from randomizer.skirmish.factions import skirmish_countries
 from randomizer.skirmish.maps import maps_for_players, skirmish_map_pool
+from randomizer.skirmish.results import (
+    last_game_result,
+    read_debug_log_tail,
+)
 from randomizer.skirmish.spawn import (
     AI_HANDICAP_EASY,
     AI_HANDICAP_HARD,
@@ -42,6 +47,10 @@ from randomizer.skirmish.spawn import (
 
 
 SKIRMISH_MODE = 'Skirmish Shop'
+# The player's house is named in the spawn file and named again in the
+# score block the game writes at the end, which is how the launcher finds
+# its own result among the houses.
+SKIRMISH_PLAYER_NAME = 'Commander'
 SPAWN_MAP_INI = GAME_ROOT / 'spawnmap.ini'
 NO_ALLY = 'No ally'
 # Colours are indexes into the client's own list. The player takes the first
@@ -332,6 +341,7 @@ class SkirmishController:
             'player': player,
             'houses': houses,
             'seed': random.randrange(1, 2 ** 31),
+            'player_name': SKIRMISH_PLAYER_NAME,
             # Read here rather than in the worker: these come off Tk
             # variables, and Tk is not safe to touch from another thread.
             'difficulty': self.get_selected_difficulty_value(),
@@ -362,6 +372,7 @@ class SkirmishController:
             SPAWN_INI,
             skirmish_spawn_ini_text(
                 map_name=entry.name,
+                player_name=battle['player_name'],
                 player_country=battle['player'].index,
                 player_color=HOUSE_COLORS[0],
                 houses=battle['houses'],
@@ -411,6 +422,13 @@ class SkirmishController:
         except OSError as exc:
             self.handle_skirmish_launch_error(exc, str(exc))
             return
+        # Where the game's log stood when this battle began. Its result is
+        # read from here on, so an earlier game's score block cannot be
+        # mistaken for this one's.
+        try:
+            battle['log_offset'] = DEBUG_LOG.stat().st_size
+        except OSError:
+            battle['log_offset'] = 0
         self._skirmish_launch = battle
         self.active_game_process = process
         # No hook: a skirmish has no mission markers to watch for. The
@@ -436,11 +454,42 @@ class SkirmishController:
         self.on_skirmish_map_selected()
         self.poll_hook_log()
 
+    def skirmish_result(self, battle):
+        """Return how the battle ended, or ``None`` if it never finished."""
+        return last_game_result(
+            read_debug_log_tail(DEBUG_LOG, battle.get('log_offset', 0)),
+            player_name=battle.get('player_name', SKIRMISH_PLAYER_NAME),
+        )
+
     def finish_progression_launch_context(self):
-        if self.skirmish_launch_active():
-            self._skirmish_launch = None
-            if hasattr(self, 'skirmish_map_tree'):
-                self.skirmish_message_var.set('Battle closed.')
-                self.on_skirmish_map_selected()
-            return
-        return super().finish_progression_launch_context()
+        if not self.skirmish_launch_active():
+            return super().finish_progression_launch_context()
+        battle = self._skirmish_launch
+        self._skirmish_launch = None
+        entry = battle['map']
+        result = self.skirmish_result(battle)
+        if result is None:
+            # No score block: the game was closed before it finished, which
+            # is neither a win nor a loss and must not be recorded as one.
+            message = f'Left {entry.name} without finishing.'
+        elif result.won:
+            message = (
+                f'Victory on {entry.name} — {result.kills} kills, '
+                f'{result.lost} lost, score {result.score:,}.'
+            )
+        else:
+            message = (
+                f'Defeat on {entry.name} — {result.kills} kills, '
+                f'{result.lost} lost.'
+            )
+        self.append_log(message)
+        log_event(
+            'skirmish_finished',
+            map=entry.path.name,
+            finished=result is not None,
+            won=bool(result and result.won),
+            result=result.to_dict() if result else None,
+        )
+        if hasattr(self, 'skirmish_map_tree'):
+            self.skirmish_message_var.set(message)
+            self.on_skirmish_map_selected()

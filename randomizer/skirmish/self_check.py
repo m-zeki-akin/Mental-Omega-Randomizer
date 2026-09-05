@@ -23,6 +23,7 @@ from .maps import (
     read_map_pool,
     summarize_map_pools,
 )
+from .results import last_game_result, result_blocks
 from .spawn import SkirmishHouse, skirmish_spawn_ini_text
 
 
@@ -57,6 +58,118 @@ MinPlayer=2
 Official=yes
 """
 
+
+# The two outcomes as the game actually wrote them, from a battle won and a
+# battle lost on this machine. Trimmed at both ends, otherwise verbatim.
+DEFEAT_LOG = """LOADED NTRLMD.MIXLOADED NEUTRAL.MIX
+Release_Mouse()
+Commander: Loser
+ Scheme: 1
+ Lost = 0
+ Kills = 0
+ Built = 0
+ Score = 0
+Computer: Winner
+ Scheme: 7
+ Lost = 0
+ Kills = 0
+ Built = 3
+ Score = 0
+Default
+Sound frame size = 21504 bytes
+Sound buffer size = 86016 bytes
+Default
+Default
+Tooltips are on.
+     Releasing NEUTRAL.MIX
+     Releasing NTRLMD.MIX
+LOADED NTRLMD.MIXLOADED NEUTRAL.MIX
+Game loop finished. Average FPS = 12
+     Releasing NEUTRAL.MIX
+     Releasing NTRLMD.MIX
+Closing log file on request 111
+"""
+
+VICTORY_LOG = """MPlayer_Defeated: frame 45074, house id 1, MapIsClear set to true
+MPlayer_Defeated() - Opponent Computer has been defeated
+MPlayer_Defeated() - Alive = 1, Humans = 1
+Saw game completion due to player defeat
+MPlayer_Defeated() - All remaining players are allied
+MPlayer_Defeated() - Flag_To_Win
+Frame 45074, BorrowedTime == 90
+Tooltips are off.
+Sending game results.  SawCompletion=1
+LOADED NTRLMD.MIXLOADED NEUTRAL.MIX
+Release_Mouse()
+Commander: Winner
+ Scheme: 1
+ Lost = 101
+ Kills = 518
+ Built = 195
+ Score = 478701
+Computer: Loser
+ Scheme: 7
+ Lost = 513
+ Kills = 88
+ Built = 369
+ Score = 33890
+Default
+Sound frame size = 21504 bytes
+Sound buffer size = 86016 bytes
+Default
+Default
+Tooltips are on.
+     Releasing NEUTRAL.MIX
+     Releasing NTRLMD.MIX
+LOADED NTRLMD.MIXLOADED NEUTRAL.MIX
+Game loop finished. Average FPS = 59
+     Releasing NEUTRAL.MIX
+     Releasing NTRLMD.MIX
+Closing log file on request 111
+"""
+
+
+def _result_checks():
+    defeat = last_game_result(DEFEAT_LOG)
+    victory = last_game_result(VICTORY_LOG)
+    both = result_blocks(DEFEAT_LOG + VICTORY_LOG)
+    return {
+        'skirmish_result_defeat_valid': bool(
+            defeat is not None
+            and not defeat.won
+            and defeat.name == 'Commander'
+        ),
+        'skirmish_result_victory_valid': bool(
+            victory is not None
+            and victory.won
+            and victory.kills == 518
+            and victory.lost == 101
+            and victory.built == 195
+            and victory.score == 478701
+        ),
+        # Two games in one log are two blocks, and the battle just played is
+        # the last of them.
+        'skirmish_result_last_game_valid': bool(
+            len(both) == 2
+            and len(both[0]) == 2
+            and last_game_result(DEFEAT_LOG + VICTORY_LOG).won
+            and both[1][1].name == 'Computer'
+            and both[1][1].kills == 88
+        ),
+        # MPlayer_Defeated is written about whichever house was defeated and
+        # appears in a won game. Reading it as the player's defeat would call
+        # every victory a loss.
+        'skirmish_result_ignores_defeat_marker_valid': bool(
+            'MPlayer_Defeated' in VICTORY_LOG and victory.won
+        ),
+        # A game closed before it ended is neither outcome.
+        'skirmish_result_unfinished_valid': bool(
+            last_game_result('Tooltips are on.\nClosing log file 111\n')
+            is None
+            and last_game_result(VICTORY_LOG, player_name='Someone Else')
+            is None
+        ),
+    }
 
 def _parsed(text):
     parser = ConfigParser(strict=False)
@@ -205,6 +318,7 @@ def validate_skirmish_contract():
     """Return the skirmish self-check rows, plus what the pools hold."""
     report = {}
     report.update(_spawn_checks())
+    report.update(_result_checks())
     report.update(_map_reader_checks())
     report.update(_country_checks())
     report['skirmish_map_pools'] = (
