@@ -6,6 +6,12 @@ import os
 
 FROZEN = bool(getattr(sys, 'frozen', False))
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
+
+
+def _development_game_root(default):
+    override = os.environ.get('MO_RANDOMIZER_GAME_ROOT', '').strip()
+    return Path(override).resolve() if override else default
+
 SOURCE_DIR = PROJECT_ROOT
 WINDOW_ICON_PATH = SOURCE_DIR / 'mo-logo-puzzle-icon.ico'
 
@@ -22,8 +28,7 @@ else:
     # absent and silently falls back to committed data. Pointing this at a
     # real install is the only way a check that reads installed rules can
     # fail in development instead of passing on stock values.
-    _override = os.environ.get('MO_RANDOMIZER_GAME_ROOT', '').strip()
-    GAME_ROOT = Path(_override).resolve() if _override else SOURCE_DIR.parent
+    GAME_ROOT = _development_game_root(SOURCE_DIR.parent)
 GAME_LAUNCHER_EXE = GAME_ROOT / 'Syringe.exe'
 GAME_EXE = GAME_ROOT / 'gamemd.exe'
 SPAWN_INI = GAME_ROOT / 'spawn.ini'

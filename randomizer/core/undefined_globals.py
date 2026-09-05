@@ -31,15 +31,17 @@ def _code_objects(code):
 
 
 def _global_names(code):
-    """Return the global names a module loads, and the ones it later drops.
+    """Return the global names a module loads, and the ones it binds.
 
-    A module that decodes a blob into constants and then ``del``s the blob has
-    no such attribute by the time this runs, and that is deliberate rather than
-    a missing import, so deletions count as definitions.
+    Binding covers assignment as well as deletion, and both have to count.
+    A module that decodes a blob and then ``del``s it has no such attribute
+    left; one that assigns a name inside ``if FROZEN: ... else: ...`` has no
+    such attribute in whichever build took the other branch. Neither is a
+    missing import, which is the only thing this is looking for.
     """
     import dis
 
-    loads, deleted = set(), set()
+    loads, bound = set(), set()
     for block in _code_objects(code):
         for instruction in dis.get_instructions(block):
             name = instruction.argval
@@ -47,9 +49,12 @@ def _global_names(code):
                 continue
             if instruction.opname in ('LOAD_GLOBAL', 'LOAD_NAME'):
                 loads.add(name)
-            elif instruction.opname in ('DELETE_GLOBAL', 'DELETE_NAME'):
-                deleted.add(name)
-    return loads, deleted
+            elif instruction.opname in (
+                'STORE_GLOBAL', 'STORE_NAME',
+                'DELETE_GLOBAL', 'DELETE_NAME',
+            ):
+                bound.add(name)
+    return loads, bound
 
 
 def undefined_globals(package_names=('randomizer',)):
@@ -95,11 +100,11 @@ def scan_undefined_globals(package_names=('randomizer',)):
             continue
         scanned += 1
         namespace = vars(module)
-        loads, deleted = _global_names(module_code)
+        loads, bound = _global_names(module_code)
         for name in sorted(loads):
             if (
                 name in namespace or name in _BUILTINS
-                or name in _IMPLICIT or name in deleted
+                or name in _IMPLICIT or name in bound
             ):
                 continue
             missing.append(f'{module_name}.{name}')
