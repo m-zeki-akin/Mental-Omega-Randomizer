@@ -1250,7 +1250,7 @@ class ShopController(ShopPolishController):
         if not messagebox.askyesno(
             'Reset Shop Profile?',
             'This permanently deletes all Shop Gems, permanent units, '
-            'permanent buffs, upgrades, lifetime totals, and the current '
+            'permanent buffs, upgrades, lifetime totals, and every stored '
             'Shop run. This cannot be undone.\n\nReset everything?',
             parent=self,
         ):
@@ -1262,7 +1262,7 @@ class ShopController(ShopPolishController):
             return
         self._shop_pending_loadout_selection.clear()
         self._shop_loadout_selection_initialized = True
-        self._set_shop_message('Shop profile and current run reset.')
+        self._set_shop_message('Shop profile and every stored run reset.')
         self.refresh_shop_mode()
 
     def _repair_shop_mission_offers(self, run):
@@ -1741,6 +1741,13 @@ class ShopController(ShopPolishController):
         return chosen
 
     def start_shop_run(self):
+        if self.shop_launch_active():
+            # Reachable from the main screen's New Seed button as well as the
+            # run list. A run started here becomes the active one, and the
+            # victory the running game is about to report would be recorded
+            # against it and refused for belonging to another run.
+            self._set_shop_message('Wait for current mission process to close.')
+            return
         # The selected extra loadout is pruned against owned units while the
         # workspace paints, so settle any pending repaint before reading it.
         self.flush_shop_workspace_repaint()
