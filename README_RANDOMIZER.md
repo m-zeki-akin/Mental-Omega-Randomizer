@@ -408,12 +408,14 @@ For action codes, trigger selection, marker construction, ordering guarantees, c
 
 | Data | Source mode | Packaged mode |
 |---|---|---|
-| Static gameplay/UI configuration | `RandomizerLauncher\configs` | `RandomizerLauncherData\configs` |
-| Config defaults | `RandomizerLauncher\configs\player\mental_omega_randomizer.yaml` | `RandomizerLauncherData\configs\player\mental_omega_randomizer.yaml` |
-| Active seed/progress | `RandomizerLauncher\randomizer_state.json` | `RandomizerLauncherData\randomizer_state.json` |
-| Launcher diagnostics | `RandomizerLauncher\logs\launcher.log` | `RandomizerLauncherData\logs\launcher.log` |
-| Self-check report | `RandomizerLauncher\self_check.json` | `RandomizerLauncherData\self_check.json` |
-| Generated/extracted maps and cameos | Under `RandomizerLauncher` | Under `RandomizerLauncherData` |
+| Static gameplay/UI configuration | `RandomizerLauncher\configs` | `<player data>\configs` |
+| Config defaults | `RandomizerLauncher\configs\player\mental_omega_randomizer.yaml` | `<player data>\configs\player\mental_omega_randomizer.yaml` |
+| Active seed/progress | `RandomizerLauncher\randomizer_state.json` | `<player data>\randomizer_state.json` |
+| Launcher diagnostics | `RandomizerLauncher\logs\launcher.log` | `<player data>\logs\launcher.log` |
+| Self-check report | `RandomizerLauncher\self_check.json` | `<player data>\self_check.json` |
+| Generated/extracted maps and cameos | Under `RandomizerLauncher` | Under `<player data>` |
+
+`<player data>` is `%LOCALAPPDATA%\MentalOmegaRandomizer\<installation>`, one folder per installation, each naming the game folder it belongs to in `install.txt`. Releases before this kept the same files in `RandomizerLauncherData` beside the executable; that folder is moved across on the first launch after upgrading, and left alone if the move fails.
 
 Configuration describes the next seed plus immediate UI preferences. State describes the active seed and must be preserved to continue that run.
 
@@ -427,7 +429,7 @@ If the launcher does not start or cannot find required game files, run the self-
 .\MentalOmegaRandomizer.exe --self-check
 ```
 
-Review `RandomizerLauncherData\self_check.json` and `RandomizerLauncherData\logs\launcher.log`. For missing objective or victory detection, also preserve `debug\debug.log` before launching another mission. A useful report includes the mission code, seed, reward mode, what was expected, and whether the problem reproduces in a separate fresh installation without map packs or rules modifications.
+Review `<player data>\self_check.json` and `<player data>\logs\launcher.log`. For missing objective or victory detection, also preserve `debug\debug.log` before launching another mission. A useful report includes the mission code, seed, reward mode, what was expected, and whether the problem reproduces in a separate fresh installation without map packs or rules modifications.
 
 ## Player-Facing Limitations
 

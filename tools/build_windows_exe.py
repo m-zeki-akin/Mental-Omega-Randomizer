@@ -192,8 +192,13 @@ def build(output: Path) -> None:
             '--noconfirm',
             '--clean',
             '--onefile',
-            '--runtime-tmpdir',
-            'RandomizerLauncherRuntime',
+            # No --runtime-tmpdir: the bootloader uses the system temporary
+            # folder. Naming one put a 33 MB extraction directory in the
+            # player's game folder, which is neither theirs nor ours to leave
+            # there, and nothing outside this launcher ever swept it. The
+            # system folder is swept by Windows itself, and
+            # randomizer.core.runtime_cleanup still handles the leftovers a
+            # killed launcher leaves in it.
             '--noupx',
             '--optimize',
             '1',

@@ -1,8 +1,10 @@
 """Sign the Shop's durable state, and say plainly what that is worth.
 
-The Shop keeps Gems, permanent unlocks and upgrades in three JSON files next
-to the executable. Nothing stopped a player opening ``shop_profile.json`` and
-changing ``"meta_coins": 88`` to whatever they liked.
+The Shop keeps Gems, permanent unlocks and upgrades in three files in the
+player data folder. Nothing stopped a player opening ``shop_profile.json`` and
+changing ``"meta_coins": 88`` to whatever they liked. They are compressed now
+rather than written out in the clear, which raises that from no effort to a
+little -- and no further, which is why the signature below exists.
 
 **This does not stop a determined cheater and cannot.** The game is offline,
 single-player, and the executable is on the player's machine; the key below

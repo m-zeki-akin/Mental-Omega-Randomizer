@@ -28,7 +28,9 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 DEFAULT_INFANTRY = ROOT / 'InfantryList.txt'
 FALLBACK_REVIEWED_INFANTRY = ROOT / 'configs' / 'RandomizerHeroes.ini'
-DEFAULT_RULES = ROOT.parent / 'RandomizerLauncherData' / 'cameo_cache' / 'rulesmo.ini'
+from randomizer.core.paths import CAMEO_CACHE_DIR  # noqa: E402
+
+DEFAULT_RULES = CAMEO_CACHE_DIR / 'rulesmo.ini'
 DEFAULT_OUTPUT_DIR = ROOT / 'configs'
 SUPPLEMENTAL_SOURCE_FILES = (
     ROOT / 'configs' / 'RandomizerMapOnlySources.ini',

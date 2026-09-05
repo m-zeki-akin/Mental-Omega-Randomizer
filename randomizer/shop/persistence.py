@@ -15,7 +15,7 @@ from randomizer.core.paths import (
     SHOP_TRANSACTION_PATH,
 )
 from randomizer.core.integrity import MODIFIED, SIGNED, sign, verify
-from randomizer.core.storage import atomic_write_json, read_json_object
+from randomizer.core.storage import atomic_write_opaque, read_opaque_object
 
 from .state import normalize_shop_profile, normalize_shop_run
 
@@ -68,14 +68,34 @@ class ShopRepository:
     def __init__(self, paths=DEFAULT_SHOP_PATHS):
         self.paths = paths
         self._lock = threading.RLock()
+        self._adopt_legacy_files()
         # A failed signature on the run or the journal has to reach the
         # profile, which is where the flag lives and where it is signed.
         # Reads are ordered profile-first, so it is remembered here until a
         # profile passes through.
         self._integrity_breach = False
 
+    def _adopt_legacy_files(self):
+        """Rename state written under the old readable names, once.
+
+        Only the name moves. The reader accepts plain JSON, so the file is
+        still loaded exactly as it was and converts on its next write; doing
+        it this way means a failed rename costs nothing and a half-converted
+        profile cannot exist.
+        """
+        for path in (
+            self.paths.profile, self.paths.run, self.paths.transaction,
+        ):
+            legacy = path.with_suffix('.json')
+            if legacy == path or path.exists() or not legacy.is_file():
+                continue
+            try:
+                legacy.replace(path)
+            except OSError:
+                continue
+
     def _write_signed(self, path, document):
-        atomic_write_json(path, sign(document), indent=None)
+        atomic_write_opaque(path, sign(document))
 
     def _read_signed(self, path, label):
         """Read one document, noting whether its signature held.
@@ -85,7 +105,7 @@ class ShopRepository:
         progress of a player whose disk went bad rather than a cheat. Tamper is
         loaded, played, and flagged.
         """
-        document = read_json_object(path)
+        document = read_opaque_object(path)
         if verify(document) is MODIFIED:
             self._integrity_breach = True
             log_event(
@@ -210,7 +230,7 @@ class ShopRepository:
             # replayed: it is written before either state file changes, so
             # both are still consistent at their pre-commit values, and the
             # cost is one interrupted transaction.
-            journal_state = verify(read_json_object(self.paths.transaction))
+            journal_state = verify(read_opaque_object(self.paths.transaction))
             if journal_state is not SIGNED:
                 if journal_state is MODIFIED:
                     self._integrity_breach = True
@@ -222,7 +242,7 @@ class ShopRepository:
                 self.paths.transaction.unlink(missing_ok=True)
                 return False
             try:
-                document = read_json_object(self.paths.transaction)
+                document = read_opaque_object(self.paths.transaction)
                 if document.get('schema_version') != SHOP_TRANSACTION_SCHEMA_VERSION:
                     raise ValueError(
                         'Unsupported Shop transaction schema_version '

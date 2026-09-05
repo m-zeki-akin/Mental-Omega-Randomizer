@@ -185,7 +185,7 @@ def _load_static_config_cached(relative_path):
     try:
         return _load_static_config_sections(relative_path, path)
     except StaticConfigError:
-        # Frozen upgrades keep editable configs in RandomizerLauncherData.
+        # Frozen upgrades keep editable configs in the player data folder.
         # Preserve an invalid old/user copy, then recover from bundled defaults.
         bundled = BUNDLED_CONFIG_DIR / Path(relative_path)
         if not FROZEN or not bundled.is_file() or path == bundled:

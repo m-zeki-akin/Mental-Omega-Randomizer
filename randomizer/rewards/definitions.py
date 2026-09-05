@@ -194,7 +194,7 @@ SUICIDE_RANGE_EXCLUDED_UNIT_IDS = frozenset({
     'BGGY', 'BIKE', 'DBOAT', 'DTRUCK', 'OTRK', 'TERROR',
 })
 # Engine-safety exclusions cannot depend on replacing editable packaged config
-# during an upgrade. Old RandomizerLauncherData copies remain user-owned.
+# during an upgrade. Old player data copies remain user-owned.
 MANDATORY_EXCLUDED_BUFF_TYPE_IDS = {
     'cloak': frozenset({'NAIRDM'}),
     # Suicide weapons detonate at their firing point. Extra range makes these

@@ -96,22 +96,45 @@ def _is_in_use(directory):
     )
 
 
+LEGACY_RUNTIME_DIRECTORY = 'RandomizerLauncherRuntime'
+
+
 def _search_roots(bundle_root):
     """Return the folders that can hold extraction leftovers.
 
-    Normally just the one this build unpacks into. Builds before the runtime
-    directory got a folder of its own extracted straight beside the
-    executable, so an upgraded install still has their leftovers sitting in
-    the game folder where nothing would ever look for them again.
+    Normally just the system temporary folder this build unpacks into. Two
+    older layouts still have to be swept, because an upgraded installation
+    keeps whatever they left and nothing else will ever look there again:
+    the earliest builds extracted straight beside the executable, and later
+    ones into a RandomizerLauncherRuntime folder of their own in the game
+    folder.
     """
     roots = [bundle_root.parent]
     try:
         beside_executable = Path(sys.executable).resolve().parent
     except OSError:
         return tuple(roots)
-    if beside_executable not in roots:
-        roots.append(beside_executable)
+    for root in (beside_executable, beside_executable / LEGACY_RUNTIME_DIRECTORY):
+        if root not in roots:
+            roots.append(root)
     return tuple(roots)
+
+
+def _remove_empty_legacy_runtime_directory():
+    """Delete the old runtime folder once the sweep has emptied it.
+
+    Only when empty: a folder that still holds a live extraction belongs to a
+    launcher that is running right now.
+    """
+    try:
+        legacy = Path(sys.executable).resolve().parent / LEGACY_RUNTIME_DIRECTORY
+    except OSError:
+        return None
+    try:
+        legacy.rmdir()
+    except OSError:
+        return None
+    return legacy
 
 
 def _runtime_directories(bundle_root):
@@ -150,4 +173,7 @@ def sweep_stale_runtime_directories(bundle_root=None):
         shutil.rmtree(directory, ignore_errors=True)
         if not directory.exists():
             removed.append(directory)
+    legacy = _remove_empty_legacy_runtime_directory()
+    if legacy is not None:
+        removed.append(legacy)
     return tuple(removed)

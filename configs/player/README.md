@@ -2,7 +2,7 @@
 
 The launcher writes `mental_omega_randomizer.yaml` here during source runs.
 Packaged builds use
-`RandomizerLauncherData/configs/player/mental_omega_randomizer.yaml`.
+`%LOCALAPPDATA%/MentalOmegaRandomizer/<installation>/configs/player/mental_omega_randomizer.yaml`.
 
 This YAML contains local next-seed, UI, launch, and reserved Archipelago
 settings. It is ignored by Git and excluded from packaged build inputs. Static

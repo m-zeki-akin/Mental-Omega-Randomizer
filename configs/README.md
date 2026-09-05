@@ -6,7 +6,7 @@ embedded in Python modules. Restart the launcher after changing a file.
 `player/mental_omega_randomizer.yaml` is different: it is ignored local runtime
 state containing next-seed and launcher choices. Source runs create it here so
 all configuration is grouped under `configs/`. Packaged runs create the same
-relative path under `RandomizerLauncherData/configs/player/`. Do not commit a
+relative path under `%LOCALAPPDATA%/MentalOmegaRandomizer/<installation>/configs/player/`. Do not commit a
 personal player YAML.
 
 The six `Randomizer*.ini` files do not replace these documents. INI files are
@@ -491,7 +491,7 @@ Custom power artwork uses `sidebar_image` with a plain PNG filename from
 referenced by the generated map. The launcher converts the PNG to the game's
 required 60×48 indexed PCX format on launch and uses the same PNG for its
 Unlocks preview. Packaged defaults become visible under
-`RandomizerLauncherData/assets` so replacement artwork remains editable.
+`%LOCALAPPDATA%/MentalOmegaRandomizer/<installation>/assets` so replacement artwork remains editable.
 For a custom power, copy `my_power.png` into that `assets` directory and set:
 
 ```json
@@ -533,7 +533,7 @@ reviewed entry.
 
 Source runs load static files from this directory directly. A packaged EXE
 bundles these defaults plus a hash manifest and exposes them under
-`RandomizerLauncherData/configs` beside the game. First launch after upgrading
+`%LOCALAPPDATA%/MentalOmegaRandomizer/<installation>/configs` beside the game. First launch after upgrading
 from a pre-manifest build backs up differing legacy files as
 `*.pre-bundle-sync-backup`, then installs one complete current set. Later
 updates replace only files still matching the preceding bundled hash; locally

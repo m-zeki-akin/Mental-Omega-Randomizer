@@ -25,6 +25,7 @@ from randomizer.core.paths import (
     LAUNCHER_LOG,
     MAP_RENDERER_DIR,
     WINDOW_ICON_PATH,
+    validate_player_data_contract,
 )
 from randomizer.core.undefined_globals import (
     scan_detects_missing_import,
@@ -1185,6 +1186,9 @@ def run_self_check():
         # this section stock", answered from a shipped table of hashes rather
         # than a copy of the stock rules the player could edit.
         rules_digest_contract = validate_rules_digest_contract()
+        # Where the player's own files live, and that moving them there can
+        # never be what loses them.
+        player_data_contract = validate_player_data_contract()
         undefined_global_names, scanned_modules = scan_undefined_globals()
         # A row that says a unit is buyable and a button that refuses to buy
         # it are two answers to one question. They drifted apart once already:
@@ -1221,6 +1225,9 @@ def run_self_check():
             'rules_digest_contract_valid': all(
                 rules_digest_contract.values()
             ),
+            'player_data_contract': player_data_contract,
+            'player_data_contract_valid': all(player_data_contract.values()),
+            'player_data_dir': str(APP_DIR),
             'game_files_summary': summary_line(game_files),
             'mission_launch_contract': launch_contract,
             'mission_launch_contract_valid': bool(
@@ -1440,6 +1447,7 @@ def run_self_check():
                 'mission_launch_contract_valid',
                 'authenticity_contract_valid',
                 'rules_digest_contract_valid',
+                'player_data_contract_valid',
                 'permanent_purchase_gate_shared',
                 'undefined_globals_valid',
                 'archipelago_client_contract_valid',

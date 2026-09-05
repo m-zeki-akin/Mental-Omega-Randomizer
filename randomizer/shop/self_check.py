@@ -8,7 +8,12 @@ from types import SimpleNamespace
 
 from randomizer.config.schema import StaticConfigError, validate_sections
 from randomizer.config.static import load_static_config
-from randomizer.core.storage import atomic_write_json, atomic_write_text
+from randomizer.core.storage import (
+    OPAQUE_MAGIC,
+    atomic_write_json,
+    atomic_write_text,
+    read_opaque_object,
+)
 from randomizer.missions.tier_one import (
     _tier_one_airfield_rules,
     tier_one_defense_ids,
@@ -1124,7 +1129,7 @@ def _phase_integrity_checks():
         )
 
         def read_profile_document():
-            return _json.loads(paths.profile.read_text(encoding='utf-8'))
+            return read_opaque_object(paths.profile)
 
         def write_profile_document(document):
             paths.profile.write_text(_json.dumps(document), encoding='utf-8')
@@ -1229,12 +1234,51 @@ def _phase_integrity_checks():
             and allowed.result is PurchaseResult.OK
         )
 
+        # The file is stored compressed rather than as readable JSON. That is
+        # a doorstep and nothing more -- it stops the edit that needs no tools
+        # at all, and the signature above is what actually reports tampering.
+        # Worth checking anyway, because a silent fall back to plain text
+        # would look exactly the same from the outside.
+        ShopRepository(paths).save_profile(ShopProfile(meta_coins=88))
+        stored = paths.profile.read_bytes()
+        opaque_valid = bool(
+            stored.startswith(OPAQUE_MAGIC)
+            and b'meta_coins' not in stored
+            and ShopRepository(paths).load_profile().meta_coins == 88
+        )
+
+    # A profile written under the old readable name is renamed rather than
+    # abandoned. Losing one here would read to the player as losing every Gem
+    # they had.
+    with TemporaryDirectory(prefix='mo-shop-legacy-name-check-') as temporary:
+        root = Path(temporary)
+        legacy_profile = root / 'shop_profile.json'
+        paths = ShopPersistencePaths(
+            profile=root / 'shop_profile.dat',
+            run=root / 'shop_run.dat',
+            transaction=root / 'shop_transaction.dat',
+            backup_dir=root / 'backups',
+        )
+        atomic_write_json(
+            legacy_profile, sign(ShopProfile(meta_coins=44).to_dict()),
+            indent=None,
+        )
+        loaded = ShopRepository(paths).load_profile()
+        legacy_name_valid = bool(
+            loaded.meta_coins == 44
+            and not loaded.integrity_modified
+            and not legacy_profile.exists()
+            and paths.profile.is_file()
+        )
+
     return {
         'shop_state_signed_valid': signed_valid,
         'shop_state_tamper_flagged_valid': tamper_valid,
         'shop_state_unsigned_accepted_valid': legacy_valid,
         'shop_state_journal_signed_valid': journal_valid,
         'shop_modified_profile_ap_gate_valid': ap_gate_valid,
+        'shop_state_opaque_valid': opaque_valid,
+        'shop_state_legacy_name_adopted_valid': legacy_name_valid,
     }
 
 

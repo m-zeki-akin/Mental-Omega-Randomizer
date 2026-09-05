@@ -61,7 +61,7 @@ Build provenance proves where the file came from; it is not an antivirus verdict
 
 The Randomizer has been developed and tested against the **original Mental Omega campaign maps only**. Custom maps, funmaps, map packs, modified rules, and installations containing other gameplay modifiers are not currently supported. Those additions can redefine houses, units, weapons, triggers, and mission scripts in ways the Randomizer has not audited; combining them may produce incorrect rewards or progress, buff the wrong force, fail to launch, or affect the original content.
 
-Using a dedicated clean installation is the same isolation normally recommended for map packs and other game modifiers. It protects the player's usual installation and gives bug reports a known baseline. The launcher does **not** modify Mental Omega's MIX archives: it reads the installed archives, creates a generated loose copy of the selected campaign map, and stores its own configuration, saves, logs, and caches in `RandomizerLauncherData`.
+Using a dedicated clean installation is the same isolation normally recommended for map packs and other game modifiers. It protects the player's usual installation and gives bug reports a known baseline. The launcher does **not** modify Mental Omega's MIX archives: it reads the installed archives, creates a generated loose copy of the selected campaign map, and stores its own configuration, saves, logs, and caches outside the game folder entirely, in `%LOCALAPPDATA%\MentalOmegaRandomizer\<installation>`.
 
 **Mission List** progression opens the first three missions and adds one more after each victory. **Grid Mode** places the required missions on a compact faction-colored board: completing a node opens its orthogonal neighbors, and the bottom-right exit finishes the run after every required node is cleared. The off-by-default **Unlock all rewards after final Grid mission** option releases remaining seed rewards, grants every enabled unit/building/power unlock, and opens all optional Grid missions after that exit. Without it, unfinished rewards remain pending and optional missions retain ordinary neighbor locks/hidden-state behavior. Mixed-campaign seeds weight the short seven-mission Foehn campaign proportionally instead of allowing it to dominate the randomized order. The side-panel **Mark Mission Complete** recovery control is intended only when a completed mission was not detected.
 
@@ -166,7 +166,7 @@ GitHub Actions installs pinned build dependencies from `requirements-build.txt` 
 python -m pip install -r RandomizerLauncher\requirements-build.txt
 ```
 
-The build uses PyInstaller without UPX packing, embeds the release number as Windows version metadata, and embeds `mo-logo-puzzle-icon.ico`, an exact unscaled 32 x 32 crop from `mo-logo-puzzle.png`, as both the Windows executable icon and the running Tk window icon. Build dependencies are installed temporarily on the GitHub runner; maintainers need them locally only when choosing to build locally. Players do not need Python, build packages, the source directory, or a separate runtime folder. The launcher creates `RandomizerLauncherData` for configuration, saves, logs, and cached map/cameo data after it is run; this is writable player data, not part of the distributed application.
+The build uses PyInstaller without UPX packing, embeds the release number as Windows version metadata, and embeds `mo-logo-puzzle-icon.ico`, an exact unscaled 32 x 32 crop from `mo-logo-puzzle.png`, as both the Windows executable icon and the running Tk window icon. Build dependencies are installed temporarily on the GitHub runner; maintainers need them locally only when choosing to build locally. Players do not need Python, build packages, the source directory, or a separate runtime folder. The launcher creates `%LOCALAPPDATA%\MentalOmegaRandomizer\<installation>` for configuration, saves, logs, and cached map/cameo data after it is run; this is writable player data, not part of the distributed application. It is kept there rather than beside the executable because a Steam installation sits under Program Files, where writing depends on running elevated or on Windows redirecting to VirtualStore, and where Steam's own file verification can remove it.
 
 Run a packaged installation check without opening the UI:
 
@@ -174,7 +174,7 @@ Run a packaged installation check without opening the UI:
 .\MentalOmegaRandomizer.exe --self-check
 ```
 
-The report is written to `RandomizerLauncherData\self_check.json`.
+The report is written to `self_check.json` in the player data folder, `%LOCALAPPDATA%\MentalOmegaRandomizer\<installation>`.
 
 ## Source Layout
 
@@ -197,7 +197,7 @@ The report is written to `RandomizerLauncherData\self_check.json`.
 | `build_all_linux.sh` | Combined Linux launcher + APWorld build workflow |
 | `build_all.ps1` | Local launcher + tracked APWorld build workflow |
 
-Packaged writable data lives under `RandomizerLauncherData`; source-mode data lives under `RandomizerLauncher`.
+Packaged writable data lives under `%LOCALAPPDATA%\MentalOmegaRandomizer\<installation>`; source-mode data lives under `RandomizerLauncher`. Earlier releases kept it in `RandomizerLauncherData` beside the executable; that folder is moved across on the first launch after upgrading.
 Shop Gems and permanent unlocks live in `shop_profile.json`; the current run's
 Ore, purchases, and mission state live in `shop_run.json`. Releases replace
 neither file. Both use atomic writes and forward-compatible normalization, so
@@ -208,7 +208,7 @@ Every Python module stays below 1,000 lines. Public facades such as
 
 ## Troubleshooting and Bug Reports
 
-Run `MentalOmegaRandomizer.exe --self-check` first. The result is saved to `RandomizerLauncherData\self_check.json`, and structured launcher diagnostics are kept in `RandomizerLauncherData\logs\launcher.log`. Objective and victory marker activity comes from the game's `debug\debug.log`.
+Run `MentalOmegaRandomizer.exe --self-check` first. The result is saved to `self_check.json` in the player data folder (`%LOCALAPPDATA%\MentalOmegaRandomizer\<installation>`, named in its `install.txt`), and structured launcher diagnostics are kept in `logs\launcher.log` beside it. Objective and victory marker activity comes from the game's `debug\debug.log`.
 
 When reporting a reproducible problem, include those files together with the mission code, seed, reward mode, and whether the issue also occurs on a fresh unmodified Mental Omega installation. Do not post `randomizer_state.json` publicly without reviewing it first; it contains the active run's seed and progress.
 
