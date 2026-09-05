@@ -54,6 +54,16 @@ def _global_names(code):
 
 def undefined_globals(package_names=('randomizer',)):
     """Return 'module.name' for every global load nothing can satisfy."""
+    return scan_undefined_globals(package_names)[0]
+
+
+def scan_undefined_globals(package_names=('randomizer',)):
+    """Return the findings and how many modules were actually read.
+
+    The count is reported alongside the findings because an empty result is
+    the same shape whether nothing is wrong or nothing was scanned, and a
+    frozen build is exactly where the walk could quietly come back empty.
+    """
     modules = {}
     for package_name in package_names:
         package = sys.modules.get(package_name)
@@ -74,6 +84,7 @@ def undefined_globals(package_names=('randomizer',)):
                     continue
             modules[info.name] = module
     missing = []
+    scanned = 0
     for module_name, module in sorted(modules.items()):
         code = getattr(getattr(module, '__loader__', None), 'get_code', None)
         try:
@@ -82,6 +93,7 @@ def undefined_globals(package_names=('randomizer',)):
             module_code = None
         if module_code is None:
             continue
+        scanned += 1
         namespace = vars(module)
         loads, deleted = _global_names(module_code)
         for name in sorted(loads):
@@ -91,4 +103,5 @@ def undefined_globals(package_names=('randomizer',)):
             ):
                 continue
             missing.append(f'{module_name}.{name}')
-    return missing
+    return missing, scanned
+

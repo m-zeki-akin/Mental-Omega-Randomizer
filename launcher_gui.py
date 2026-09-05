@@ -18,7 +18,7 @@ from randomizer.core.paths import (
     MAP_RENDERER_DIR,
     WINDOW_ICON_PATH,
 )
-from randomizer.core.undefined_globals import undefined_globals
+from randomizer.core.undefined_globals import scan_undefined_globals
 from randomizer.core.version import APP_VERSION
 from randomizer.config.static import REQUIRED_STATIC_CONFIGS, validate_static_configs
 from randomizer.maps.settings import validate_eva_voice_profiles
@@ -1151,7 +1151,7 @@ def run_self_check():
         # line runs, so a dropped import ships and the first person to hover
         # the wrong row gets a traceback dialog. Read from the bytecode, so
         # this works in the frozen launcher too.
-        undefined_global_names = undefined_globals()
+        undefined_global_names, scanned_modules = scan_undefined_globals()
         eva_voice_profiles = validate_eva_voice_profiles(
             EVA_VOICE_TAGS,
             EVA_APPEARANCE_PROFILES,
@@ -1330,7 +1330,10 @@ def run_self_check():
             'eva_voice_profiles': eva_voice_profiles['profiles'],
             'missing_runtime_symbols': missing_runtime_symbols,
             'undefined_globals': undefined_global_names,
-            'undefined_globals_valid': not undefined_global_names,
+            'undefined_globals_scanned': scanned_modules,
+            'undefined_globals_valid': (
+                not undefined_global_names and scanned_modules > 50
+            ),
             'diagnostic_log': str(LAUNCHER_LOG),
             'deterministic_seed_rng_works': 0 <= random.Random('MO-SELF-CHECK').random() < 1,
         }
