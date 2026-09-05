@@ -150,7 +150,11 @@ from .shelf import (
     shop_shelf_reward_ids,
     upgradeable_entries,
 )
+from randomizer.core.integrity import SIGNATURE_KEY, SIGNED, sign, verify
+
+from .archipelago_purchases import validate_archipelago_purchase
 from .persistence import (
+    SHOP_TRANSACTION_SCHEMA_VERSION,
     ShopPersistenceError,
     ShopPersistencePaths,
     ShopRepository,
@@ -1095,6 +1099,142 @@ def _phase_five_checks():
             and replayed_sync == synced
             and persisted_sync == synced
         ),
+    }
+
+
+def _phase_integrity_checks():
+    """Prove the state signatures do what they claim, and only that.
+
+    Every one of these is a claim someone could otherwise take on trust:
+    that a signature is written, that changing a byte is noticed, that
+    noticing it does not destroy the profile, that a profile written before
+    signing existed still loads, and that the write-ahead journal -- which
+    writes straight into the profile -- cannot be used to go around all of it.
+    """
+    import copy
+    import json as _json
+
+    with TemporaryDirectory(prefix='mo-shop-integrity-check-') as temporary:
+        root = Path(temporary)
+        paths = ShopPersistencePaths(
+            profile=root / 'shop_profile.json',
+            run=root / 'shop_run.json',
+            transaction=root / 'shop_transaction.json',
+            backup_dir=root / 'backups',
+        )
+
+        def read_profile_document():
+            return _json.loads(paths.profile.read_text(encoding='utf-8'))
+
+        def write_profile_document(document):
+            paths.profile.write_text(_json.dumps(document), encoding='utf-8')
+
+        ShopRepository(paths).save_profile(ShopProfile(meta_coins=88))
+        signed_document = read_profile_document()
+        clean = ShopRepository(paths).load_profile()
+        signed_valid = bool(
+            SIGNATURE_KEY in signed_document
+            and verify(signed_document) is SIGNED
+            and clean.meta_coins == 88
+            and not clean.integrity_modified
+        )
+
+        # An edited profile still loads and still plays. It must not take the
+        # corruption path, which moves the file aside and refuses to start:
+        # a failing disk would then cost a player everything they had.
+        tampered_document = dict(signed_document)
+        tampered_document['meta_coins'] = 999999
+        write_profile_document(tampered_document)
+        tampered = ShopRepository(paths).load_profile()
+        # And the flag is signed with the rest, so a second edit that clears
+        # it is itself an edit.
+        cleared = read_profile_document()
+        cleared['integrity_modified'] = False
+        write_profile_document(cleared)
+        tamper_valid = bool(
+            tampered.meta_coins == 999999
+            and tampered.integrity_modified
+            and ShopRepository(paths).load_profile().integrity_modified
+            and paths.profile.is_file()
+        )
+
+        # Signing arrives in an update. Every profile written before it has
+        # no signature, and calling those cheats would brand every existing
+        # player on the day they upgraded.
+        write_profile_document({'schema_version': 1, 'meta_coins': 42})
+        legacy = ShopRepository(paths).load_profile()
+        legacy_valid = bool(
+            legacy.meta_coins == 42
+            and not legacy.integrity_modified
+            and verify(read_profile_document()) is SIGNED
+        )
+
+        def journal(gem):
+            return copy.deepcopy({
+                'schema_version': SHOP_TRANSACTION_SCHEMA_VERSION,
+                'transaction_id': 'integrity-check',
+                'profile': ShopProfile(meta_coins=gem).to_dict(),
+                'run': None,
+            })
+
+        def write_journal(document):
+            paths.transaction.write_text(
+                _json.dumps(document), encoding='utf-8'
+            )
+
+        ShopRepository(paths).save_profile(ShopProfile(meta_coins=88))
+        write_journal(sign(journal(90)))
+        honest_journal = ShopRepository(paths).load_profile()
+
+        # Signed, then edited: the journal writes into the profile, so an
+        # unchecked one is a way around both other signatures.
+        ShopRepository(paths).save_profile(ShopProfile(meta_coins=88))
+        forged = sign(journal(90))
+        forged['profile']['meta_coins'] = 500000
+        write_journal(forged)
+        after_forged = ShopRepository(paths).load_profile()
+
+        # And an unsigned journal is discarded rather than grandfathered.
+        # It is written before either state file changes, so both are still
+        # consistent without it.
+        ShopRepository(paths).save_profile(ShopProfile(meta_coins=88))
+        write_journal(journal(500000))
+        after_unsigned = ShopRepository(paths).load_profile()
+
+        journal_valid = bool(
+            honest_journal.meta_coins == 90
+            and not honest_journal.integrity_modified
+            and after_forged.meta_coins == 88
+            and after_forged.integrity_modified
+            and after_unsigned.meta_coins == 88
+            and not paths.transaction.is_file()
+        )
+
+        # A modified profile keeps playing and stops buying Archipelago
+        # locations, because those send items into other people's games.
+        modified_profile = replace(
+            ShopProfile(meta_coins=1000), integrity_modified=True
+        )
+        blocked = validate_archipelago_purchase(
+            modified_profile, 'ap-v1:integrity', 101, cost=5,
+            connected=True, available_location_ids=(101,),
+        )
+        allowed = validate_archipelago_purchase(
+            ShopProfile(meta_coins=1000), 'ap-v1:integrity', 101, cost=5,
+            connected=True, available_location_ids=(101,),
+        )
+        ap_gate_valid = bool(
+            blocked.result is PurchaseResult.PROFILE_MODIFIED
+            and not blocked.allowed
+            and allowed.result is PurchaseResult.OK
+        )
+
+    return {
+        'shop_state_signed_valid': signed_valid,
+        'shop_state_tamper_flagged_valid': tamper_valid,
+        'shop_state_unsigned_accepted_valid': legacy_valid,
+        'shop_state_journal_signed_valid': journal_valid,
+        'shop_modified_profile_ap_gate_valid': ap_gate_valid,
     }
 
 
@@ -2581,6 +2721,7 @@ def validate_shop_domain():
         'catalogue_entries': len(catalogue),
     }
     details.update(_phase_two_checks(mission_pool))
+    details.update(_phase_integrity_checks())
     details.update(_phase_four_checks())
     details.update(_phase_five_checks())
     details.update(_phase_six_checks())

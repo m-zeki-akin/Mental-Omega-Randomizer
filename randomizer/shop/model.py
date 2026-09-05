@@ -41,6 +41,7 @@ class PurchaseResult(str, Enum):
     NOT_ENTITLED = 'not_entitled'
     MAX_UPGRADE_LEVEL = 'max_upgrade_level'
     ALREADY_PURCHASED_THIS_STAGE = 'already_purchased_this_stage'
+    PROFILE_MODIFIED = 'profile_modified'
 
 
 class ShopRewardType(str, Enum):
@@ -269,6 +270,10 @@ class ShopProfile:
     permanent_upgrades: Mapping[str, int] = field(default_factory=dict)
     salvaged_run_coins: int = 0
     archipelago_profiles: Mapping[str, Any] = field(default_factory=dict)
+    # Set when a Shop state file failed its signature. Sticky: it is
+    # signed along with everything else, so re-signing after detection
+    # cannot quietly clear it.
+    integrity_modified: bool = False
 
     def upgrade_level(self, upgrade_id: str) -> int:
         return int(self.permanent_upgrades.get(upgrade_id, 0))
@@ -286,6 +291,7 @@ class ShopProfile:
             'permanent_upgrades': dict(self.permanent_upgrades),
             'salvaged_run_coins': self.salvaged_run_coins,
             'archipelago_profiles': deepcopy(dict(self.archipelago_profiles)),
+            'integrity_modified': bool(self.integrity_modified),
         }
 
 

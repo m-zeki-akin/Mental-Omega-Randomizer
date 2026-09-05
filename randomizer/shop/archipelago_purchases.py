@@ -58,6 +58,15 @@ def validate_archipelago_purchase(
     cost = int(cost)
     if not connected or not identity:
         return PurchaseValidation(PurchaseResult.AP_NOT_CONNECTED)
+    # A modified profile plays on alone -- what someone does to their own run
+    # is their business. A multiworld is not their own: Gems buy locations,
+    # and locations send items into other people's games. That is the one
+    # place the cheating has someone else on the receiving end, so it is the
+    # one place that closes.
+    if profile.integrity_modified:
+        return PurchaseValidation(
+            PurchaseResult.PROFILE_MODIFIED, str(location_id), cost
+        )
     if location_id not in set(int(value) for value in available_location_ids):
         return PurchaseValidation(PurchaseResult.NOT_SHOP_ELIGIBLE)
     records = archipelago_purchase_records(profile, identity)

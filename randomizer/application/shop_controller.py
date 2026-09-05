@@ -848,15 +848,23 @@ class ShopController(ShopPolishController):
                 ap_identity, ap_reward_ids, current_run=self.shop_run
             )
         run = self.shop_run
+        # A modified profile is said out loud rather than acted on silently.
+        # The player keeps everything they had and keeps playing; what they
+        # lose is Archipelago, and they are owed a reason for that.
+        modified = ' • Profile modified' if (
+            self.shop_profile.integrity_modified
+        ) else ''
         if run is None:
             self.shop_stage_var.set('Run —')
-            self.shop_status_var.set('Status: No Run')
+            self.shop_status_var.set(f'Status: No Run{modified}')
             self.shop_run_coins_var.set('Ore: 0')
         else:
             self.shop_stage_var.set(shop_run_progress_text(
                 run, self.shop_profile
             ))
-            self.shop_status_var.set(f'Status: {run.status.value.title()}')
+            self.shop_status_var.set(
+                f'Status: {run.status.value.title()}{modified}'
+            )
             self.shop_run_coins_var.set(f'Ore: {run.run_coins}')
         if hasattr(self, 'shop_status_label'):
             status_style = (

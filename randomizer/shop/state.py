@@ -2,6 +2,8 @@
 
 from copy import deepcopy
 
+from randomizer.core.integrity import strip_signature
+
 from .config import SHOP_CONFIG
 from .model import (
     SHOP_PROFILE_SCHEMA_VERSION,
@@ -164,6 +166,7 @@ RETIRED_UPGRADE_IDS = frozenset({
 def normalize_shop_profile(document=None, *, config=SHOP_CONFIG):
     if document is None:
         document = {}
+    document = strip_signature(document)
     document = migrate_shop_profile(document)
     unlocks = _unique_strings(
         document.get('permanent_unit_unlocks'), 'permanent_unit_unlocks'
@@ -228,11 +231,12 @@ def normalize_shop_profile(document=None, *, config=SHOP_CONFIG):
             document.get('salvaged_run_coins'), 'salvaged_run_coins'
         ),
         archipelago_profiles=archipelago_profiles,
+        integrity_modified=bool(document.get('integrity_modified')),
     )
 
 
 def migrate_shop_run(document):
-    document = deepcopy(_object(document, 'run'))
+    document = deepcopy(_object(strip_signature(document), 'run'))
     _version(document, SHOP_RUN_SCHEMA_VERSION, 'Shop run')
     return document
 
