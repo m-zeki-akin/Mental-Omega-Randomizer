@@ -198,12 +198,10 @@ so the opening purchase keeps the weight it was designed with. Victory Ore
 Bonus (+25 a level) and Recovery Salvage (+125 a level, 625 carried) moved
 with them.
 
-The price side deliberately did **not** move: shop prices, the minimum
-shop price, and Coupon Book are all denominated in prices that were left
-alone precisely so the extra Ore would buy more. Scaling them was tried
-and reverted -- a 25 Ore floor sits above the cheapest item in the
-catalogue (20 Ore), so it raises that price instead of capping it and
-leaves every discount on cheap stock inert.
+Prices did not move with that scaling, and no longer sit in the same file
+as it: they come from the tier model below. What stayed where it was is
+`minimum_shop_price` and Coupon Book -- the floor was deliberately left
+under the cheapest item so it caps a discount instead of raising a price.
 
 Every Ore and Gem amount is held at ten times its natural size: rewards,
 prices, upgrade ladders, and the flat adjustments modifiers make. Percentage
