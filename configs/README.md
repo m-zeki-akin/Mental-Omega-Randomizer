@@ -589,3 +589,30 @@ looked up but never enumerated, and anything unnamed is unchecked.
 
 The result is reported, never enforced. A modded or patched installation is a
 fact about the player's game, not a fault in the launcher.
+
+## rules_digest.json
+
+The same question one level down. The manifest answers "is this file stock";
+this answers "is this *section* stock", which is what the launcher needs once
+every player clone is built from the rules the installation actually loads:
+a submod's Rhino must reach the game as the submod's Rhino, and still be
+marked as not stock.
+
+Answering it needs the stock rules, and shipping them costs 4.2 MB and puts
+the answer in a file the player can edit. So what ships is 146 KB of hashes:
+one 48-bit keyed digest per section, 11,699 of them across all four stock
+INIs. Enough to say a section differs; not enough to reconstruct a line of it.
+Keys are compared lower-case and sorted before hashing, because INI key case
+and order mean nothing to the engine and must mean nothing here either.
+
+`rulesmo` drives the unit marker and `artmo` the clone art. `aimo` and
+`battlemo` are digested because they are part of what "stock" means, at a few
+kilobytes each, so a later check needs no new format.
+
+The hash is keyed rather than plain for the reason `randomizer/core/integrity`
+gives about its own: a plain SHA lets anyone recompute a digest for their edit
+and patch it into the table. It is a doorstep, not a lock. For the same
+reason `tools/build_rules_digest.py` is not committed -- neither are the
+`configs/*-original.ini` files it reads -- so the table cannot be rebuilt from
+a modified installation. Regenerating it is a maintenance step, run once per
+Mental Omega version.

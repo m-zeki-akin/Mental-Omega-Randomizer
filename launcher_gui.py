@@ -13,6 +13,7 @@ from randomizer.core.authenticity import (
     validate_authenticity_contract,
     verify_installation,
 )
+from randomizer.core.rules_digest import validate_rules_digest_contract
 from randomizer.core.diagnostics import event as log_event
 from randomizer.core.runtime_cleanup import sweep_stale_runtime_directories
 from randomizer.core.paths import (
@@ -1180,6 +1181,10 @@ def run_self_check():
         # first run.
         game_files = verify_installation()
         authenticity_contract = validate_authenticity_contract()
+        # The same question one level down: not "is this file stock" but "is
+        # this section stock", answered from a shipped table of hashes rather
+        # than a copy of the stock rules the player could edit.
+        rules_digest_contract = validate_rules_digest_contract()
         undefined_global_names, scanned_modules = scan_undefined_globals()
         # A row that says a unit is buyable and a button that refuses to buy
         # it are two answers to one question. They drifted apart once already:
@@ -1211,6 +1216,10 @@ def run_self_check():
             'authenticity_contract': authenticity_contract,
             'authenticity_contract_valid': all(
                 authenticity_contract.values()
+            ),
+            'rules_digest_contract': rules_digest_contract,
+            'rules_digest_contract_valid': all(
+                rules_digest_contract.values()
             ),
             'game_files_summary': summary_line(game_files),
             'mission_launch_contract': launch_contract,
@@ -1430,6 +1439,7 @@ def run_self_check():
                 'unit_costs_from_installed_rules',
                 'mission_launch_contract_valid',
                 'authenticity_contract_valid',
+                'rules_digest_contract_valid',
                 'permanent_purchase_gate_shared',
                 'undefined_globals_valid',
                 'archipelago_client_contract_valid',

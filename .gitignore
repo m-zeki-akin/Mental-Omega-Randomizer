@@ -37,4 +37,14 @@ price_audit/
 # 90 MB of it, and the manifest is 210 KB, so only the manifest is tracked.
 configs/maps/
 configs/*-original.ini
+# And the builder that turns them into configs/rules_digest.json. The
+# shipped table only means anything while the player cannot rebuild it
+# from their own modified files.
+tools/build_rules_digest.py
+
+# Per-machine runtime artefacts. The authenticity cache is file stamps
+# from one installation and self_check.json is one run's report; both
+# land beside the launcher and neither means anything anywhere else.
+authenticity_cache.json
+self_check.json
 configs/Mix-Unprotect*.exe
