@@ -2,6 +2,7 @@
 
 import json
 from hashlib import sha256
+from pathlib import Path
 import random
 import sys
 import traceback
@@ -109,8 +110,6 @@ def run_self_check():
             ['LightningStormSpecial'], synchronous=True
         )
         static_config_paths = validate_static_configs(REQUIRED_STATIC_CONFIGS)
-        from randomizer.launch.self_check import validate_launch_contract
-        launch_contract = validate_launch_contract()
         from randomizer.shop.self_check import validate_shop_domain
         shop_domain = validate_shop_domain()
         import websockets
@@ -1157,6 +1156,18 @@ def run_self_check():
         # line runs, so a dropped import ships and the first person to hover
         # the wrong row gets a traceback dialog. Read from the bytecode, so
         # this works in the frozen launcher too.
+        # Reports failure by raising, and a raise here would replace the
+        # whole report with one traceback -- ninety checks that had already
+        # passed, gone, because a seventh unrelated one regressed. Caught and
+        # recorded as a failed check like any other, so the report still
+        # says what else is true.
+        from randomizer.launch.self_check import validate_launch_contract
+        try:
+            launch_contract = validate_launch_contract()
+        except Exception:
+            launch_contract = {
+                'passed': False, 'traceback': traceback.format_exc()
+            }
         undefined_global_names, scanned_modules = scan_undefined_globals()
         # A row that says a unit is buyable and a button that refuses to buy
         # it are two answers to one question. They drifted apart once already:
@@ -1185,6 +1196,9 @@ def run_self_check():
         )
         checks = {
             'mission_launch_contract': launch_contract,
+            'mission_launch_contract_valid': bool(
+                launch_contract.get('passed')
+            ),
             'app_version': APP_VERSION,
             'game_root': str(GAME_ROOT),
             'runtime_data_writable': APP_DIR.exists(),
@@ -1396,6 +1410,7 @@ def run_self_check():
                 'static_configs_valid',
                 'shop_domain_valid',
                 'unit_costs_from_installed_rules',
+                'mission_launch_contract_valid',
                 'permanent_purchase_gate_shared',
                 'undefined_globals_valid',
                 'archipelago_client_contract_valid',
@@ -1454,7 +1469,43 @@ def run_self_check():
         return 1
 
 
+# Written as --report-command-line=<path>, and to a file rather than stdout:
+# this is a --windowed build, where nothing is attached to stdout and a print
+# goes nowhere. The path is part of the flag token so that everything after it
+# stays untouched -- those arguments are the payload under test.
+REPORT_COMMAND_LINE_FLAG = '--report-command-line='
+
+
+def report_command_line():
+    """Record this process's raw Windows command line and its tail argv.
+
+    The launch contract's only end-to-end test spawns a child and reads what
+    Windows actually handed it, rather than trusting Python's own argv
+    parsing. It ran that child through a Python interpreter, which a frozen
+    build has none of, so the one test that verifies the quoting Syringe
+    depends on was skipped in exactly the build that ships. The EXE answers
+    the question about itself now.
+    """
+    import ctypes
+
+    index = next(
+        position for position, argument in enumerate(sys.argv)
+        if argument.startswith(REPORT_COMMAND_LINE_FLAG)
+    )
+    destination = sys.argv[index][len(REPORT_COMMAND_LINE_FLAG):]
+    ctypes.windll.kernel32.GetCommandLineW.restype = ctypes.c_wchar_p
+    Path(destination).write_text(
+        json.dumps([
+            ctypes.windll.kernel32.GetCommandLineW(), sys.argv[index + 1:]
+        ]),
+        encoding='utf-8',
+    )
+
+
 if __name__ == '__main__':
+    if any(a.startswith(REPORT_COMMAND_LINE_FLAG) for a in sys.argv):
+        report_command_line()
+        raise SystemExit(0)
     if '--launch-self-check' in sys.argv:
         from randomizer.launch.self_check import validate_launch_contract
         # A focused packaged check needs no game assets, GUI, or player state.

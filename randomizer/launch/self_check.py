@@ -3,9 +3,10 @@
 import io
 import json
 import os
-from pathlib import PureWindowsPath
+from pathlib import Path, PureWindowsPath
 import subprocess
 import sys
+import tempfile
 import unittest
 from unittest.mock import Mock, patch
 
@@ -139,25 +140,54 @@ class LaunchCommandTests(unittest.TestCase):
             with self.subTest(argument=argument):
                 self.assertEqual(launch.quote_windows_argument(argument), expected)
 
-    @unittest.skipUnless(sys.platform == 'win32' and not getattr(sys, 'frozen', False),
-                         'Requires a Windows Python interpreter')
+    @unittest.skipUnless(sys.platform == 'win32', 'Requires Windows')
     def test_real_windows_process_command_line(self):
-        # Observe GetCommandLineW in a real child, not just Python's argv parser.
-        script = (
-            'import ctypes,json,sys; '
-            'ctypes.windll.kernel32.GetCommandLineW.restype=ctypes.c_wchar_p; '
-            'print(json.dumps([ctypes.windll.kernel32.GetCommandLineW(),sys.argv[1:]]))'
-        )
-        for host in ('gamemd.exe', r'C:\Games\MO\gamemd.exe', r'C:\Mental Omega\gamemd.exe'):
-            with self.subTest(host=host):
-                tail = launch.windows_syringe_command_line(['Syringe.exe', host, *FLAGS])
-                tail = tail.removeprefix('Syringe.exe ')
-                command = subprocess.list2cmdline([sys.executable, '-c', script]) + ' ' + tail
-                result = subprocess.run(command, executable=sys.executable, check=True,
-                                        capture_output=True, text=True)
-                raw, argv = json.loads(result.stdout)
-                self.assertTrue(raw.endswith(' "' + host + '" ' + ' '.join(FLAGS)))
-                self.assertEqual(argv, [host, *FLAGS])
+        """Read what Windows handed a real child, not what Python parsed.
+
+        This is the only test here that leaves the process, and it used to be
+        skipped whenever the build was frozen -- which is to say, in the only
+        build anybody runs. It spawned a Python interpreter, and a frozen
+        build has none. The packaged launcher reports its own command line
+        instead, to a file: the EXE is windowed, so nothing is listening on
+        stdout.
+        """
+        with tempfile.TemporaryDirectory(prefix='mo-cmdline-probe-') as folder:
+            report = Path(folder) / 'command-line.json'
+            frozen = getattr(sys, 'frozen', False)
+            if frozen:
+                probe = [sys.executable, f'--report-command-line={report}']
+            else:
+                script = (
+                    'import ctypes,json,sys; from pathlib import Path; '
+                    'ctypes.windll.kernel32.GetCommandLineW.restype='
+                    'ctypes.c_wchar_p; '
+                    'Path(sys.argv[1]).write_text(json.dumps(['
+                    'ctypes.windll.kernel32.GetCommandLineW(),sys.argv[2:]]),'
+                    "encoding='utf-8')"
+                )
+                probe = [sys.executable, '-c', script, str(report)]
+            for host in (
+                'gamemd.exe', r'C:\Games\MO\gamemd.exe',
+                r'C:\Mental Omega\gamemd.exe',
+            ):
+                with self.subTest(host=host):
+                    tail = launch.windows_syringe_command_line(
+                        ['Syringe.exe', host, *FLAGS]
+                    )
+                    tail = tail.removeprefix('Syringe.exe ')
+                    command = subprocess.list2cmdline(probe) + ' ' + tail
+                    subprocess.run(
+                        command, executable=sys.executable, check=True,
+                        capture_output=True, text=True,
+                    )
+                    raw, argv = json.loads(
+                        report.read_text(encoding='utf-8')
+                    )
+                    report.unlink()
+                    self.assertTrue(
+                        raw.endswith(' "' + host + '" ' + ' '.join(FLAGS))
+                    )
+                    self.assertEqual(argv, [host, *FLAGS])
 
 
 def validate_launch_contract():
@@ -167,4 +197,14 @@ def validate_launch_contract():
     result = unittest.TextTestRunner(stream=output).run(suite)
     if not result.wasSuccessful():
         raise RuntimeError(output.getvalue())
-    return {'passed': True, 'tests': result.testsRun, 'skipped': len(result.skipped)}
+    # Named, not counted. A bare 'skipped: 1' reads as complete coverage to
+    # anyone who does not go looking for which one, and the one that used to
+    # be skipped here was the only end-to-end check in the suite.
+    return {
+        'passed': True,
+        'tests': result.testsRun,
+        'skipped': [
+            f'{case.id().rsplit(".", 1)[-1]}: {reason}'
+            for case, reason in result.skipped
+        ],
+    }
