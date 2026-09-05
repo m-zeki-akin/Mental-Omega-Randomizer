@@ -51,6 +51,16 @@ def is_max_rewards_achieved_reward(reward):
     )
 
 
+# Weight families. A group that empties hands its share to its siblings
+# rather than to the whole table: access competes with upgrades, and an
+# exhausted Special-unlock pool is no reason for upgrades to get more common.
+MAIN_WEIGHT_FAMILIES = (
+    ('unit_unlocks', 'power_unlocks', 'special_unlocks'),
+    ('unit_buffs', 'power_buffs'),
+    ('economy',),
+)
+
+
 def summarize_plan_supply(plan, configured_pool=None):
     """Return what a finished plan contains, and what it had to choose from.
 
@@ -153,6 +163,7 @@ def plan_seed_rewards(
     blocked_reward_names=(),
     reserved_rewards=(),
     access_limits=None,
+    on_draw=None,
 ):
     """Assign rewards without reading GUI or mutable launcher state.
 
@@ -892,6 +903,47 @@ def plan_seed_rewards(
             roll -= weight
         return weighted[-1][0]
 
+    def family_weights(present):
+        """Return group weights with empty siblings' share kept in the family.
+
+        Weights are normalized over the groups a slot can actually choose
+        between, so a group that runs out hands its share to everything still
+        standing -- including the groups it was competing with. Access is
+        split across three groups and two of them are small: 70 special
+        unlocks and 79 power unlocks against 2,817 unit buffs that restack and
+        never empty. So the moment the small access groups ran dry, access
+        stopped being three votes against three and became one against three,
+        and the access share fell from 61% to 35% while 144 access rewards sat
+        unused. No setting could express "keep this ratio until it is spent",
+        which is the only thing a weight should mean.
+
+        An empty group's share now stays inside its own family and is split
+        among the siblings that remain. Access keeps its full configured
+        weight until the last access reward is gone.
+        """
+        adjusted = {}
+        for family in MAIN_WEIGHT_FAMILIES:
+            configured = {
+                group: reward_weights['main'][group]
+                for group in family
+                if group in reward_weights['main']
+            }
+            family_total = sum(configured.values())
+            live = {
+                group: weight
+                for group, weight in configured.items()
+                if group in present and weight > 0
+            }
+            live_total = sum(live.values())
+            if not live_total or not family_total:
+                continue
+            for group, weight in live.items():
+                # Scaled so the integer draw stays exact across families.
+                adjusted[group] = round(
+                    weight * family_total * 1000 / live_total
+                )
+        return adjusted
+
     def eligible_weighted_rewards(code, unit_only=False):
         candidates = []
         for reward in pool_by_code.get(code, ()):
@@ -943,8 +995,20 @@ def plan_seed_rewards(
             ).append(candidate)
         main_type = weighted_choice(
             list(groups),
-            lambda item: reward_weights['main'][item],
+            family_weights(groups).get,
         )
+        if on_draw is not None:
+            # Which groups a slot could actually choose between, not which one
+            # it took. A weight only means something while its group is in
+            # this list, and the difference between "turned down" and "not
+            # offered" is invisible from the finished plan.
+            on_draw({
+                'code': code,
+                'groups': {
+                    group: len(entries) for group, entries in groups.items()
+                },
+                'chosen': main_type,
+            })
         if main_type is None:
             return None
         candidates = groups[main_type]
