@@ -172,7 +172,6 @@ class ShopPolishController(ShopArchipelagoController):
             'shop_catalogue_tree',
             'shop_permanent_unit_tree',
             'shop_upgrade_tree',
-            'shop_permanent_buff_tree',
             'shop_loadout_select_tree',
         ):
             tree = getattr(self, tree_name, None)
@@ -1385,14 +1384,6 @@ class ShopPolishController(ShopArchipelagoController):
         )
         self.shop_permanent_unit_button.configure(
             state='normal' if unit_allowed else 'disabled'
-        )
-        owned_unit_selected = bool(
-            unit_selection
-            and self._shop_permanent_rows.get(unit_selection[0], '')
-            in self.shop_profile.permanent_unit_unlocks
-        )
-        self.shop_permanent_unit_buffs_button.configure(
-            state='normal' if owned_unit_selected else 'disabled'
         )
         self.shop_permanent_upgrade_button.configure(
             state='normal' if upgrade_allowed else 'disabled'

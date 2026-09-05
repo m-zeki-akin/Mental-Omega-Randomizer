@@ -55,7 +55,6 @@ from .config import SHOP_CONFIG
 from .economy import (
     discounted_shop_price,
     mission_reward,
-    permanent_buff_price,
     permanent_target_surcharged,
     permanent_unit_price,
     run_buff_price,
@@ -66,7 +65,6 @@ from .economy import (
 from .meta import (
     PERMANENT_PURCHASE_LOCKED_MESSAGE,
     permanent_purchase_block_reason,
-    purchase_permanent_buff,
     purchase_permanent_unit,
     purchase_permanent_upgrade,
     validate_starting_loadout,
@@ -1841,13 +1839,7 @@ def validate_shop_domain():
         # A campaign-only superunit: 750 for being a hero, four times over
         # for being one no skirmish game offers.
         and permanent_unit_price('STARDUSTB') == 3000
-        and permanent_buff_price('SPY') == round(
-            permanent_unit_price('SPY')
-            * SHOP_CONFIG.price_scales['permanent_gem'].buff_percent_of_access
-            / 100
-        )
-        # A hero unit's upgrade, four times over for being campaign-only.
-        and permanent_buff_price('STARDUSTB') == unit_buff_price(
+        and permanent_unit_price('STARDUSTB') == unit_access_price(
             'STARDUSTB', SHOP_CONFIG.price_scales['permanent_gem']
         ) * SHOP_CONFIG.price_scales['permanent_gem'].excluded_target_multiplier
         and unavailable_price_valid
@@ -1958,22 +1950,21 @@ def validate_shop_domain():
     repeated_purchase = purchase_permanent_unit(
         first_purchase.profile, gi_access, price=10
     )
-    permanent_buff_purchase = purchase_permanent_buff(
-        first_purchase.profile, gi_buff, price=5
+    # A profile that bought permanent buffs before the Gem shop stopped
+    # selling them still has to load and still has to apply them, so the
+    # roundtrip is asserted over a profile carrying one.
+    legacy_profile = replace(
+        first_purchase.profile,
+        permanent_buffs=(BuffPurchase(gi_buff_entry.reward_id, 1),),
     )
-    restored_profile = normalize_shop_profile(
-        permanent_buff_purchase.profile.to_dict()
-    )
+    restored_profile = normalize_shop_profile(legacy_profile.to_dict())
     permanent_purchase_valid = bool(
         first_purchase.validation.result is PurchaseResult.OK
         and first_purchase.profile.meta_coins == 90
         and repeated_purchase.validation.result is PurchaseResult.ALREADY_OWNED
         and repeated_purchase.profile.meta_coins == 90
-        and permanent_buff_purchase.validation.result is PurchaseResult.OK
-        and permanent_buff_purchase.profile.meta_coins == 85
-        and permanent_buff_purchase.profile.permanent_buffs
-        == (BuffPurchase(gi_buff_entry.reward_id, 1),)
-        and restored_profile == permanent_buff_purchase.profile
+        and restored_profile == legacy_profile
+        and not hasattr(ShopProgressionService, 'purchase_permanent_buff')
     )
 
     nonstarter_entries = []
@@ -2472,9 +2463,6 @@ def validate_shop_domain():
             and ore_scale.excluded_target_multiplier == 1
             and all(
                 permanent_unit_price(target) == unit_access_price(
-                    target, gem_scale
-                ) * gem_scale.excluded_target_multiplier
-                and permanent_buff_price(target) == unit_buff_price(
                     target, gem_scale
                 ) * gem_scale.excluded_target_multiplier
                 and permanent_target_surcharged(target)

@@ -346,16 +346,6 @@ def permanent_unit_price(target_id, *, config: ShopModeConfig = SHOP_CONFIG):
     )
 
 
-def permanent_buff_price(target_id, *, config: ShopModeConfig = SHOP_CONFIG):
-    scale = _scale(config, 'permanent_gem')
-    return excluded_target_surcharge(
-        unit_buff_price(target_id, scale, config=config),
-        target_id,
-        scale,
-        config,
-    )
-
-
 def permanent_upgrade_price(
     upgrade_id,
     next_level,

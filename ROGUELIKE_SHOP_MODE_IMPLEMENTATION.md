@@ -884,9 +884,18 @@ the one-offs out, Tier 3's window is 750-2,500 and its ordinary units spread
 across the whole 160-240 band instead of crowding 170-210. Gems charge no
 one-off premium; they have their own multiplier below.
 
-One upgrade stack costs 25% of what its target costs on the same scale. The
-cheapest Tier 1 unit lands exactly on `minimum_shop_price`, so nothing is
-clamped away, but there is no headroom left under the floor either.
+One upgrade stack costs 25% of what its target costs, and only Ore ever
+charges it. The cheapest Tier 1 unit lands exactly on `minimum_shop_price`,
+so nothing is clamped away, but there is no headroom left under the floor
+either.
+
+The Gem shop sells units and permanent upgrades to the run itself; it does
+not sell unit upgrades. Every unit upgrade now comes from a mission victory
+or the run shelf, both of which draw rather than let you pick, which is the
+whole reason the drawn rewards exist -- a Gem tab that let you buy the same
+stack twenty times put the narrow roster it was meant to prevent back on the
+table. Profiles that bought permanent buffs before this keep them: they load,
+they snapshot into a run, and they apply.
 
 Powers have no credit cost to read, so their tier decides outright. The
 superweapons and campaign-only powers the Reward Pool groups name take a flat
@@ -1187,7 +1196,7 @@ so rather than leaving the player to find out:
 | -------------------------------------------------------------------- | ------- |
 | Upgrades read live from the profile (Extra Life, Victory Ore Bonus, Shop Discount, Challenge Hunter, ...) | at once |
 | Starting Capital, Expanded Loadout, Starting Buff Draft, Veteran Academy | next run |
-| Permanent units and permanent buffs                                  | next run |
+| Permanent units (and any permanent buffs an older profile carries)   | next run |
 
 The last two rows are snapshotted into the run when it starts, so their rows
 read `Available (next run)` while a run is going. Selecting a permanent unit

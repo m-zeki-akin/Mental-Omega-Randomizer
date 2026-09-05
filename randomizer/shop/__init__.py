@@ -15,7 +15,6 @@ from .archipelago import (
 from .economy import (
     discounted_shop_price,
     mission_reward,
-    permanent_buff_price,
     permanent_unit_price,
     permanent_upgrade_price,
     run_buff_price,
@@ -86,7 +85,6 @@ __all__ = (
     'normalize_shop_profile',
     'normalize_shop_run',
     'permanent_unit_price',
-    'permanent_buff_price',
     'permanent_upgrade_price',
     'random_ap_unit_entitlement_ids',
     'reroll_missions',

@@ -212,7 +212,9 @@ added to a group is priced as one without a second edit.
 `buff_percent_of_access` prices one upgrade stack as a percentage of what its
 target costs on the same scale. It applies even where the unit itself has no
 access offer -- a Tier 1 starter is never for sale and its upgrades still need
-a number.
+a number. Only the Ore scale has anything to charge it on: the Gem shop sells
+units, not unit upgrades. The Gem figure is kept so both scales stay the same
+shape.
 
 `excluded_target_multiplier` is the second multiplier, and it is not the same
 rule. It covers only what the Reward Pool groups name, and it prices *owning*

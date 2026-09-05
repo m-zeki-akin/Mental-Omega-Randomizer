@@ -17,14 +17,12 @@ from .archipelago_purchases import (
 from .catalogue import canonical_reward_for_id, catalogue_entry
 from .config import SHOP_CONFIG, run_shop_config
 from .economy import (
-    permanent_buff_price,
     permanent_unit_price,
     run_reward_price,
 )
 from .meta import (
     permanent_purchase_block_reason,
     purchase_permanent_unit as apply_permanent_unit_purchase,
-    purchase_permanent_buff as apply_permanent_buff_purchase,
     purchase_permanent_upgrade as apply_permanent_upgrade_purchase,
 )
 from .model import RunStatus, ShopProfile, ShopRewardType
@@ -331,25 +329,6 @@ class ShopProgressionService:
         )
         price = permanent_unit_price(entry.target_id) if shop_eligible else 0
         outcome = apply_permanent_unit_purchase(
-            profile, reward, price=price, shop_eligible=shop_eligible
-        )
-        if outcome.validation.allowed:
-            self.repository.save_profile(outcome.profile)
-        return outcome
-
-    def purchase_permanent_buff(self, reward_id):
-        profile, run = self.repository.load()
-        blocked = permanent_purchase_block_reason(run)
-        if blocked:
-            raise ShopTransitionError(blocked)
-        reward = canonical_reward_for_id(reward_id)
-        entry = catalogue_entry(reward)
-        shop_eligible = bool(
-            entry is not None
-            and entry.reward_type is ShopRewardType.UNIT_BUFF
-        )
-        price = permanent_buff_price(entry.target_id) if shop_eligible else 0
-        outcome = apply_permanent_buff_purchase(
             profile, reward, price=price, shop_eligible=shop_eligible
         )
         if outcome.validation.allowed:

@@ -84,60 +84,6 @@ def purchase_permanent_unit(profile, reward, *, price, shop_eligible=True):
     return ProfilePurchaseOutcome(updated, validation)
 
 
-def purchase_permanent_buff(profile, reward, *, price, shop_eligible=True):
-    reward_id = canonical_reward_id(reward)
-    entry = catalogue_entry(reward) if shop_eligible else None
-    if entry is None or entry.reward_type is not ShopRewardType.UNIT_BUFF:
-        return ProfilePurchaseOutcome(
-            profile,
-            PurchaseValidation(
-                PurchaseResult.NOT_SHOP_ELIGIBLE, reward_id, int(price)
-            ),
-        )
-    owned_targets = {
-        owned_entry.target_id
-        for owned_id in profile.permanent_unit_unlocks
-        for owned_entry in [catalogue_entry(canonical_reward_for_id(owned_id))]
-        if owned_entry is not None
-        and owned_entry.reward_type is ShopRewardType.UNIT_ACCESS
-    }
-    if entry.target_id not in owned_targets:
-        return ProfilePurchaseOutcome(
-            profile,
-            PurchaseValidation(
-                PurchaseResult.REQUIRES_UNIT_ACCESS, reward_id, int(price)
-            ),
-        )
-    current = next((
-        item.stacks for item in profile.permanent_buffs
-        if item.reward_id == reward_id
-    ), 0)
-    if entry.stack_limit is not None and current >= entry.stack_limit:
-        return ProfilePurchaseOutcome(
-            profile,
-            PurchaseValidation(PurchaseResult.MAX_STACKS, reward_id, int(price)),
-        )
-    if profile.meta_coins < int(price):
-        return ProfilePurchaseOutcome(
-            profile,
-            PurchaseValidation(
-                PurchaseResult.INSUFFICIENT_CURRENCY, reward_id, int(price)
-            ),
-        )
-    buffs = [
-        item for item in profile.permanent_buffs if item.reward_id != reward_id
-    ]
-    buffs.append(BuffPurchase(reward_id, current + 1))
-    return ProfilePurchaseOutcome(
-        replace(
-            profile,
-            meta_coins=profile.meta_coins - int(price),
-            permanent_buffs=tuple(buffs),
-        ),
-        PurchaseValidation(PurchaseResult.OK, reward_id, int(price)),
-    )
-
-
 def purchase_permanent_upgrade(
     profile,
     upgrade_id,

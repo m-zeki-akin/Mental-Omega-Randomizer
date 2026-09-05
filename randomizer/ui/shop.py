@@ -402,7 +402,7 @@ def build_shop_tab(self, workspace_tabs):
     permanent_search = ttk.Frame(permanent)
     permanent_search.grid(row=0, column=0, sticky='ew', pady=(0, 6))
     permanent_search.columnconfigure(1, weight=1)
-    ttk.Label(permanent_search, text='Search units, buffs, upgrades:').grid(
+    ttk.Label(permanent_search, text='Search units and upgrades:').grid(
         row=0, column=0, sticky='w', padx=(0, 6)
     )
     ttk.Entry(
@@ -464,13 +464,6 @@ def build_shop_tab(self, workspace_tabs):
     ).grid(row=2, column=0, sticky='w', pady=(7, 4))
     permanent_unit_actions = ttk.Frame(permanent_units)
     permanent_unit_actions.grid(row=3, column=0, sticky='ew')
-    self.shop_permanent_unit_buffs_button = ttk.Button(
-        permanent_unit_actions,
-        text='View Buffs for Owned Unit',
-        command=self.open_selected_permanent_unit_buffs,
-        state='disabled',
-    )
-    self.shop_permanent_unit_buffs_button.pack(side='left')
     self.shop_permanent_unit_button = ttk.Button(
         permanent_unit_actions,
         text='Select a Unit',
@@ -518,69 +511,6 @@ def build_shop_tab(self, workspace_tabs):
         state='disabled',
     )
     self.shop_permanent_upgrade_button.grid(row=2, column=0, sticky='e')
-
-    permanent_buffs = ttk.Frame(permanent_tabs, padding=8)
-    self.shop_permanent_buffs_panel = permanent_buffs
-    permanent_tabs.add(permanent_buffs, text='Permanent Unit Buffs')
-    permanent_buffs.columnconfigure(0, weight=1)
-    permanent_buffs.rowconfigure(2, weight=1)
-    ttk.Label(
-        permanent_buffs,
-        text=(
-            '1. Buy a unit on Units. 2. Select it below. 3. Buy lasting buff '
-            'stacks with Gems. Buffs apply whenever that unit is selected '
-            'for a future run. Purchases are available only between runs.'
-        ),
-        style='Shop.Help.TLabel',
-        wraplength=620,
-    ).grid(row=0, column=0, sticky='w', pady=(0, 6))
-    permanent_buff_filter = ttk.Frame(permanent_buffs)
-    permanent_buff_filter.grid(row=1, column=0, sticky='ew', pady=(0, 6))
-    ttk.Label(permanent_buff_filter, text='Selected unit:').pack(side='left')
-    self.shop_permanent_buff_target_label = ttk.Label(
-        permanent_buff_filter,
-        textvariable=self.shop_permanent_buff_target_var,
-        style='Shop.Help.TLabel',
-    )
-    self.shop_permanent_buff_target_label.pack(side='left', padx=(6, 12))
-    ttk.Button(
-        permanent_buff_filter,
-        text='Choose from Units',
-        command=self.show_shop_permanent_units,
-    ).pack(side='left')
-    permanent_buff_tree_frame = ttk.Frame(permanent_buffs)
-    permanent_buff_tree_frame.grid(row=2, column=0, sticky='nsew')
-    self.shop_permanent_buff_tree = _tree(
-        permanent_buff_tree_frame,
-        ('effect', 'stacks', 'state', 'price'),
-        (
-            ('effect', 'Permanent Effect', 380),
-            ('stacks', 'Stacks', 90),
-            ('state', 'State', 160),
-            ('price', 'Next Price', 100),
-        ),
-        height=10,
-        cameos=True,
-    )
-    self.shop_permanent_buff_tree.bind(
-        '<<TreeviewSelect>>', self.refresh_permanent_buff_button
-    )
-    self.shop_permanent_buff_info_var = tk.StringVar(
-        value='Select a permanently unlocked unit, then choose a buff.'
-    )
-    ttk.Label(
-        permanent_buffs,
-        textvariable=self.shop_permanent_buff_info_var,
-        wraplength=620,
-        justify='left',
-    ).grid(row=3, column=0, sticky='w', pady=(7, 4))
-    self.shop_permanent_buff_button = ttk.Button(
-        permanent_buffs,
-        text='Select a Permanent Buff',
-        command=self.buy_selected_permanent_buff,
-        state='disabled',
-    )
-    self.shop_permanent_buff_button.grid(row=4, column=0, sticky='e')
 
     ap_purchases = ttk.Frame(panels, padding=8)
     self.shop_ap_panel = ap_purchases
