@@ -157,6 +157,34 @@ behavior. This policy never changes Shop currency or mission-credit values.
 `excluded_reward_ids` removes canonical rewards from Shop stock without
 retiring them from normal Randomizer progression or old save receipts.
 
+`enemy_buff_stage_tiers` is the vocabulary a stage-closing challenge draws the
+enemy's permanent buffs from, opened by difficulty tier (a tier is five
+stages). Entries name ids from `rewards/enemy_scaling.json`, each may appear in
+only one tier, and one tier must open at 1.
+
+All 48 enemy effects are reachable. Thirty-three of them -- the
+`tier1_`/`tier2_`/`tier3_` set that mirrors the player's own buff types -- were
+implemented, applied end to end by `maps/enemy_scaling.py`, drawn by
+Archipelago traps, and absent from this list, so a Shop run could only ever
+escalate in blanket category terms: every vehicle tougher, every factory
+faster. It can now say *Tier 2 enemy units reload 10% faster* instead.
+
+That fixed a plateau as much as it added variety. The old pool held 42 stacks
+and a run draws two per challenge, climbing one every two tiers, so the enemy
+stopped escalating around stage 18 while the player kept buying. Measured on
+one seed: 42 effects at stage 18, still 42 at stage 25, 47 at stage 40. With
+the full vocabulary that becomes 44, 70 and 140, and saturation moves to stage
+48. Long runs are therefore harder than they were, on purpose; the rate is
+`permanent_enemy_buffs_per_challenge` and `enemy_buff_escalation_stages` if it
+proves too steep.
+
+Order within the tiers is reviewed rather than mechanical. Stat buffs open
+first because they scale a fight the player can still read. `sensors` -- the
+enemy seeing cloaked units -- opens a tier after its stat siblings, and all
+three `cloak` effects wait for the superweapon tier: an invisible enemy army is
+the single largest swing here, and it should arrive when the player has
+detectors and the run has declared itself endless, not at stage 2.
+
 `mission_rewards` must contain exactly `act_1`, `act_2`, `operation`, and
 `finale`. Each class has a display label, unique positive difficulty rank, and
 non-negative Ore (`run_coins`) and Gem (`meta_coins`) rewards.

@@ -57,117 +57,321 @@
       }
     },
     "power_target_prices": {
-      "AMERICANPARADROPSPECIAL": {"tier": "tier_2"},
-      "BACKWARPSPECIAL": {"tier": "tier_3"},
-      "BLACKOUTMISSILESPECIAL": {"tier": "tier_2"},
-      "BLACKWIDOWALPHASPECIAL": {"tier": "tier_2"},
-      "BLACKWIDOWSPECIAL": {"tier": "tier_2"},
-      "BLOODHOUNDSSPECIAL": {"tier": "tier_2"},
-      "BOIDBLITZSPECIAL": {"tier": "tier_3"},
-      "CHAOSTOUCHSPECIAL": {"tier": "tier_2"},
-      "CHRONOBOOSTSPECIAL": {"tier": "tier_2"},
-      "CHRONOLIFTSPECIAL": {"tier": "tier_1"},
-      "CHRONOSPHERESPECIAL": {"tier": "tier_3"},
-      "CONFUSIONGRIDSPAWN": {"tier": "tier_1"},
-      "CRYOMINESPAWN": {"tier": "tier_1"},
-      "CRYOSHOTSPECIAL": {"tier": "tier_2"},
-      "CRYOSPEARSPECIAL": {"tier": "tier_3"},
-      "DECOYSQUADRONSPECIAL": {"tier": "tier_1"},
-      "DECOYTEAMSPECIAL": {"tier": "tier_1"},
-      "DEVOURERSPECIAL": {"tier": "tier_3"},
-      "DISRUPTORSPECIAL": {"tier": "tier_1"},
-      "DRAKUVSPECIAL": {"tier": "tier_3"},
-      "ELITERESERVESSPECIAL": {"tier": "tier_3"},
-      "EMPMINESPAWN": {"tier": "tier_1"},
-      "EMPULSSPECIAL": {"tier": "tier_2"},
-      "FLAMETOWERSPECIAL": {"tier": "tier_1"},
-      "FORCESHIELDSPECIAL": {"tier": "tier_3"},
-      "GEARCHANGESPECIAL": {"tier": "tier_3"},
-      "GENOMINESPAWN": {"tier": "tier_1"},
-      "GLACIALSCREENSPECIAL": {"tier": "tier_2"},
-      "GREATTEMPESTSPECIAL": {"tier": "tier_3"},
-      "HARBINGERSPECIAL": {"tier": "tier_2"},
-      "HIJACKERSSPECIAL": {"tier": "tier_2"},
-      "HUNTERSEEKERSPECIAL": {"tier": "tier_3"},
-      "ILLUSIONSPECIAL": {"tier": "tier_2"},
-      "INSTANTSHELTERSPECIAL": {"tier": "tier_1"},
-      "IRONCURTAINSPECIAL": {"tier": "tier_3"},
-      "IRRADIATEBETASPECIAL": {"tier": "tier_2"},
-      "IRRADIATESPECIAL": {"tier": "tier_2"},
-      "KINGSNAKESSPECIAL": {"tier": "tier_2"},
-      "KINETICBARRIERSPECIAL": {"tier": "tier_2"},
-      "KNIGHTFALLSPAWN": {"tier": "tier_3"},
-      "KNIGHTFALLSPECIAL": {"tier": "tier_2"},
-      "LIBRACLONESPECIAL": {"tier": "tier_2"},
-      "LIGHTNINGRODSPECIAL": {"tier": "tier_1"},
-      "LIGHTNINGSTORMSPECIAL": {"tier": "tier_3"},
-      "MADMINESPECIAL": {"tier": "tier_1"},
-      "MAGNETSHIFTSPECIAL": {"tier": "tier_1"},
-      "MAINTENANCESPECIAL": {"tier": "tier_2"},
-      "MEGAARENASPECIAL": {"tier": "tier_3"},
-      "MERCURYSPECIAL": {"tier": "tier_3"},
-      "MORENGINEERINGTEAMSPECIAL": {"tier": "tier_2"},
-      "MOTORAMBUSHSPECIAL": {"tier": "tier_2"},
-      "MUTATIONSPECIAL": {"tier": "tier_3"},
-      "NANOCHARGESPECIAL": {"tier": "tier_2"},
-      "NANOFIBERSYNCSPECIAL": {"tier": "tier_3"},
-      "NAVALMINESPECIAL": {"tier": "tier_1"},
-      "NUCLEARPATHSPECIAL": {"tier": "tier_3"},
-      "NUKESPECIAL": {"tier": "tier_3"},
-      "OVERCHARGESPECIAL": {"tier": "tier_2"},
-      "OVERFORGESPECIAL": {"tier": "tier_3"},
-      "PACKATTACKSPECIAL": {"tier": "tier_3"},
-      "PALADINAIDSPECIAL": {"tier": "tier_3"},
-      "PSYCHICDOMINATORSPECIAL": {"tier": "tier_3"},
-      "PSYCHICFLASHSPECIAL": {"tier": "tier_2"},
-      "QUICKFORTSPECIAL": {"tier": "tier_1"},
-      "RADATTACKSPECIAL": {"tier": "tier_3"},
-      "RAGEINDUCTORSPECIAL": {"tier": "tier_3"},
-      "RAVENSPECIAL": {"tier": "tier_1"},
-      "RECONSORTIESPECIAL": {"tier": "tier_1"},
-      "REGENDRUGSSPECIAL": {"tier": "tier_2"},
-      "REPAIRDRONESPECIAL": {"tier": "tier_1"},
-      "REPAIRDRONESSPECIAL": {"tier": "tier_2"},
-      "RISENMONOLITHSPECIAL": {"tier": "tier_2"},
-      "RUINERSPECIAL": {"tier": "tier_2"},
-      "SIGNALJAMMERSPECIAL": {"tier": "tier_1"},
-      "SMOKEBOMBSSPECIAL": {"tier": "tier_1"},
-      "SONARPULSESPECIAL": {"tier": "tier_1"},
-      "SPINBLADESPECIAL": {"tier": "tier_1"},
-      "SPYPLANESPECIAL": {"tier": "tier_1"},
-      "SPYSATSPECIAL": {"tier": "tier_1"},
-      "STASISGRIDSPAWN": {"tier": "tier_2"},
-      "STRATOSPECIAL": {"tier": "tier_3"},
-      "SWEEPERDROPSPECIAL": {"tier": "tier_2"},
-      "TANKDROPSPECIAL": {"tier": "tier_2"},
-      "TARGETPAINTERSPECIAL": {"tier": "tier_2"},
-      "TECHMISSILESPECIAL": {"tier": "tier_2"},
-      "TERRORDROPSPECIAL": {"tier": "tier_2"},
-      "TICKTRAPSPECIAL": {"tier": "tier_2"},
-      "TIMEFREEZESPECIAL": {"tier": "tier_3"},
-      "TOXICSTRIKESPECIAL": {"tier": "tier_3"},
-      "VISIONSPECIAL": {"tier": "tier_1"},
-      "WALLBUSTERSPECIAL": {"tier": "tier_1"},
-      "WARPMINERSSPECIAL": {"tier": "tier_3"},
-      "WONDERDRUGSSPECIAL": {"tier": "tier_2"},
-      "ZEPHYRBEACONSPECIAL": {"tier": "tier_2"}
+      "AMERICANPARADROPSPECIAL": {
+        "tier": "tier_2"
+      },
+      "BACKWARPSPECIAL": {
+        "tier": "tier_3"
+      },
+      "BLACKOUTMISSILESPECIAL": {
+        "tier": "tier_2"
+      },
+      "BLACKWIDOWALPHASPECIAL": {
+        "tier": "tier_2"
+      },
+      "BLACKWIDOWSPECIAL": {
+        "tier": "tier_2"
+      },
+      "BLOODHOUNDSSPECIAL": {
+        "tier": "tier_2"
+      },
+      "BOIDBLITZSPECIAL": {
+        "tier": "tier_3"
+      },
+      "CHAOSTOUCHSPECIAL": {
+        "tier": "tier_2"
+      },
+      "CHRONOBOOSTSPECIAL": {
+        "tier": "tier_2"
+      },
+      "CHRONOLIFTSPECIAL": {
+        "tier": "tier_1"
+      },
+      "CHRONOSPHERESPECIAL": {
+        "tier": "tier_3"
+      },
+      "CONFUSIONGRIDSPAWN": {
+        "tier": "tier_1"
+      },
+      "CRYOMINESPAWN": {
+        "tier": "tier_1"
+      },
+      "CRYOSHOTSPECIAL": {
+        "tier": "tier_2"
+      },
+      "CRYOSPEARSPECIAL": {
+        "tier": "tier_3"
+      },
+      "DECOYSQUADRONSPECIAL": {
+        "tier": "tier_1"
+      },
+      "DECOYTEAMSPECIAL": {
+        "tier": "tier_1"
+      },
+      "DEVOURERSPECIAL": {
+        "tier": "tier_3"
+      },
+      "DISRUPTORSPECIAL": {
+        "tier": "tier_1"
+      },
+      "DRAKUVSPECIAL": {
+        "tier": "tier_3"
+      },
+      "ELITERESERVESSPECIAL": {
+        "tier": "tier_3"
+      },
+      "EMPMINESPAWN": {
+        "tier": "tier_1"
+      },
+      "EMPULSSPECIAL": {
+        "tier": "tier_2"
+      },
+      "FLAMETOWERSPECIAL": {
+        "tier": "tier_1"
+      },
+      "FORCESHIELDSPECIAL": {
+        "tier": "tier_3"
+      },
+      "GEARCHANGESPECIAL": {
+        "tier": "tier_3"
+      },
+      "GENOMINESPAWN": {
+        "tier": "tier_1"
+      },
+      "GLACIALSCREENSPECIAL": {
+        "tier": "tier_2"
+      },
+      "GREATTEMPESTSPECIAL": {
+        "tier": "tier_3"
+      },
+      "HARBINGERSPECIAL": {
+        "tier": "tier_2"
+      },
+      "HIJACKERSSPECIAL": {
+        "tier": "tier_2"
+      },
+      "HUNTERSEEKERSPECIAL": {
+        "tier": "tier_3"
+      },
+      "ILLUSIONSPECIAL": {
+        "tier": "tier_2"
+      },
+      "INSTANTSHELTERSPECIAL": {
+        "tier": "tier_1"
+      },
+      "IRONCURTAINSPECIAL": {
+        "tier": "tier_3"
+      },
+      "IRRADIATEBETASPECIAL": {
+        "tier": "tier_2"
+      },
+      "IRRADIATESPECIAL": {
+        "tier": "tier_2"
+      },
+      "KINGSNAKESSPECIAL": {
+        "tier": "tier_2"
+      },
+      "KINETICBARRIERSPECIAL": {
+        "tier": "tier_2"
+      },
+      "KNIGHTFALLSPAWN": {
+        "tier": "tier_3"
+      },
+      "KNIGHTFALLSPECIAL": {
+        "tier": "tier_2"
+      },
+      "LIBRACLONESPECIAL": {
+        "tier": "tier_2"
+      },
+      "LIGHTNINGRODSPECIAL": {
+        "tier": "tier_1"
+      },
+      "LIGHTNINGSTORMSPECIAL": {
+        "tier": "tier_3"
+      },
+      "MADMINESPECIAL": {
+        "tier": "tier_1"
+      },
+      "MAGNETSHIFTSPECIAL": {
+        "tier": "tier_1"
+      },
+      "MAINTENANCESPECIAL": {
+        "tier": "tier_2"
+      },
+      "MEGAARENASPECIAL": {
+        "tier": "tier_3"
+      },
+      "MERCURYSPECIAL": {
+        "tier": "tier_3"
+      },
+      "MORENGINEERINGTEAMSPECIAL": {
+        "tier": "tier_2"
+      },
+      "MOTORAMBUSHSPECIAL": {
+        "tier": "tier_2"
+      },
+      "MUTATIONSPECIAL": {
+        "tier": "tier_3"
+      },
+      "NANOCHARGESPECIAL": {
+        "tier": "tier_2"
+      },
+      "NANOFIBERSYNCSPECIAL": {
+        "tier": "tier_3"
+      },
+      "NAVALMINESPECIAL": {
+        "tier": "tier_1"
+      },
+      "NUCLEARPATHSPECIAL": {
+        "tier": "tier_3"
+      },
+      "NUKESPECIAL": {
+        "tier": "tier_3"
+      },
+      "OVERCHARGESPECIAL": {
+        "tier": "tier_2"
+      },
+      "OVERFORGESPECIAL": {
+        "tier": "tier_3"
+      },
+      "PACKATTACKSPECIAL": {
+        "tier": "tier_3"
+      },
+      "PALADINAIDSPECIAL": {
+        "tier": "tier_3"
+      },
+      "PSYCHICDOMINATORSPECIAL": {
+        "tier": "tier_3"
+      },
+      "PSYCHICFLASHSPECIAL": {
+        "tier": "tier_2"
+      },
+      "QUICKFORTSPECIAL": {
+        "tier": "tier_1"
+      },
+      "RADATTACKSPECIAL": {
+        "tier": "tier_3"
+      },
+      "RAGEINDUCTORSPECIAL": {
+        "tier": "tier_3"
+      },
+      "RAVENSPECIAL": {
+        "tier": "tier_1"
+      },
+      "RECONSORTIESPECIAL": {
+        "tier": "tier_1"
+      },
+      "REGENDRUGSSPECIAL": {
+        "tier": "tier_2"
+      },
+      "REPAIRDRONESPECIAL": {
+        "tier": "tier_1"
+      },
+      "REPAIRDRONESSPECIAL": {
+        "tier": "tier_2"
+      },
+      "RISENMONOLITHSPECIAL": {
+        "tier": "tier_2"
+      },
+      "RUINERSPECIAL": {
+        "tier": "tier_2"
+      },
+      "SIGNALJAMMERSPECIAL": {
+        "tier": "tier_1"
+      },
+      "SMOKEBOMBSSPECIAL": {
+        "tier": "tier_1"
+      },
+      "SONARPULSESPECIAL": {
+        "tier": "tier_1"
+      },
+      "SPINBLADESPECIAL": {
+        "tier": "tier_1"
+      },
+      "SPYPLANESPECIAL": {
+        "tier": "tier_1"
+      },
+      "SPYSATSPECIAL": {
+        "tier": "tier_1"
+      },
+      "STASISGRIDSPAWN": {
+        "tier": "tier_2"
+      },
+      "STRATOSPECIAL": {
+        "tier": "tier_3"
+      },
+      "SWEEPERDROPSPECIAL": {
+        "tier": "tier_2"
+      },
+      "TANKDROPSPECIAL": {
+        "tier": "tier_2"
+      },
+      "TARGETPAINTERSPECIAL": {
+        "tier": "tier_2"
+      },
+      "TECHMISSILESPECIAL": {
+        "tier": "tier_2"
+      },
+      "TERRORDROPSPECIAL": {
+        "tier": "tier_2"
+      },
+      "TICKTRAPSPECIAL": {
+        "tier": "tier_2"
+      },
+      "TIMEFREEZESPECIAL": {
+        "tier": "tier_3"
+      },
+      "TOXICSTRIKESPECIAL": {
+        "tier": "tier_3"
+      },
+      "VISIONSPECIAL": {
+        "tier": "tier_1"
+      },
+      "WALLBUSTERSPECIAL": {
+        "tier": "tier_1"
+      },
+      "WARPMINERSSPECIAL": {
+        "tier": "tier_3"
+      },
+      "WONDERDRUGSSPECIAL": {
+        "tier": "tier_2"
+      },
+      "ZEPHYRBEACONSPECIAL": {
+        "tier": "tier_2"
+      }
     },
     "price_scales": {
       "run_ore": {
         "name": "run_ore",
         "tier_prices": {
-          "tier_1": [60, 80],
-          "tier_2": [100, 140],
-          "tier_3": [180, 260]
+          "tier_1": [
+            60,
+            80
+          ],
+          "tier_2": [
+            100,
+            140
+          ],
+          "tier_3": [
+            180,
+            260
+          ]
         },
         "unique_infantry": 260,
         "unique_unit": 380,
-        "stolen_tech": [300, 340],
+        "stolen_tech": [
+          300,
+          340
+        ],
         "build_limited_building": 0,
         "campaign_infantry": 0,
         "campaign_unit": 0,
         "campaign_building": 0,
-        "power_tier_prices": {"tier_1": 75, "tier_2": 150, "tier_3": 250},
+        "power_tier_prices": {
+          "tier_1": 75,
+          "tier_2": 150,
+          "tier_3": 250
+        },
         "flagged_power_price": 750,
         "buff_percent_of_access": 25,
         "cost_window_trim_percent": 5,
@@ -178,18 +382,34 @@
       "permanent_gem": {
         "name": "permanent_gem",
         "tier_prices": {
-          "tier_1": [100, 200],
-          "tier_2": [200, 300],
-          "tier_3": [300, 400]
+          "tier_1": [
+            100,
+            200
+          ],
+          "tier_2": [
+            200,
+            300
+          ],
+          "tier_3": [
+            300,
+            400
+          ]
         },
         "unique_infantry": 500,
         "unique_unit": 750,
-        "stolen_tech": [600, 600],
+        "stolen_tech": [
+          600,
+          600
+        ],
         "build_limited_building": 600,
         "campaign_infantry": 800,
         "campaign_unit": 1500,
         "campaign_building": 1000,
-        "power_tier_prices": {"tier_1": 150, "tier_2": 300, "tier_3": 500},
+        "power_tier_prices": {
+          "tier_1": 150,
+          "tier_2": 300,
+          "tier_3": 500
+        },
         "flagged_power_price": 1500,
         "buff_percent_of_access": 25,
         "cost_window_trim_percent": 5,
@@ -202,7 +422,13 @@
       "mission_reroll": {
         "display_name": "Mission Reroll",
         "max_level": 5,
-        "prices": [110, 220, 450, 750, 1150],
+        "prices": [
+          110,
+          220,
+          450,
+          750,
+          1150
+        ],
         "effects": {
           "rerolls_per_level": 1
         }
@@ -210,7 +436,11 @@
       "mission_difficulty_assist": {
         "display_name": "Mission Difficulty Assist",
         "max_level": 3,
-        "prices": [150, 300, 600],
+        "prices": [
+          150,
+          300,
+          600
+        ],
         "effects": {
           "assists_per_level": 1
         }
@@ -218,7 +448,13 @@
       "victory_run_coin_bonus": {
         "display_name": "Victory Ore Bonus",
         "max_level": 5,
-        "prices": [80, 150, 260, 410, 600],
+        "prices": [
+          80,
+          150,
+          260,
+          410,
+          600
+        ],
         "effects": {
           "run_coins_per_level": 25
         }
@@ -226,7 +462,53 @@
       "starting_capital": {
         "display_name": "Starting Ore",
         "max_level": 45,
-        "prices": [40, 40, 40, 40, 40, 40, 40, 40, 40, 40, 40, 40, 40, 40, 40, 40, 40, 40, 40, 40, 40, 40, 40, 40, 40, 40, 40, 40, 40, 40, 40, 40, 40, 40, 40, 40, 40, 40, 40, 40, 40, 40, 40, 40, 40],
+        "prices": [
+          40,
+          40,
+          40,
+          40,
+          40,
+          40,
+          40,
+          40,
+          40,
+          40,
+          40,
+          40,
+          40,
+          40,
+          40,
+          40,
+          40,
+          40,
+          40,
+          40,
+          40,
+          40,
+          40,
+          40,
+          40,
+          40,
+          40,
+          40,
+          40,
+          40,
+          40,
+          40,
+          40,
+          40,
+          40,
+          40,
+          40,
+          40,
+          40,
+          40,
+          40,
+          40,
+          40,
+          40,
+          40
+        ],
         "effects": {
           "run_coins_per_level": 25
         }
@@ -234,7 +516,28 @@
       "mission_starting_credits": {
         "display_name": "Mission Starting Credits",
         "max_level": 20,
-        "prices": [80, 80, 80, 80, 80, 80, 80, 80, 80, 80, 80, 80, 80, 80, 80, 80, 80, 80, 80, 80],
+        "prices": [
+          80,
+          80,
+          80,
+          80,
+          80,
+          80,
+          80,
+          80,
+          80,
+          80,
+          80,
+          80,
+          80,
+          80,
+          80,
+          80,
+          80,
+          80,
+          80,
+          80
+        ],
         "effects": {
           "credits_per_level": 1000
         }
@@ -242,7 +545,13 @@
       "shop_discount": {
         "display_name": "Shop Discount",
         "max_level": 5,
-        "prices": [110, 220, 380, 560, 820],
+        "prices": [
+          110,
+          220,
+          380,
+          560,
+          820
+        ],
         "effects": {
           "ore_per_level": 10
         }
@@ -250,7 +559,13 @@
       "extra_shop_stock": {
         "display_name": "Extra Shop Stock",
         "max_level": 5,
-        "prices": [110, 220, 380, 560, 820],
+        "prices": [
+          110,
+          220,
+          380,
+          560,
+          820
+        ],
         "effects": {
           "units_per_level": 1,
           "powers_per_level": 1
@@ -259,7 +574,11 @@
       "expanded_loadout": {
         "display_name": "Expanded Loadout",
         "max_level": 3,
-        "prices": [190, 380, 680],
+        "prices": [
+          190,
+          380,
+          680
+        ],
         "effects": {
           "slots_per_level": 1
         }
@@ -267,7 +586,10 @@
       "emergency_revival": {
         "display_name": "Extra Life",
         "max_level": 2,
-        "prices": [400, 800],
+        "prices": [
+          400,
+          800
+        ],
         "effects": {
           "lives_per_level": 1
         }
@@ -275,7 +597,11 @@
       "free_buff_token": {
         "display_name": "Free Buff Token",
         "max_level": 3,
-        "prices": [220, 450, 750],
+        "prices": [
+          220,
+          450,
+          750
+        ],
         "effects": {
           "tokens_per_level": 1
         }
@@ -283,7 +609,13 @@
       "challenge_hunter": {
         "display_name": "Challenge Hunter",
         "max_level": 5,
-        "prices": [150, 260, 410, 600, 820],
+        "prices": [
+          150,
+          260,
+          410,
+          600,
+          820
+        ],
         "effects": {
           "run_coins_per_level": 10,
           "meta_coins_every_levels": 2,
@@ -293,7 +625,13 @@
       "recovery_salvage": {
         "display_name": "Recovery Salvage",
         "max_level": 5,
-        "prices": [150, 260, 410, 600, 820],
+        "prices": [
+          150,
+          260,
+          410,
+          600,
+          820
+        ],
         "effects": {
           "ore_per_level": 125,
           "maximum_saved_ore": 625
@@ -303,7 +641,11 @@
         "display_name": "Starting Buff Draft",
         "purchasable": false,
         "max_level": 3,
-        "prices": [190, 380, 680],
+        "prices": [
+          190,
+          380,
+          680
+        ],
         "effects": {
           "buffs_per_level": 1
         }
@@ -311,7 +653,13 @@
       "discount_specialization": {
         "display_name": "Global Shop Discount",
         "max_level": 5,
-        "prices": [150, 260, 410, 600, 820],
+        "prices": [
+          150,
+          260,
+          410,
+          600,
+          820
+        ],
         "effects": {
           "ore_per_level": 10
         }
@@ -319,7 +667,11 @@
       "coupon_book": {
         "display_name": "Coupon Book",
         "max_level": 3,
-        "prices": [190, 380, 680],
+        "prices": [
+          190,
+          380,
+          680
+        ],
         "effects": {
           "ore_per_level": 10
         }
@@ -327,7 +679,9 @@
       "stock_lock": {
         "display_name": "Stock Lock",
         "max_level": 1,
-        "prices": [450],
+        "prices": [
+          450
+        ],
         "effects": {
           "locks_per_stage": 1
         }
@@ -335,7 +689,9 @@
       "veteran_academy": {
         "display_name": "Veteran Academy",
         "max_level": 1,
-        "prices": [600],
+        "prices": [
+          600
+        ],
         "effects": {
           "veteran_loadout": 1
         }
@@ -343,7 +699,9 @@
       "premium_supplier": {
         "display_name": "Premium Supplier",
         "max_level": 1,
-        "prices": [560],
+        "prices": [
+          560
+        ],
         "effects": {
           "minimum_stage": 3,
           "guaranteed_offers": 1
@@ -970,7 +1328,31 @@
           "infantry_production",
           "vehicle_production",
           "aircraft_production",
-          "defense_production"
+          "defense_production",
+          "tier1_health",
+          "tier1_armor",
+          "tier1_speed",
+          "tier1_sight",
+          "tier1_damage",
+          "tier1_reload",
+          "tier1_range",
+          "tier1_ammo",
+          "tier1_self_healing"
+        ]
+      },
+      {
+        "minimum_stage": 3,
+        "buff_ids": [
+          "tier2_health",
+          "tier2_armor",
+          "tier2_speed",
+          "tier2_sight",
+          "tier2_damage",
+          "tier2_reload",
+          "tier2_range",
+          "tier2_ammo",
+          "tier2_self_healing",
+          "tier1_sensors"
         ]
       },
       {
@@ -981,13 +1363,32 @@
         ]
       },
       {
+        "minimum_stage": 5,
+        "buff_ids": [
+          "tier3_health",
+          "tier3_armor",
+          "tier3_speed",
+          "tier3_sight",
+          "tier3_damage",
+          "tier3_reload",
+          "tier3_range",
+          "tier3_ammo",
+          "tier3_self_healing",
+          "tier2_sensors"
+        ]
+      },
+      {
         "minimum_stage": 7,
         "buff_ids": [
           "ai_moon_reinforcements",
           "ai_lightning_storm",
           "ai_nuclear_missile",
           "ai_psychic_dominator",
-          "ai_great_tempest"
+          "ai_great_tempest",
+          "tier3_sensors",
+          "tier1_cloak",
+          "tier2_cloak",
+          "tier3_cloak"
         ]
       }
     ]
