@@ -290,10 +290,20 @@ def main(argv=None):
     print(f'wrote {spawnmap.name} from {chosen["path"].name}')
     print(f'wrote {spawn.name} ({len(text.splitlines())} lines)')
 
+    # Syringe parses its own raw command line and refuses to run unless the
+    # host executable is quoted -- "Syringe cannot be run just like that."
+    # Handing Popen a list loses those quotes whenever the name has no spaces,
+    # so the launcher keeps a builder for exactly this boundary and this uses
+    # it rather than growing a second answer that can drift from the first.
+    from randomizer.application.launch_controller import (
+        windows_syringe_command_line,
+    )
+
     launcher = game_root / 'Syringe.exe'
     argv = [str(launcher), 'gamemd.exe', '-SPAWN', '-CD', '-SPEEDCONTROL', '-LOG']
-    print('launching:', subprocess.list2cmdline(argv))
-    subprocess.Popen(argv, cwd=str(game_root))
+    command = windows_syringe_command_line(argv)
+    print('launching:', command)
+    subprocess.Popen(command, cwd=str(game_root))
     print()
     print('Watch for three things:')
     print('  1. the match opens at all')
