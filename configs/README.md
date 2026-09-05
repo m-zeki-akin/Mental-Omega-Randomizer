@@ -168,55 +168,68 @@ power still receives a useful mission-only upgrade. The three visible mission
 cards resolve duplicate effects to other entries of the same boon/challenge
 kind without consuming gameplay RNG.
 
-`unit_target_prices` is the complete Ore price table for units, aircraft,
-naval units, defenses, and special buildings, plus the Gem price of a
-permanent buff. Every Shop target ID must appear exactly once. Each entry has
-`run_access`, `run_buff`, and `permanent_buff`. Prices are positive integers;
-use `null` only when that target has no corresponding access or buff offer.
-`run_buff` and `permanent_buff` must either both be priced or both be `null`.
+`price_scales` replaces the per-target price table the Shop used to carry.
+Every price is derived now, because the table was scaled off each unit's
+in-game credit cost and cost is the wrong axis: it says what a unit is worth
+to build once you have it, while the shop is asking what it is worth to
+*have* at all, for this run and every run after.
+
+There are exactly two scales, `run_ore` and `permanent_gem`. They price the
+same way and differ only in their numbers, so nothing in the pricing code has
+to know which currency it is working in.
+
+`tier_prices` gives each arsenal tier a `[low, high]` range, and the unit's
+credit cost decides where inside it the unit lands -- interpolated across the
+costs of the units in the *same* tier, since a single global window would push
+every Tier 1 unit to the bottom of its range, they all being cheap.
+`cost_window_trim_percent` trims the extremes of that per-tier window so one
+superunit cannot flatten its tier. `rounding_step` rounds the result. The
+ranges must not overlap downwards: a Tier 1 unit may never cost more than the
+cheapest Tier 3 one, or pricing by tier means nothing.
+
+`unique_infantry` and `unique_unit` price units nobody can build more than
+one of; `stolen_tech` is a `[low, high]` range for units gated behind
+`Prerequisite.StolenTechs` (set both ends equal for a flat price). A unit that
+is both takes the higher. These ignore the tier range entirely, because what
+makes them worth having is that no one else can field one. **Unique buildings
+and defenses are not heroes** -- an Ore Purifier is limited for balance -- so
+they keep their tier range.
+
+`power_tier_prices` and `flagged_power_price` price superweapons and aid
+powers, which have no credit cost to read, so their tier decides outright.
+"Flagged" means named by the superweapon or campaign-power Reward Pool group:
+one list serves as both the filter and the premium price list, so a power
+added to a group is priced as one without a second edit.
+
+`buff_percent_of_access` prices one upgrade stack as a percentage of what its
+target costs on the same scale. It applies even where the unit itself has no
+access offer -- a Tier 1 starter is never for sale and its upgrades still need
+a number.
+
+`excluded_target_multiplier` is what a Reward Pool target costs on this scale.
+Owning a campaign-only unit outright is meant to be expensive whether or not
+its box happens to be ticked, so the premium belongs to the unit rather than to
+a setting; a single run's Ore price is not the place to charge it, so the Ore
+scale sets this to 1.
+
+Cost, category, build limit, and stolen-tech status all come from the live
+roster, so a submod that reprices a unit reprices its Shop price with it.
+Tiers stay in configuration: unit tiers come from the roster's TechLevel and
+power tiers from `power_target_prices`, because neither is in the unit data
+and reconstructing them from tech-building prerequisites is a great deal of
+work for a number that rarely moves.
+
+`power_target_prices` no longer carries prices; it carries the one thing a
+power's price is derived from. Every Shop power target must appear exactly
+once with a `tier` of `tier_1`, `tier_2`, or `tier_3`.
 
 ```json
-"E1": {
-  "run_access": 2,
-  "run_buff": 2,
-  "permanent_buff": 5
-}
+"LIGHTNINGSTORMSPECIAL": {"tier": "tier_3"}
 ```
 
-`unit_access_gem_pricing` replaces the per-target `permanent_access` column
-this table used to carry. What a unit costs in Gems is now derived rather than
-tabulated, because the old column was scaled off the unit's in-game credit
-cost and cost is the wrong axis: it says what a unit is worth to build once
-you have it, while the shop is asking what it is worth to *have* at all, for
-this run and every run after.
-
-`tier_gems` sets a band per arsenal tier. `cost_adjustment_minimum` and
-`cost_adjustment_maximum` bound how far the unit's credit cost may move it
-inside that band, interpolated across the costs of the units in the *same*
-tier -- a single global window would push every Tier 1 unit to the bottom of
-its band, since they are all cheap. `cost_window_trim_percent` trims the
-extremes of that per-tier window so one superunit cannot flatten its tier.
-`rounding_step` rounds the result.
-
-`unique_infantry_gems` and `unique_unit_gems` price units nobody can build
-more than one of, and `stolen_tech_gems` prices units gated behind
-`Prerequisite.StolenTechs`; a unit that is both takes the higher. These
-ignore the tier band entirely, because what makes them worth having is that
-no one else can field one. **Unique buildings and defenses are not heroes** --
-an Ore Purifier is limited for balance -- so they keep their tier band.
-
-Cost, category, build limit, and stolen-tech status are all read from the live
-roster data, so a submod that reprices a unit reprices its Gem cost with it.
-Tiers stay in configuration: they are not in the unit data, and reconstructing
-them from tech-building prerequisites is a great deal of work for a number
-that rarely moves.
-
-`power_target_prices` is the complete target-specific table for aid powers and
-superweapons. Every Shop power target must appear exactly once with positive
-`run_access` and `run_buff` prices. `null` remains reserved for a future target
-that lacks that offer kind. Powers have no permanent Shop offers.
-Discounted prices use integer percentages, round down, then clamp to
-`minimum_shop_price`.
+Discounted Ore prices use integer percentages, round down, then clamp to
+`minimum_shop_price` -- which is why the cheapest upgrades all sit at that
+floor rather than at their computed fraction.
 
 `permanent_upgrades` maps stable IDs to `display_name`, positive `max_level`,
 one positive price per level, and integer `effects`. Optional boolean

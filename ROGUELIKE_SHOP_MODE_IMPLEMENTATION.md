@@ -863,26 +863,42 @@ nothing would leave a checkbox claiming to hide rewards it never touches.
 ### What a unit costs in Gems
 
 Tier sets the price; cost only decides where inside the tier a unit sits.
-Tier 1 opens at 100 Gems, Tier 2 at 200, Tier 3 at 300, and the unit's credit
-cost moves it by -20 to +80 within that band, interpolated across the costs of
-its own tier. Units nobody can build more than one of are priced on their own
-terms and ignore the band: 500 Gems for a hero infantryman, 750 for a hero
-vehicle, 600 for anything gated behind stolen tech, and the higher of the two
-when a unit is both. Unique *buildings* keep their band -- an Ore Purifier is
-limited for balance, not because it is a hero.
+Ore and Gems price the same way at two scales, both in `price_scales`.
 
-This replaced a hand-written column scaled off in-game cost with an 80 Gem
+| | Tier 1 | Tier 2 | Tier 3 | Hero inf. | Hero unit | Stolen tech | Power T1/T2/T3 | Superweapon |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| Ore | 40-60 | 80-120 | 160-240 | 260 | 380 | 300-340 | 50 / 100 / 200 | 400 |
+| Gems | 80-180 | 180-280 | 280-380 | 500 | 750 | 600 | 50 / 100 / 200 | 400 |
+
+Within a tier the unit's credit cost decides where in the range it lands,
+interpolated across the costs of its own tier. Units nobody can build more
+than one of ignore the range entirely, and a unit that is both unique and
+stolen tech takes the higher of the two. Unique *buildings* keep their range
+-- an Ore Purifier is limited for balance, not because it is a hero, and the
+raw BuildLimit flag does not make that distinction for you.
+
+One upgrade stack costs 18% of what its target costs on the same scale. On the
+Ore side that lands below `minimum_shop_price` for the cheapest units, so
+their upgrades sit at the floor.
+
+Powers have no credit cost to read, so their tier decides outright. The
+superweapons and campaign-only powers the Reward Pool groups name take a flat
+premium instead: they are what a run gets built around, not stock.
+
+This replaced a hand-written table scaled off in-game cost with an 80 Gem
 floor. Cost answers what a unit is worth to build once you have it, which the
 game already prices every match; the shop is asking what it is worth to have
 at all. Everything but the tier is read from the live roster, so a submod that
-reprices a unit reprices its Gem cost with it.
+reprices a unit reprices its Shop price with it.
 
-The permanent Gem shop is the deliberate exception: it keeps selling a hidden
-target, at `excluded_target_gem_price_multiplier` times the normal price. The
-boxes exist to keep absurd units out of a run's random offers, not to forbid
-them outright, and a player who ticks "no campaign-only units" may still want
-one particular story unit badly enough to pay four times for it. The surcharge
-covers the access reward and every buff pointing at the same target.
+Owning a Reward Pool target **permanently** costs the Gem scale's
+`excluded_target_multiplier` -- four times -- whether or not its box is
+ticked. The premium belongs to the unit, not to a setting: the boxes exist to
+keep absurd units out of a run's random offers, not to forbid them outright,
+and a player who wants one particular story unit should be able to buy it and
+should find it expensive. The Ore scale charges no premium; a single run's
+price is not the place for it. The surcharge covers the access reward and
+every buff pointing at the same target.
 
 Exclusion is by **target**, not reward id. An access entry and the dozen buff
 entries aimed at the same unit share a target, so hiding "Paradox Engine

@@ -19,6 +19,13 @@ from .model import ShopCatalogueEntry, ShopModeConfig, ShopRewardType
 from .config import SHOP_CONFIG
 
 
+# The Reward Pool groups whose members are premium powers rather than
+# ordinary stock.
+POWER_PREMIUM_SETTING_KEYS = frozenset({
+    'shop_exclude_superweapons', 'shop_exclude_campaign_powers',
+})
+
+
 def canonical_reward_id(reward):
     source = {'name': reward} if isinstance(reward, str) else reward
     canonical = canonical_reward(source)
@@ -52,6 +59,68 @@ def unit_access_tier(target_id):
     prerequisites is a lot of work for a number that rarely moves.
     """
     return _unit_tiers().get(str(target_id).upper(), 'tier_1')
+
+
+@lru_cache(maxsize=1)
+def _targets_by_reward_type():
+    targets = {}
+    for entry in shop_catalogue():
+        targets.setdefault(entry.reward_type, set()).add(entry.target_id)
+    return targets
+
+
+def shop_offers_target(target_id, reward_type):
+    """Return whether the shop has an offer of this kind for this target.
+
+    The price table used to answer this with a null, and pricing something
+    it had no entry for raised. Prices are derived now and would happily
+    invent one for a target that has no such offer, so the catalogue is
+    asked instead -- it is what decides the question anyway.
+    """
+    return str(target_id).upper() in _targets_by_reward_type().get(
+        reward_type, ()
+    )
+
+
+def power_access_tier(target_id, config: ShopModeConfig = SHOP_CONFIG):
+    """Return the configured tier for one superweapon or aid power.
+
+    Powers have no credit cost in the game data, so this is the only thing
+    their price can be derived from. It lives in power_target_prices, which
+    is what that table carries now that the prices are computed.
+    """
+    definition = config.power_target_prices.get(str(target_id).upper())
+    return definition.tier if definition is not None else 'tier_1'
+
+
+# Keyed on identity, holding the config alive: a config carries dictionaries
+# and so cannot be an lru_cache key.
+_FLAGGED_POWERS = {}
+
+
+def _flagged_power_ids(config: ShopModeConfig = SHOP_CONFIG):
+    """Return the powers the Reward Pool groups single out.
+
+    The superweapon and campaign-power groups already name exactly the powers
+    a run is built around rather than stocked with, so they double as the
+    list that gets the flat premium price. Keeping one list means a power
+    added to a group is priced as one without a second edit.
+    """
+    cached = _FLAGGED_POWERS.get(id(config))
+    if cached is not None:
+        return cached[1]
+    flagged = frozenset(
+        target_id
+        for group in config.reward_exclusion_groups
+        if group.setting_key in POWER_PREMIUM_SETTING_KEYS
+        for target_id in group.target_ids
+    )
+    _FLAGGED_POWERS[id(config)] = (config, flagged)
+    return flagged
+
+
+def power_is_flagged(target_id, *, config: ShopModeConfig = SHOP_CONFIG):
+    return str(target_id).upper() in _flagged_power_ids(config)
 
 
 def _root_access_unit(reward):
@@ -121,40 +190,22 @@ def catalogue_entry(reward):
     )
 
 
-def _validate_unit_target_prices(entries):
-    access_targets = {
-        entry.target_id for entry in entries
-        if entry.reward_type is ShopRewardType.UNIT_ACCESS
-    }
-    buff_targets = {
-        entry.target_id for entry in entries
-        if entry.reward_type is ShopRewardType.UNIT_BUFF
-    }
-    expected_targets = access_targets | buff_targets
-    configured_targets = set(SHOP_CONFIG.unit_target_prices)
-    missing = sorted(expected_targets - configured_targets)
-    unknown = sorted(configured_targets - expected_targets)
-    if missing or unknown:
-        raise StaticConfigError(
-            'Shop Mode unit_target_prices must exactly cover shop unit '
-            f'targets; missing={missing}, unknown={unknown} in shop_mode.json'
-        )
-    invalid_access = sorted(
-        target_id for target_id, definition
-        in SHOP_CONFIG.unit_target_prices.items()
-        if (definition.run_access is not None) != (target_id in access_targets)
-    )
-    invalid_buffs = sorted(
-        target_id for target_id, definition
-        in SHOP_CONFIG.unit_target_prices.items()
-        if (definition.run_buff is not None) != (target_id in buff_targets)
-    )
-    if invalid_access or invalid_buffs:
-        raise StaticConfigError(
-            'Shop Mode unit_target_prices availability does not match shop '
-            f'catalogue; access={invalid_access}, buffs={invalid_buffs} '
-            'in shop_mode.json'
-        )
+def _validate_exclusion_group_targets(entries):
+    """Check every Reward Pool group names something the shop can sell.
+
+    This used to fall out of the unit price table, which had to cover the
+    catalogue exactly. Prices are derived now, so nothing else would notice a
+    group listing a unit id that does not exist -- the checkbox would hide
+    nothing and say so to no one.
+    """
+    known = {entry.target_id for entry in entries}
+    for group in SHOP_CONFIG.reward_exclusion_groups:
+        unknown = sorted(set(group.target_ids) - known)
+        if unknown:
+            raise StaticConfigError(
+                f'Shop Mode reward exclusion group {group.id!r} names targets '
+                f'the shop cannot sell: {unknown} in shop_mode.json'
+            )
 
 
 def _validate_power_target_prices(entries):
@@ -175,22 +226,7 @@ def _validate_power_target_prices(entries):
             'Shop Mode power_target_prices must exactly cover shop power '
             f'targets; missing={missing}, unknown={unknown} in shop_mode.json'
         )
-    invalid_access = sorted(
-        target_id for target_id, definition
-        in SHOP_CONFIG.power_target_prices.items()
-        if (definition.run_access is not None) != (target_id in access_targets)
-    )
-    invalid_buffs = sorted(
-        target_id for target_id, definition
-        in SHOP_CONFIG.power_target_prices.items()
-        if (definition.run_buff is not None) != (target_id in buff_targets)
-    )
-    if invalid_access or invalid_buffs:
-        raise StaticConfigError(
-            'Shop Mode power_target_prices availability does not match shop '
-            f'catalogue; access={invalid_access}, buffs={invalid_buffs} '
-            'in shop_mode.json'
-        )
+    del buff_targets, access_targets
 
 
 @lru_cache(maxsize=1)
@@ -208,7 +244,7 @@ def shop_catalogue():
             continue
         seen.add(entry.reward_id)
         entries.append(entry)
-    _validate_unit_target_prices(entries)
+    _validate_exclusion_group_targets(entries)
     _validate_power_target_prices(entries)
     return tuple(entries)
 

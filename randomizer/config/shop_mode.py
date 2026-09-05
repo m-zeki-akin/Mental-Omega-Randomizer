@@ -128,58 +128,90 @@ def _validate_enemy_buff_tiers(sections, path, invalid):
         )
 
 
-def _validate_unit_access_gem_pricing(sections, path, invalid):
-    """Check the block that decides what owning a unit costs in Gems.
-
-    Every field is load-bearing: a missing tier band silently reprices a
-    third of the catalogue, and an inverted cost adjustment would make
-    expensive units cheaper than cheap ones.
-    """
-    pricing = sections['unit_access_gem_pricing']
-    tier_gems = pricing.get('tier_gems') if isinstance(pricing, dict) else None
-    if (
-        not isinstance(pricing, dict)
-        or not isinstance(tier_gems, dict)
-        or set(tier_gems) != {'tier_1', 'tier_2', 'tier_3'}
-        or any(
-            not isinstance(value, int)
-            or isinstance(value, bool)
-            or value < 1
-            for value in tier_gems.values()
+def _is_price_range(value):
+    return (
+        isinstance(value, list)
+        and len(value) == 2
+        and all(
+            isinstance(bound, int) and not isinstance(bound, bool)
+            and bound >= 1
+            for bound in value
         )
-    ):
-        invalid('Invalid Shop Mode unit_access_gem_pricing tier bands', path)
-    positive_fields = (
-        'unique_infantry_gems', 'unique_unit_gems', 'stolen_tech_gems',
-        'rounding_step',
+        and value[0] <= value[1]
     )
-    if any(
-        not isinstance(pricing.get(key), int)
-        or isinstance(pricing.get(key), bool)
-        or pricing[key] < 1
-        for key in positive_fields
-    ):
-        invalid('Invalid Shop Mode unit_access_gem_pricing flat prices', path)
-    low = pricing.get('cost_adjustment_minimum')
-    high = pricing.get('cost_adjustment_maximum')
-    trim = pricing.get('cost_window_trim_percent')
-    if (
-        not isinstance(low, int) or isinstance(low, bool)
-        or not isinstance(high, int) or isinstance(high, bool)
-        or low >= high
-        or not isinstance(trim, int) or isinstance(trim, bool)
-        or not 0 <= trim <= 40
-    ):
+
+
+def _validate_price_scales(sections, path, invalid):
+    """Check the two ladders every Shop price is derived from.
+
+    Every field is load-bearing. A missing tier range silently reprices a
+    third of the catalogue; an inverted one would make expensive units
+    cheaper than cheap ones; a zero buff percentage would hand out upgrades
+    for free.
+    """
+    scales = sections['price_scales']
+    if not isinstance(scales, dict) or set(scales) != {
+        'run_ore', 'permanent_gem'
+    }:
         invalid(
-            'Invalid Shop Mode unit_access_gem_pricing cost adjustment', path
-        )
-    smallest_band = min(tier_gems.values()) if isinstance(tier_gems, dict) else 0
-    if smallest_band + low < 1:
-        invalid(
-            'Shop Mode unit_access_gem_pricing would price a unit below '
-            '1 Gem',
+            'Shop Mode price_scales must define run_ore and permanent_gem',
             path,
         )
+    for name, scale in scales.items():
+        tier_prices = scale.get('tier_prices') if isinstance(scale, dict) else None
+        power_prices = (
+            scale.get('power_tier_prices') if isinstance(scale, dict) else None
+        )
+        if (
+            not isinstance(scale, dict)
+            or scale.get('name') != name
+            or not isinstance(tier_prices, dict)
+            or set(tier_prices) != TIER_IDS
+            or not all(
+                _is_price_range(bounds) for bounds in tier_prices.values()
+            )
+            or not _is_price_range(scale.get('stolen_tech'))
+            or not isinstance(power_prices, dict)
+            or set(power_prices) != TIER_IDS
+            or any(
+                not isinstance(price, int) or isinstance(price, bool)
+                or price < 1
+                for price in power_prices.values()
+            )
+        ):
+            invalid(f'Invalid Shop Mode price_scales.{name} ranges', path)
+        if any(
+            not isinstance(scale.get(key), int)
+            or isinstance(scale.get(key), bool)
+            or scale[key] < 1
+            for key in (
+                'unique_infantry', 'unique_unit', 'flagged_power_price',
+                'buff_percent_of_access', 'rounding_step',
+                'excluded_target_multiplier',
+            )
+        ):
+            invalid(f'Invalid Shop Mode price_scales.{name} prices', path)
+        trim = scale.get('cost_window_trim_percent')
+        if (
+            not isinstance(trim, int) or isinstance(trim, bool)
+            or not 0 <= trim <= 40
+        ):
+            invalid(f'Invalid Shop Mode price_scales.{name} cost window', path)
+        # Tiers have to stay ordered, or the whole point of pricing by tier
+        # is lost: a Tier 1 unit could cost more than a Tier 3 one.
+        ordered = [tier_prices[tier] for tier in ('tier_1', 'tier_2', 'tier_3')]
+        if any(
+            higher[0] < lower[1]
+            for lower, higher in zip(ordered, ordered[1:])
+        ):
+            invalid(
+                f'Shop Mode price_scales.{name} tier ranges must not overlap '
+                'downwards',
+                path,
+            )
+
+
+TIER_IDS = frozenset({'tier_1', 'tier_2', 'tier_3'})
 
 
 def validate_shop_mode_config(sections, path, invalid):
@@ -208,7 +240,6 @@ def validate_shop_mode_config(sections, path, invalid):
         'starting_rerolls': (0, 20),
         'maximum_starting_ore': (1, 1000000),
         'minimum_shop_price': (1, 1000000),
-        'excluded_target_gem_price_multiplier': (1, 100),
         'archipelago_purchase_locations': (0, 25),
         'archipelago_purchase_meta_coin_cost': (1, 1000000),
     }
@@ -339,52 +370,14 @@ def validate_shop_mode_config(sections, path, invalid):
             not _is_nonempty_string(target_id)
             or target_id != target_id.upper()
             or not isinstance(prices, dict)
-            or set(prices) != {'run_access', 'run_buff'}
-            or any(
-                value is not None and (
-                    not isinstance(value, int)
-                    or isinstance(value, bool)
-                    or value < 1
-                )
-                for value in prices.values()
-            )
-            or all(value is None for value in prices.values())
+            or set(prices) != {'tier'}
+            or prices['tier'] not in TIER_IDS
         ):
             invalid(
                 f'Invalid Shop Mode power_target_prices.{target_id}', path
             )
 
-    price_fields = {
-        'run_access',
-        'run_buff',
-        'permanent_buff',
-    }
-    target_prices = sections['unit_target_prices']
-    if not target_prices:
-        invalid('Shop Mode unit_target_prices cannot be empty', path)
-    for target_id, prices in target_prices.items():
-        if (
-            not _is_nonempty_string(target_id)
-            or target_id != target_id.upper()
-            or not isinstance(prices, dict)
-            or set(prices) != price_fields
-            or any(
-                value is not None and (
-                    not isinstance(value, int)
-                    or isinstance(value, bool)
-                    or value < 1
-                )
-                for value in prices.values()
-            )
-            or (prices.get('run_buff') is None)
-            != (prices.get('permanent_buff') is None)
-            or all(value is None for value in prices.values())
-        ):
-            invalid(
-                f'Invalid Shop Mode unit_target_prices.{target_id}', path
-            )
-
-    _validate_unit_access_gem_pricing(sections, path, invalid)
+    _validate_price_scales(sections, path, invalid)
 
     required_upgrades = {
         'mission_reroll': ('rerolls_per_level',),
@@ -594,10 +587,10 @@ def validate_shop_mode_config(sections, path, invalid):
         ):
             invalid(f'Invalid Shop Mode modifier {modifier_id!r}', path)
 
-    # Optional shelf filters the player ticks before a run. Every id has to
-    # name something the shop could otherwise sell, or a group silently
-    # excludes nothing and the checkbox lies.
-    priced_targets = set(power_prices) | set(target_prices)
+    # Optional shelf filters the player ticks before a run. That every id
+    # names something the shop could otherwise sell is checked in
+    # randomizer/shop/catalogue.py: unit prices are derived now, so the
+    # catalogue is the only place that still knows what is sellable.
     group_settings = set()
     claimed_targets = set()
     for group_id, definition in sections['reward_exclusion_groups'].items():
@@ -618,7 +611,6 @@ def validate_shop_mode_config(sections, path, invalid):
             or not target_ids
             or any(not _is_nonempty_string(item) for item in target_ids)
             or len(target_ids) != len(set(target_ids))
-            or not set(target_ids).issubset(priced_targets)
             or claimed_targets.intersection(target_ids)
         ):
             invalid(

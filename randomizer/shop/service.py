@@ -318,7 +318,7 @@ class ShopProgressionService:
         self.repository.save_run(updated)
         return updated
 
-    def purchase_permanent_unit(self, reward_id, *, excluded_target_ids=()):
+    def purchase_permanent_unit(self, reward_id):
         profile, run = self.repository.load()
         blocked = permanent_purchase_block_reason(run)
         if blocked:
@@ -329,9 +329,7 @@ class ShopProgressionService:
             entry is not None
             and entry.reward_type is ShopRewardType.UNIT_ACCESS
         )
-        price = permanent_unit_price(
-            entry.target_id, excluded_target_ids=excluded_target_ids
-        ) if shop_eligible else 0
+        price = permanent_unit_price(entry.target_id) if shop_eligible else 0
         outcome = apply_permanent_unit_purchase(
             profile, reward, price=price, shop_eligible=shop_eligible
         )
@@ -339,7 +337,7 @@ class ShopProgressionService:
             self.repository.save_profile(outcome.profile)
         return outcome
 
-    def purchase_permanent_buff(self, reward_id, *, excluded_target_ids=()):
+    def purchase_permanent_buff(self, reward_id):
         profile, run = self.repository.load()
         blocked = permanent_purchase_block_reason(run)
         if blocked:
@@ -350,9 +348,7 @@ class ShopProgressionService:
             entry is not None
             and entry.reward_type is ShopRewardType.UNIT_BUFF
         )
-        price = permanent_buff_price(
-            entry.target_id, excluded_target_ids=excluded_target_ids
-        ) if shop_eligible else 0
+        price = permanent_buff_price(entry.target_id) if shop_eligible else 0
         outcome = apply_permanent_buff_purchase(
             profile, reward, price=price, shop_eligible=shop_eligible
         )

@@ -24,7 +24,7 @@ from randomizer.shop.modifiers import (
 from randomizer.shop.config import SHOP_CONFIG
 from randomizer.shop.text import gem_text
 from randomizer.shop.shelf import shop_shelf
-from randomizer.shop.unit_pricing import unit_access_gem_price_reason
+from randomizer.shop.unit_pricing import unit_access_price_reason
 from randomizer.shop.mission_modifiers import (
     mission_modifier_for_run_offer,
 )
@@ -1461,22 +1461,23 @@ class ShopPolishController(ShopArchipelagoController):
         # beside a rifleman at 90 needs the shop to say what it is charging
         # for. The row has no room; the tooltip does.
         entry = self._shop_entry_by_reward_id.get(reward_id)
+        gem_scale = self.shop_config.price_scales['permanent_gem']
         reason = (
-            unit_access_gem_price_reason(entry.target_id)
+            unit_access_price_reason(entry.target_id, gem_scale)
             if entry is not None else ''
         )
         surcharged = bool(
             entry is not None
-            and entry.target_id in self.shop_pending_reward_exclusions()
+            and permanent_target_surcharged(entry.target_id)
         )
-        multiplier = self.shop_config.excluded_target_gem_price_multiplier
+        multiplier = gem_scale.excluded_target_multiplier
         return (
             f'{reward_id}\nPermanent local entitlement. '
             'Selectable in future Shop run loadouts.'
             + (f'\nPrice: {reason}.' if reason else '')
             + (
-                '\nReward Pool surcharge: hidden from run offers, '
-                f'so it costs {multiplier}x here.'
+                '\nCampaign-only or superweapon target: owning '
+                f'one outright always costs {multiplier}x.'
                 if surcharged else ''
             )
         )

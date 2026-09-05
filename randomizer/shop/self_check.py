@@ -26,6 +26,8 @@ from randomizer.ui.cameos import (
 from .catalogue import (
     DEFAULT_BUFF_DRAW_WEIGHT,
     buff_draw_weights,
+    power_access_tier,
+    power_is_flagged,
     canonical_reward_for_id,
     run_excluded_target_ids,
     shop_catalogue,
@@ -54,6 +56,7 @@ from .economy import (
     discounted_shop_price,
     mission_reward,
     permanent_buff_price,
+    permanent_target_surcharged,
     permanent_unit_price,
     run_buff_price,
     run_unit_price,
@@ -111,7 +114,10 @@ from .purchases import apply_validated_run_purchase, validate_run_purchase
 from .unit_pricing import (
     UNIQUE_INFANTRY_CATEGORIES,
     UNIQUE_UNIT_CATEGORIES,
-    unit_access_gem_price_report,
+    power_access_price,
+    unit_access_price,
+    unit_access_price_report,
+    unit_buff_price,
     unit_pricing_traits,
 )
 from .shelf import (
@@ -1512,8 +1518,8 @@ def _gem_pricing_checks():
     band, a hero must ignore the band, and a Cloning Vat must not be mistaken
     for a hero just because only one of it can be built.
     """
-    pricing = SHOP_CONFIG.unit_access_gem_pricing
-    report = unit_access_gem_price_report()
+    pricing = SHOP_CONFIG.price_scales['permanent_gem']
+    report = unit_access_price_report(pricing)
     access_targets = {
         entry.target_id for entry in shop_catalogue()
         if entry.reward_type is ShopRewardType.UNIT_ACCESS
@@ -1524,9 +1530,9 @@ def _gem_pricing_checks():
         and all(price > 0 for price in report.values())
     )
     flat_prices = {
-        pricing.unique_infantry_gems,
-        pricing.unique_unit_gems,
-        pricing.stolen_tech_gems,
+        pricing.unique_infantry,
+        pricing.unique_unit,
+        pricing.stolen_tech[0],
     }
     banded = {}
     unique_infantry = []
@@ -1545,13 +1551,9 @@ def _gem_pricing_checks():
             if traits.get('unique'):
                 limited_buildings.append((target, price))
             banded[target] = price
-    def in_band(tier, price):
-        band = pricing.tier_gems[tier]
-        return (
-            band + pricing.cost_adjustment_minimum
-            <= price
-            <= band + pricing.cost_adjustment_maximum
-        )
+    def in_band(tier, price, scale=pricing):
+        low, high = scale.tier_prices[tier]
+        return low <= price <= high
     band_valid = bool(
         banded
         and all(
@@ -1578,11 +1580,11 @@ def _gem_pricing_checks():
         unique_infantry
         and unique_units
         and all(
-            price == pricing.unique_infantry_gems
+            price == pricing.unique_infantry
             for _target, price in unique_infantry
         )
         and all(
-            price == pricing.unique_unit_gems
+            price == pricing.unique_unit
             for _target, price in unique_units
         )
     )
@@ -1595,8 +1597,71 @@ def _gem_pricing_checks():
             for target, price in limited_buildings
         )
     )
+    # The Ore scale is the same model with different numbers, so it gets the
+    # same treatment rather than a second copy of the reasoning.
+    ore = SHOP_CONFIG.price_scales['run_ore']
+    ore_report = unit_access_price_report(ore)
+    ore_banded = {
+        target: price for target, price in ore_report.items()
+        if not unit_pricing_traits(target).get('stolen_tech')
+        and not (
+            unit_pricing_traits(target).get('unique')
+            and unit_pricing_traits(target).get('category')
+            in UNIQUE_INFANTRY_CATEGORIES | UNIQUE_UNIT_CATEGORIES
+        )
+    }
+    ore_band_valid = bool(
+        ore_banded
+        and all(
+            in_band(unit_access_tier(target), price, ore)
+            for target, price in ore_banded.items()
+        )
+    )
+    # Upgrades are a fixed fraction of what their target costs, on whichever
+    # scale is being asked. The Ore side floors at minimum_shop_price, so it
+    # is compared before the discount path rather than after.
+    buff_ratio_valid = all(
+        unit_buff_price(target, scale) == max(
+            1,
+            round(
+                unit_access_price(target, scale)
+                * scale.buff_percent_of_access / 100
+            ),
+        )
+        for scale in (ore, pricing)
+        for target in sorted(ore_report)[:40]
+    )
+    # Powers have no cost, so tier decides outright and the flagged ones --
+    # superweapons and campaign-only powers -- are flat and steep.
+    power_targets = {
+        entry.target_id for entry in shop_catalogue()
+        if entry.reward_type is ShopRewardType.POWER_ACCESS
+    }
+    flagged_powers = {
+        target for target in power_targets if power_is_flagged(target)
+    }
+    power_price_valid = bool(
+        flagged_powers
+        and power_targets - flagged_powers
+        and all(
+            power_access_price(target, ore) == ore.flagged_power_price
+            for target in flagged_powers
+        )
+        and all(
+            power_access_price(target, ore)
+            == ore.power_tier_prices[power_access_tier(target)]
+            for target in power_targets - flagged_powers
+        )
+        and len(
+            {power_access_price(target, ore)
+             for target in power_targets - flagged_powers}
+        ) == 3
+    )
     return {
         'gem_price_coverage_valid': coverage_valid,
+        'ore_price_tier_band_valid': ore_band_valid,
+        'price_buff_ratio_valid': buff_ratio_valid,
+        'power_price_tier_valid': power_price_valid,
         'gem_price_tier_band_valid': band_valid,
         'gem_price_tier_dominates_cost_valid': tier_order_valid,
         'gem_price_cost_spread_valid': cost_spread_valid,
@@ -1632,7 +1697,9 @@ def validate_shop_domain():
     except StaticConfigError:
         pass
     invalid_price_config = load_static_config('shop_mode.json')
-    invalid_price_config['unit_target_prices']['E1']['run_access'] = 0
+    invalid_price_config['price_scales']['run_ore']['tier_prices'][
+        'tier_1'
+    ] = [60, 40]
     try:
         validate_sections(
             'shop_mode.json', invalid_price_config, 'shop-self-check'
@@ -1713,11 +1780,14 @@ def validate_shop_domain():
         and operation.meta_coins == 50
         and operation.victory_bonus_run_coins == 75
         and capped_bonus.victory_bonus_run_coins == 125
-        and len(SHOP_CONFIG.unit_target_prices) == 310
+        and len(SHOP_CONFIG.price_scales) == 2
         and len(SHOP_CONFIG.power_target_prices) == 94
+        # The classic superweapons are premium powers, so they take the flat
+        # price rather than any tier's.
         and all(
-            SHOP_CONFIG.power_target_prices[target_id].run_access == 120
-            and SHOP_CONFIG.power_target_prices[target_id].run_buff == 60
+            power_access_price(
+                target_id, SHOP_CONFIG.price_scales['run_ore']
+            ) == SHOP_CONFIG.price_scales['run_ore'].flagged_power_price
             for target_id in (
                 'LIGHTNINGSTORMSPECIAL',
                 'NUKESPECIAL',
@@ -1725,18 +1795,32 @@ def validate_shop_domain():
                 'GREATTEMPESTSPECIAL',
             )
         )
-        and run_unit_price('E1') == 20
-        and run_unit_price('AHMV') == 40
-        and run_unit_price('STARDUSTB') == 120
-        and run_buff_price('SPY') == 20
-        and run_buff_price('STARDUSTB') == 60
+        # Named units, asserted against their own tier's range rather than a
+        # remembered number, so a retiered unit fails loudly instead of
+        # quietly asserting the wrong band.
+        and all(
+            SHOP_CONFIG.price_scales['run_ore'].tier_prices[
+                unit_access_tier(target_id)
+            ][0] <= run_unit_price(target_id)
+            <= SHOP_CONFIG.price_scales['run_ore'].tier_prices[
+                unit_access_tier(target_id)
+            ][1]
+            for target_id in ('E1', 'AHMV', 'SPY')
+        )
+        and run_unit_price('STARDUSTB') == 380
+        and run_buff_price('SPY') >= SHOP_CONFIG.minimum_shop_price
+        and run_buff_price('STARDUSTB') == 68
         and (failed.run_coins, failed.meta_coins) == (0, 0)
         and meta_rewards_by_difficulty == [20, 30, 50, 70]
         and discounted_shop_price(0, shop_discount_level=999) == 10
         and 280 <= permanent_unit_price('SPY') <= 380
-        and permanent_unit_price('STARDUSTB') == 750
-        and permanent_buff_price('SPY') == 50
-        and permanent_buff_price('STARDUSTB') == 120
+        # A campaign-only superunit: 750 for being a hero, four times over
+        # for being one no skirmish game offers.
+        and permanent_unit_price('STARDUSTB') == 3000
+        and permanent_buff_price('SPY') == round(
+            permanent_unit_price('SPY') * 18 / 100
+        )
+        and permanent_buff_price('STARDUSTB') == 540
         and unavailable_price_valid
         and starting_run_coins(starting_capital_level=999) == 1250
         and starting_credit_upgrade.max_level == 20
@@ -2278,16 +2362,16 @@ def validate_shop_domain():
         )
 
     _all_visible = visible_entries({})
-    # Every hidden target the permanent shop actually prices, which is the
-    # campaign-unit group; the power groups name superweapons it never sells.
-    surcharge_group = frozenset(
-        target_id
-        for group in SHOP_CONFIG.reward_exclusion_groups
-        for target_id in group.target_ids
-    )
-    surcharge_targets = sorted(
-        surcharge_group & set(SHOP_CONFIG.unit_target_prices)
-    )
+    # Every surcharged target the permanent shop actually sells, which is
+    # the campaign-unit group; the power groups name superweapons, which the
+    # permanent shop has no offer for.
+    gem_scale = SHOP_CONFIG.price_scales['permanent_gem']
+    ore_scale = SHOP_CONFIG.price_scales['run_ore']
+    surcharge_targets = sorted({
+        entry.target_id for entry in catalogue
+        if entry.reward_type is ShopRewardType.UNIT_ACCESS
+        and permanent_target_surcharged(entry.target_id)
+    })
     hidden_by_group = {
         group.id: _all_visible - visible_entries({group.setting_key: True})
         for group in SHOP_CONFIG.reward_exclusion_groups
@@ -2349,32 +2433,29 @@ def validate_shop_domain():
                 })
             )
         ),
-        # A hidden target is still on sale for Gems, at a multiple of the
-        # normal price. Both the access reward and its buffs carry it, and a
-        # target nobody ticked stays at list price.
-        #
-        # Only the unit group is measured, because it is the only one the
-        # permanent shop can sell: the other two hide superweapons and aid
-        # powers, which have no permanent price at all. Asserting over every
-        # group would pass on an empty set and read like coverage it has not
-        # got, so the surcharged targets are gathered explicitly instead.
+        # Owning a campaign-only unit outright always costs a multiple,
+        # whether or not its Reward Pool box happens to be ticked: the
+        # premium belongs to the unit. Ore is deliberately exempt -- a single
+        # run's price is not the place to charge it.
         'shop_exclusion_gem_surcharge_valid': bool(
             surcharge_targets
-            and SHOP_CONFIG.excluded_target_gem_price_multiplier > 1
+            and gem_scale.excluded_target_multiplier > 1
+            and ore_scale.excluded_target_multiplier == 1
             and all(
-                permanent_unit_price(
-                    surcharge_target, excluded_target_ids=surcharge_group
-                ) == permanent_unit_price(surcharge_target)
-                * SHOP_CONFIG.excluded_target_gem_price_multiplier
-                and permanent_buff_price(
-                    surcharge_target, excluded_target_ids=surcharge_group
-                ) == permanent_buff_price(surcharge_target)
-                * SHOP_CONFIG.excluded_target_gem_price_multiplier
-                for surcharge_target in surcharge_targets
+                permanent_unit_price(target) == unit_access_price(
+                    target, gem_scale
+                ) * gem_scale.excluded_target_multiplier
+                and permanent_buff_price(target) == unit_buff_price(
+                    target, gem_scale
+                ) * gem_scale.excluded_target_multiplier
+                and permanent_target_surcharged(target)
+                for target in surcharge_targets
             )
-            and permanent_unit_price(
-                'E1', excluded_target_ids=surcharge_group
-            ) == permanent_unit_price('E1')
+            and not permanent_target_surcharged('E1')
+            and permanent_unit_price('E1') == unit_access_price(
+                'E1', gem_scale
+            )
+            and run_unit_price('E1') == unit_access_price('E1', ore_scale)
         ),
         'shop_exact_access_mode_valid': SHOP_ACCESS_REWARD_MODE == 'Chaos',
         'shop_single_airfield_valid': shop_single_airfield_valid,

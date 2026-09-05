@@ -13,8 +13,7 @@ from .model import (
     RewardExclusionGroup,
     ShopModeConfig,
     ShopPowerPriceDefinition,
-    ShopTargetPriceDefinition,
-    UnitAccessGemPricing,
+    ShopPriceScale,
     StageDifficultyProfile,
     StageScoreCeiling,
     StageWeightProfile,
@@ -130,9 +129,6 @@ def load_shop_mode_config() -> ShopModeConfig:
         starting_rerolls=int(settings['starting_rerolls']),
         maximum_starting_ore=int(settings['maximum_starting_ore']),
         minimum_shop_price=int(settings['minimum_shop_price']),
-        excluded_target_gem_price_multiplier=int(
-            settings['excluded_target_gem_price_multiplier']
-        ),
         reroll_policy=str(settings['reroll_policy']),
         archipelago_purchase_locations=int(
             settings['archipelago_purchase_locations']
@@ -167,39 +163,41 @@ def load_shop_mode_config() -> ShopModeConfig:
         enemy_buff_stage_tiers=enemy_buff_stage_tiers,
         power_target_prices={
             str(target_id): ShopPowerPriceDefinition(
-                run_access=definition['run_access'],
-                run_buff=definition['run_buff'],
+                tier=str(definition['tier']),
             )
             for target_id, definition
             in sections['power_target_prices'].items()
         },
-        unit_target_prices={
-            str(target_id): ShopTargetPriceDefinition(
-                run_access=definition['run_access'],
-                run_buff=definition['run_buff'],
-                permanent_buff=definition['permanent_buff'],
+        price_scales={
+            str(name): ShopPriceScale(
+                name=str(scale['name']),
+                tier_prices={
+                    str(tier): (int(bounds[0]), int(bounds[1]))
+                    for tier, bounds in scale['tier_prices'].items()
+                },
+                stolen_tech=(
+                    int(scale['stolen_tech'][0]),
+                    int(scale['stolen_tech'][1]),
+                ),
+                power_tier_prices={
+                    str(tier): int(price)
+                    for tier, price in scale['power_tier_prices'].items()
+                },
+                **{
+                    key: int(scale[key])
+                    for key in (
+                        'unique_infantry',
+                        'unique_unit',
+                        'flagged_power_price',
+                        'buff_percent_of_access',
+                        'cost_window_trim_percent',
+                        'rounding_step',
+                        'excluded_target_multiplier',
+                    )
+                },
             )
-            for target_id, definition in sections['unit_target_prices'].items()
+            for name, scale in sections['price_scales'].items()
         },
-        unit_access_gem_pricing=UnitAccessGemPricing(
-            tier_gems={
-                str(tier): int(gems)
-                for tier, gems
-                in sections['unit_access_gem_pricing']['tier_gems'].items()
-            },
-            **{
-                key: int(sections['unit_access_gem_pricing'][key])
-                for key in (
-                    'cost_adjustment_minimum',
-                    'cost_adjustment_maximum',
-                    'cost_window_trim_percent',
-                    'unique_infantry_gems',
-                    'unique_unit_gems',
-                    'stolen_tech_gems',
-                    'rounding_step',
-                )
-            },
-        ),
         permanent_upgrades=upgrades,
         modifiers=modifiers,
     )

@@ -152,17 +152,30 @@ def purchasing_power_report(config, settings, tiers: int) -> None:
         values = sorted(values)
         return values[len(values) // 2] if values else 0
 
+    # Prices are derived from the catalogue now, so the medians are measured
+    # over what the shop can actually offer rather than over a table.
+    from randomizer.shop.catalogue import shop_catalogue
+    from randomizer.shop.model import ShopRewardType
+    from randomizer.shop.unit_pricing import (
+        power_access_price, unit_access_price, unit_buff_price,
+    )
+
+    ore = config.price_scales['run_ore']
+    entries = shop_catalogue()
     unit = median(
-        price.run_access for price in config.unit_target_prices.values()
-        if price.run_access
+        unit_access_price(entry.target_id, ore, config=config)
+        for entry in entries
+        if entry.reward_type is ShopRewardType.UNIT_ACCESS
     )
     unit_buff = median(
-        price.run_buff for price in config.unit_target_prices.values()
-        if price.run_buff
+        unit_buff_price(entry.target_id, ore, config=config)
+        for entry in entries
+        if entry.reward_type is ShopRewardType.UNIT_BUFF
     )
     power = median(
-        price.run_access for price in config.power_target_prices.values()
-        if price.run_access
+        power_access_price(entry.target_id, ore, config=config)
+        for entry in entries
+        if entry.reward_type is ShopRewardType.POWER_ACCESS
     )
     slate = config.unit_inventory_size * unit
     slate += config.power_inventory_size * power

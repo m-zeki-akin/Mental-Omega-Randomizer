@@ -10,7 +10,12 @@ from .model import (
     ShopRewardType,
 )
 from .modifiers import modifier_effects
-from .unit_pricing import unit_access_gem_price
+from .unit_pricing import (
+    power_access_price,
+    power_buff_price as _scaled_power_buff_price,
+    unit_access_price,
+    unit_buff_price,
+)
 
 
 def stage_income_multiplier(stage, config: ShopModeConfig = SHOP_CONFIG):
@@ -236,7 +241,9 @@ def run_unit_price(
     modifiers=(),
     config: ShopModeConfig = SHOP_CONFIG,
 ):
-    base_price = _unit_target_price(config, target_id, 'run_access')
+    base_price = unit_access_price(
+        target_id, _scale(config, 'run_ore'), config=config
+    )
     return discounted_shop_price(
         base_price,
         shop_discount_level=shop_discount_level,
@@ -252,7 +259,9 @@ def run_buff_price(
     modifiers=(),
     config: ShopModeConfig = SHOP_CONFIG,
 ):
-    base_price = _unit_target_price(config, target_id, 'run_buff')
+    base_price = unit_buff_price(
+        target_id, _scale(config, 'run_ore'), config=config
+    )
     return discounted_shop_price(
         base_price,
         shop_discount_level=shop_discount_level,
@@ -261,82 +270,84 @@ def run_buff_price(
     )
 
 
-def _unit_target_price(config, target_id, price_field):
-    normalized_id = str(target_id).upper()
-    definition = config.unit_target_prices.get(normalized_id)
-    if definition is None:
-        raise ValueError(
-            f'Unknown Shop Mode unit price target: {target_id!r}'
-        )
-    price = getattr(definition, price_field)
-    if price is None:
-        raise ValueError(
-            f'Shop Mode target {normalized_id!r} has no {price_field} price'
-        )
-    return int(price)
+def _scale(config, name):
+    return config.price_scales[name]
 
 
-def _power_target_price(config, target_id, price_field):
-    normalized_id = str(target_id).upper()
-    definition = config.power_target_prices.get(normalized_id)
-    if definition is None:
-        raise ValueError(
-            f'Unknown Shop Mode power price target: {target_id!r}'
-        )
-    price = getattr(definition, price_field)
-    if price is None:
-        raise ValueError(
-            f'Shop Mode power {normalized_id!r} has no {price_field} price'
-        )
-    return int(price)
-
-
-def excluded_target_gem_price(
-    price, target_id, excluded_target_ids, config: ShopModeConfig = SHOP_CONFIG
+def excluded_target_surcharge(
+    price, target_id, scale, config: ShopModeConfig = SHOP_CONFIG
 ):
-    """Return the Gem price after the Reward Pool surcharge.
+    """Return the price after the Reward Pool premium for this scale.
 
-    The Reward Pool boxes take a target out of a run: no offers, no upgrades,
-    no starting loadout. They deliberately do not take it out of the permanent
-    shop, because a player who has ticked "no campaign-only units" may still
-    want one specific story unit and should not have to untick the box to buy
-    it. What they should not get is the same price as everyone else, so a
-    hidden target costs the configured multiple.
+    The Reward Pool groups name the units and powers no skirmish game offers.
+    Ticking a box takes them out of a run's random stock; it never took them
+    out of the permanent shop, because a player who wants one particular story
+    unit should not have to untick a box to buy it.
 
-    Applied by target, like the exclusion itself: the access reward and every
-    buff that points at the same unit carry the surcharge together.
+    What they should not get is the ordinary price. Owning one of these
+    outright, for every run from here on, is meant to be expensive whether or
+    not the box happens to be ticked -- the surcharge is a property of the
+    unit, not of a setting. A single run's Ore price is not the place to
+    charge it, so the Ore scale sets its multiplier to 1.
     """
-    if not excluded_target_ids:
+    multiplier = max(1, int(scale.excluded_target_multiplier))
+    if multiplier == 1:
         return price
-    if str(target_id).upper() not in excluded_target_ids:
+    if str(target_id).upper() not in _surcharged_target_ids(config):
         return price
-    return price * max(1, int(config.excluded_target_gem_price_multiplier))
+    return price * multiplier
 
 
-def permanent_unit_price(
-    target_id, *, excluded_target_ids=(), config: ShopModeConfig = SHOP_CONFIG
+def permanent_target_surcharged(
+    target_id, *, config: ShopModeConfig = SHOP_CONFIG
 ):
+    """Return whether owning this target permanently carries the premium."""
+    return (
+        int(config.price_scales['permanent_gem'].excluded_target_multiplier) > 1
+        and str(target_id).upper() in _surcharged_target_ids(config)
+    )
+
+
+def _surcharged_target_ids(config: ShopModeConfig = SHOP_CONFIG):
+    cached = _SURCHARGED_TARGETS.get(id(config))
+    if cached is not None:
+        return cached[1]
+    targets = frozenset(
+        target_id
+        for group in config.reward_exclusion_groups
+        for target_id in group.target_ids
+    )
+    _SURCHARGED_TARGETS[id(config)] = (config, targets)
+    return targets
+
+
+# Keyed on identity, holding the config alive, for the same reason the pricing
+# module does: a config carries dictionaries and cannot be an lru_cache key.
+_SURCHARGED_TARGETS = {}
+
+
+def permanent_unit_price(target_id, *, config: ShopModeConfig = SHOP_CONFIG):
     """Return what owning a unit outright costs in Gems.
 
     Derived from tier, uniqueness and the live roster cost rather than read
     from a table -- see randomizer/shop/unit_pricing.py for why cost alone was
     the wrong axis.
     """
-    return excluded_target_gem_price(
-        unit_access_gem_price(target_id, config=config),
+    scale = _scale(config, 'permanent_gem')
+    return excluded_target_surcharge(
+        unit_access_price(target_id, scale, config=config),
         target_id,
-        excluded_target_ids,
+        scale,
         config,
     )
 
 
-def permanent_buff_price(
-    target_id, *, excluded_target_ids=(), config: ShopModeConfig = SHOP_CONFIG
-):
-    return excluded_target_gem_price(
-        _unit_target_price(config, target_id, 'permanent_buff'),
+def permanent_buff_price(target_id, *, config: ShopModeConfig = SHOP_CONFIG):
+    scale = _scale(config, 'permanent_gem')
+    return excluded_target_surcharge(
+        unit_buff_price(target_id, scale, config=config),
         target_id,
-        excluded_target_ids,
+        scale,
         config,
     )
 
@@ -386,21 +397,16 @@ def run_reward_price(
         specialization_level * int(per_level)
         + max(0, int(coupon_discount_ore))
     )
+    ore = _scale(config, 'run_ore')
     if entry.reward_type is ShopRewardType.UNIT_ACCESS:
-        base_price = _unit_target_price(
-            config, entry.target_id, 'run_access'
-        )
+        base_price = unit_access_price(entry.target_id, ore, config=config)
     elif entry.reward_type is ShopRewardType.UNIT_BUFF:
-        base_price = _unit_target_price(
-            config, entry.target_id, 'run_buff'
-        )
+        base_price = unit_buff_price(entry.target_id, ore, config=config)
     elif entry.reward_type is ShopRewardType.POWER_ACCESS:
-        base_price = _power_target_price(
-            config, entry.target_id, 'run_access'
-        )
+        base_price = power_access_price(entry.target_id, ore, config=config)
     elif entry.reward_type is ShopRewardType.POWER_BUFF:
-        base_price = _power_target_price(
-            config, entry.target_id, 'run_buff'
+        base_price = _scaled_power_buff_price(
+            entry.target_id, ore, config=config
         )
     else:
         raise ValueError(

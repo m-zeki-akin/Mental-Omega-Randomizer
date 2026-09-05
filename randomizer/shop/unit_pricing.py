@@ -1,24 +1,28 @@
-"""What a unit is worth in Gems, derived rather than tabulated.
+"""What a unit or a power is worth, derived rather than tabulated.
 
-Permanent access used to carry a hand-written Gem price per unit, scaled off
-the unit's in-game cost with an 80 Gem floor. Cost is the wrong axis. It says
-what a unit is worth to build once you already have it, which is a question
-the game answers every match; the shop is answering a different one -- what it
-is worth to *have* the unit at all, for the rest of the run and every run
+Every Shop price used to come from a hand-written table keyed on the target
+and scaled off the unit's in-game credit cost. Cost is the wrong axis. It
+answers what a unit is worth to build once you already have it -- a question
+the game prices every match -- while the shop is asking a different one: what
+is it worth to *have* the unit at all, for the rest of this run and every run
 after. That is decided by how far up the tech tree it sits and by whether
-anyone else can field it, not by its price tag.
+anyone else can field one.
 
-So tier sets the band and cost only positions the unit inside it. A unit
-nobody can build more than one of, or one that has to be stolen, is priced on
-its own terms and ignores the band entirely.
+So tier sets a band and cost only positions the unit inside it. A unit nobody
+can build more than one of, or one that has to be stolen, is priced on its own
+terms and ignores the band. Powers have no credit cost at all, so for them the
+tier decides outright.
 
-Everything except the tier is read from the live roster data, so a submod that
-reprices a unit reprices its Gem cost with it. Tiers stay in configuration:
-they are not in the unit data, and reconstructing them from tech-building
-prerequisites is a great deal of work for a number that rarely moves.
+Ore and Gems are the same model at two scales, so both read one
+``ShopPriceScale`` and differ only in its numbers.
+
+Cost, category, build limit and stolen-tech status all come from the live
+roster, so a submod that reprices a unit reprices its Shop price with it.
+Tiers stay in configuration: unit tiers from the roster's TechLevel, power
+tiers from ``power_target_prices``. Neither is in the unit data, and rebuilding
+them from tech-building prerequisites is a great deal of work for a number that
+rarely moves.
 """
-
-from functools import lru_cache
 
 from randomizer.rewards.definitions import BUFF_TARGETS
 from randomizer.rewards.roster import randomizer_unit_template_values
@@ -32,6 +36,12 @@ from .model import ShopModeConfig
 UNIQUE_INFANTRY_CATEGORIES = frozenset({'infantry'})
 UNIQUE_UNIT_CATEGORIES = frozenset({'units', 'aircraft', 'ships'})
 
+# Derived tables, memoised. A config carries dictionaries and so cannot be an
+# lru_cache key; entries are keyed on its identity and hold it alive so the id
+# stays meaningful. Only two ever exist: the loaded config, and whatever a
+# self-check builds with dataclasses.replace.
+_CACHE = {}
+
 
 def _template_value(values, key):
     for name, value in (values or {}).items():
@@ -40,9 +50,11 @@ def _template_value(values, key):
     return None
 
 
-@lru_cache(maxsize=1)
 def _unit_traits():
     """Return the roster facts pricing needs, per unit id."""
+    cached = _CACHE.get('traits')
+    if cached is not None:
+        return cached
     templates = randomizer_unit_template_values()
     traits = {}
     for unit_id, values in templates.items():
@@ -53,9 +65,18 @@ def _unit_traits():
             )
         except ValueError:
             build_limit = 0
-        cost = target.get('cost')
+        # The roster section is asked for the cost first. BUFF_TARGETS carries
+        # one for anything buildable but not for special buildings, and a
+        # Cloning Vat priced as though it were free would sit at the bottom of
+        # its band for no reason. This is the same number the game reads.
+        try:
+            cost = int(str(_template_value(values, 'Cost') or '').strip() or 0)
+        except ValueError:
+            cost = 0
+        if cost <= 0:
+            cost = int(target.get('cost') or 0)
         traits[unit_id.upper()] = {
-            'cost': int(cost) if cost else 0,
+            'cost': max(0, cost),
             'category': str(target.get('category') or ''),
             'unique': build_limit == 1,
             'stolen_tech': bool(
@@ -63,6 +84,7 @@ def _unit_traits():
                 .strip()
             ),
         }
+    _CACHE['traits'] = traits
     return traits
 
 
@@ -70,110 +92,186 @@ def unit_pricing_traits(target_id):
     return _unit_traits().get(str(target_id).upper(), {})
 
 
-def _unique_gems(traits, pricing):
+def _unique_price(traits, scale):
     if not traits.get('unique'):
         return 0
     category = traits.get('category')
     if category in UNIQUE_INFANTRY_CATEGORIES:
-        return int(pricing.unique_infantry_gems)
+        return int(scale.unique_infantry)
     if category in UNIQUE_UNIT_CATEGORIES:
-        return int(pricing.unique_unit_gems)
+        return int(scale.unique_unit)
     # A one-of-a-kind building is limited for balance, not because it is a
     # hero. It keeps its tier band.
     return 0
 
 
-# A config carries dictionaries and so cannot be an lru_cache key. Keyed on
-# identity instead, holding the config alive so the id stays meaningful.
-_TIER_COST_WINDOWS = {}
+def _priced_by_band(traits, scale):
+    """Return whether a unit takes a tier band rather than a flat price."""
+    return not (_unique_price(traits, scale) or traits.get('stolen_tech'))
 
 
-def _tier_cost_windows(config: ShopModeConfig = SHOP_CONFIG):
+def _tier_cost_windows(scale, config: ShopModeConfig = SHOP_CONFIG):
     """Return the cost span each tier's band is stretched across.
 
     Measured per tier rather than across the whole roster. Tier 1 units are
     all cheap, so a single global window would push every one of them to the
-    bottom of its band and throw away the distinction the band exists to
-    draw. Outliers are trimmed to a percentile so one 5,000 credit superunit
-    cannot flatten the tier it sits in.
+    bottom of its band and throw away the distinction the band exists to draw.
+    The extremes are trimmed so one 5,000 credit superunit cannot flatten the
+    tier it sits in.
     """
     from .catalogue import shop_catalogue, unit_access_tier
     from .model import ShopRewardType
 
-    cached = _TIER_COST_WINDOWS.get(id(config))
+    key = ('windows', scale.name, id(config))
+    cached = _CACHE.get(key)
     if cached is not None:
         return cached[1]
     costs_by_tier = {}
     traits = _unit_traits()
-    pricing = config.unit_access_gem_pricing
     for entry in shop_catalogue():
         if entry.reward_type is not ShopRewardType.UNIT_ACCESS:
             continue
         unit = traits.get(entry.target_id, {})
         # Units priced on their own terms are not part of the band, so they
         # must not stretch it either.
-        if _unique_gems(unit, pricing) or unit.get('stolen_tech'):
+        if not _priced_by_band(unit, scale):
             continue
         cost = unit.get('cost') or 0
         if cost > 0:
-            costs_by_tier.setdefault(unit_access_tier(entry.target_id), []).append(cost)
+            costs_by_tier.setdefault(
+                unit_access_tier(entry.target_id), []
+            ).append(cost)
     windows = {}
-    trim = max(0.0, min(0.4, float(pricing.cost_window_trim_percent) / 100))
+    trim = max(0.0, min(0.4, float(scale.cost_window_trim_percent) / 100))
     for tier, costs in costs_by_tier.items():
         costs.sort()
         low = costs[min(len(costs) - 1, int(len(costs) * trim))]
         high = costs[max(0, int(round(len(costs) * (1 - trim))) - 1)]
         windows[tier] = (low, max(low, high))
-    _TIER_COST_WINDOWS[id(config)] = (config, windows)
+    _CACHE[key] = (config, windows)
     return windows
 
 
-def _cost_position(target_id, tier, config: ShopModeConfig = SHOP_CONFIG):
+def _cost_position(target_id, scale, config: ShopModeConfig = SHOP_CONFIG):
     """Return where a unit's cost falls inside its tier, from 0 to 1."""
-    window = _tier_cost_windows(config).get(tier)
+    from .catalogue import unit_access_tier
+
+    window = _tier_cost_windows(scale, config).get(unit_access_tier(target_id))
     cost = unit_pricing_traits(target_id).get('cost') or 0
     if not window or window[1] <= window[0] or cost <= 0:
-        # No cost in the roster data -- a few special buildings have none --
-        # so the unit sits in the middle of its band rather than at the
-        # bottom, which would read as a discount it has not earned.
         return 0.5
     return min(1.0, max(0.0, (cost - window[0]) / (window[1] - window[0])))
 
 
-def unit_access_gem_price(target_id, *, config: ShopModeConfig = SHOP_CONFIG):
-    """Return the permanent Gem price for owning one unit outright."""
+def _rounded(value, scale):
+    step = max(1, int(scale.rounding_step))
+    return max(step, int(round(value / step)) * step)
+
+
+def _in_range(bounds, target_id, scale, config):
+    """Return where in a price range a unit's credit cost puts it."""
+    low, high = int(bounds[0]), int(bounds[1])
+    if high <= low:
+        return low
+    position = _cost_position(target_id, scale, config)
+    return _rounded(low + position * (high - low), scale)
+
+
+def _require_offer(target_id, reward_type):
+    from .catalogue import shop_offers_target
+
+    if not shop_offers_target(target_id, reward_type):
+        raise ValueError(
+            f'Shop Mode has no {reward_type.value} offer for {target_id!r}'
+        )
+
+
+def _access_value(target_id, scale, config):
+    """Return what a unit is worth, whether or not it is for sale."""
     from .catalogue import unit_access_tier
 
-    pricing = config.unit_access_gem_pricing
     traits = unit_pricing_traits(target_id)
-    flat = max(
-        _unique_gems(traits, pricing),
-        int(pricing.stolen_tech_gems) if traits.get('stolen_tech') else 0,
-    )
+    flat = _unique_price(traits, scale)
+    if traits.get('stolen_tech'):
+        # Stolen tech is a range of its own, positioned by cost like a band.
+        # A scale that wants one number sets both ends to it.
+        flat = max(flat, _in_range(
+            scale.stolen_tech, target_id, scale, config
+        ))
     if flat:
         return flat
-    tier = unit_access_tier(target_id)
-    band = int(pricing.tier_gems.get(tier, pricing.tier_gems['tier_1']))
-    low = int(pricing.cost_adjustment_minimum)
-    high = int(pricing.cost_adjustment_maximum)
-    adjustment = low + _cost_position(target_id, tier, config) * (high - low)
-    step = max(1, int(pricing.rounding_step))
-    return max(step, int(round((band + adjustment) / step)) * step)
+    return _in_range(
+        scale.tier_prices.get(
+            unit_access_tier(target_id), scale.tier_prices['tier_1']
+        ),
+        target_id,
+        scale,
+        config,
+    )
 
 
-def unit_access_gem_price_reason(target_id, *, config: ShopModeConfig = SHOP_CONFIG):
+def unit_access_price(target_id, scale, *, config: ShopModeConfig = SHOP_CONFIG):
+    """Return what owning a unit outright costs on one currency's scale."""
+    from .model import ShopRewardType
+
+    _require_offer(target_id, ShopRewardType.UNIT_ACCESS)
+    return _access_value(target_id, scale, config)
+
+
+def _buff_price(access_price, scale):
+    """Return one upgrade stack as a fraction of what its target costs."""
+    return max(1, int(round(access_price * scale.buff_percent_of_access / 100)))
+
+
+def unit_buff_price(target_id, scale, *, config: ShopModeConfig = SHOP_CONFIG):
+    """Return one upgrade stack's price for a unit.
+
+    Priced off what the unit is worth even where the unit itself is not for
+    sale: a Tier 1 starter has no access offer, and its upgrades still need a
+    number.
+    """
+    from .model import ShopRewardType
+
+    _require_offer(target_id, ShopRewardType.UNIT_BUFF)
+    return _buff_price(_access_value(target_id, scale, config), scale)
+
+
+def power_access_price(target_id, scale, *, config: ShopModeConfig = SHOP_CONFIG):
+    """Return what a superweapon or aid power costs.
+
+    Powers have no credit cost to read, so tier decides outright. The ones the
+    Reward Pool groups single out -- superweapons, and the campaign-only
+    powers no skirmish game offers -- are flat and deliberately steep: they
+    are what a run gets built around, not stock.
+    """
+    from .catalogue import power_access_tier, power_is_flagged
+
+    if power_is_flagged(target_id, config=config):
+        return int(scale.flagged_power_price)
+    tier = power_access_tier(target_id, config=config)
+    return int(
+        scale.power_tier_prices.get(tier, scale.power_tier_prices['tier_1'])
+    )
+
+
+def power_buff_price(target_id, scale, *, config: ShopModeConfig = SHOP_CONFIG):
+    return _buff_price(
+        power_access_price(target_id, scale, config=config), scale
+    )
+
+
+def unit_access_price_reason(target_id, scale):
     """Return why a unit costs what it costs, in one short phrase.
 
     The old prices tracked in-game cost, so a player could read them off the
-    unit they knew. These do not, and a hero at 500 Gems beside a rifleman at
-    90 is unexplained unless the shop says what it is charging for.
+    unit they already knew. These do not, and a hero beside a rifleman is
+    unexplained unless the shop says what it is charging for.
     """
     from .catalogue import unit_access_tier
 
-    pricing = config.unit_access_gem_pricing
     traits = unit_pricing_traits(target_id)
     reasons = []
-    if _unique_gems(traits, pricing):
+    if _unique_price(traits, scale):
         reasons.append(
             'Hero infantry'
             if traits.get('category') in UNIQUE_INFANTRY_CATEGORIES
@@ -191,13 +289,13 @@ def unit_access_gem_price_reason(target_id, *, config: ShopModeConfig = SHOP_CON
     )
 
 
-def unit_access_gem_price_report(*, config: ShopModeConfig = SHOP_CONFIG):
-    """Return every access target's Gem price, for tooling and self-checks."""
+def unit_access_price_report(scale, *, config: ShopModeConfig = SHOP_CONFIG):
+    """Return every access target's price, for tooling and self-checks."""
     from .catalogue import shop_catalogue
     from .model import ShopRewardType
 
     return {
-        entry.target_id: unit_access_gem_price(entry.target_id, config=config)
+        entry.target_id: unit_access_price(entry.target_id, scale, config=config)
         for entry in shop_catalogue()
         if entry.reward_type is ShopRewardType.UNIT_ACCESS
     }

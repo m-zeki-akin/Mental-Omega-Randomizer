@@ -142,34 +142,38 @@ class RewardExclusionGroup:
 
 
 @dataclass(frozen=True)
-class ShopTargetPriceDefinition:
-    run_access: int | None
-    run_buff: int | None
-    permanent_buff: int | None
+class ShopPriceScale:
+    """One currency's price ladder.
 
+    Ore and Gems price the same way and differ only in their numbers, so both
+    read this and nothing in the pricing code has to know which currency it
+    is working in.
 
-@dataclass(frozen=True)
-class UnitAccessGemPricing:
-    """How much owning a unit outright costs in Gems.
-
-    Tier sets the band and cost only decides where inside it a unit sits.
-    Unique and stolen-tech units ignore the band for a flat price, because
-    what makes them worth having is that no one else can field one.
+    ``tier_prices`` and ``stolen_tech`` are (low, high) pairs: the tier
+    decides the range and the unit's credit cost decides where inside it the
+    unit lands. A scale that wants one flat number sets both ends to it.
+    ``excluded_target_multiplier`` is what a Reward Pool target costs on this
+    scale -- permanently owning a campaign unit should always be expensive,
+    while a single run's Ore price for one is not the place to punish it.
     """
-    tier_gems: Mapping[str, int]
-    cost_adjustment_minimum: int
-    cost_adjustment_maximum: int
+    name: str
+    tier_prices: Mapping[str, tuple[int, int]]
+    unique_infantry: int
+    unique_unit: int
+    stolen_tech: tuple[int, int]
+    power_tier_prices: Mapping[str, int]
+    flagged_power_price: int
+    buff_percent_of_access: int
     cost_window_trim_percent: int
-    unique_infantry_gems: int
-    unique_unit_gems: int
-    stolen_tech_gems: int
     rounding_step: int
+    excluded_target_multiplier: int
 
 
 @dataclass(frozen=True)
 class ShopPowerPriceDefinition:
-    run_access: int | None
-    run_buff: int | None
+    # Powers have no credit cost in the game data, so a tier is all they
+    # carry and it decides the price outright.
+    tier: str
 
 
 @dataclass(frozen=True)
@@ -196,7 +200,6 @@ class ShopModeConfig:
     starting_rerolls: int
     maximum_starting_ore: int
     minimum_shop_price: int
-    excluded_target_gem_price_multiplier: int
     reroll_policy: str
     archipelago_purchase_locations: int
     archipelago_purchase_meta_coin_cost: int
@@ -209,8 +212,7 @@ class ShopModeConfig:
     stage_score_ceilings: tuple[StageScoreCeiling, ...]
     enemy_buff_stage_tiers: tuple[EnemyBuffTier, ...]
     power_target_prices: Mapping[str, ShopPowerPriceDefinition]
-    unit_target_prices: Mapping[str, ShopTargetPriceDefinition]
-    unit_access_gem_pricing: UnitAccessGemPricing
+    price_scales: Mapping[str, ShopPriceScale]
     permanent_upgrades: Mapping[str, PermanentUpgradeDefinition]
     modifiers: Mapping[str, ModifierDefinition]
 
