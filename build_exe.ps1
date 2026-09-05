@@ -185,7 +185,11 @@ try {
         --noconfirm `
         --clean `
         --onefile `
-        --runtime-tmpdir RandomizerLauncherRuntime `
+        # No --runtime-tmpdir: the bootloader uses the system temporary
+        # folder. Naming one put a 33 MB extraction directory in the player's
+        # game folder, which is neither theirs nor ours to leave there.
+        # tools/build_windows_exe.py made this change first; both build paths
+        # must agree or the shipped exe depends on which one was used.
         --noupx `
         --optimize 1 `
         --windowed `
@@ -274,9 +278,9 @@ if ($launchCheck.ExitCode -ne 0) {
 }
 Copy-Item -Force $builtExe $outputPath
 
-# The launcher unpacks into this folder at run time, so a build machine
-# accumulates one too. Guard the resolved path because this is the only
-# recursive deletion in the build.
+# Builds no longer name a runtime folder, so nothing creates this. Removing
+# it is for the machines that ran an older build and still carry one. Guard
+# the resolved path because this is the only recursive deletion in the build.
 if (Test-Path $runtimePath) {
     $expectedParent = [IO.Path]::GetFullPath($outputDir).TrimEnd('\') + '\'
     if (

@@ -450,6 +450,113 @@ TEMPLATE_VALUE_REMOVALS = {
 }
 
 
+# Applied last, after the removals below, and therefore the final word on a
+# clone body. These were a runtime layer in rewards/roster.py, needed while
+# the roster shipped as editable INI files a player's copy could predate.
+# Those files are gone, so the layer is policy like the rest of this module --
+# but it stays a separate pass because these values must survive
+# TEMPLATE_VALUE_REMOVALS rather than be filtered by it.
+FINAL_TEMPLATE_OVERRIDES = {
+
+    # Installed OTRK reuses DTRUCK's CSF key. When both exact access rewards
+    # are earned, that makes two distinct buildable units show the same
+    # sidebar name. Ares NOSTR keeps the old unit distinct without replacing
+    # or extending the installed string tables.
+    'OTRK': {
+        'Name': 'Old Demo Truck',
+        'UIName': 'NOSTR:Old Demo Truck',
+    },
+    # Preserved packaged rosters may retain the campaign-only lunar gate.
+    'CBRIS': {
+        'Prerequisite.RequiredTheaters': None,
+    },
+    'CHRP': {
+        'Image': 'CHRP',
+        'Strength': '950',
+        'Armor': 'prison',
+        'Locomotor': '{4A582741-9839-11d1-B709-00A024DDAFD1}',
+        'MovementZone': 'Normal',
+        'Speed': '4',
+        'Turret': 'yes',
+        'TurretCount': '2',
+        'PipScale': 'Passengers',
+        'PassengerTurret': 'yes',
+        'Passengers.BySize': 'no',
+        'Passengers': '3',
+        'NoManualEnter': 'yes',
+        'NoManualUnload': None,
+        'Survivor.RookiePassengerChance': '100%',
+        'Survivor.VeteranPassengerChance': '100%',
+        'Survivor.ElitePassengerChance': '100%',
+        'SizeLimit': '9',
+        'EnterTransportSound': 'EnterTransport',
+        'LeaveTransportSound': 'ExitTransport',
+    },
+    # Native mission Hands deliberately move their health bracket off-screen.
+    # Player-buildable copies need normal unit health feedback and death.
+    # Keep this runtime override for preserved editable packaged rosters which
+    # predate the corrected static templates.
+    'DHANDL': {
+        'Strength': '3000',
+        'Armor': 'f_heroic',
+        'PixelSelectionBracketDelta': '0',
+    },
+    'STHOR': {
+        'AttachEffect.Animation': 'none',
+        'AttachEffect.Duration': '0',
+        'Passengers.Allowed': 'MORPGGI,MORPENFO,MORPHCRUIS',
+        'Survivor.RookiePassengerChance': '0%',
+        'Survivor.VeteranPassengerChance': '0%',
+        'Survivor.ElitePassengerChance': '0%',
+        'Passengers': '28',
+        'PipScale': 'none',
+        'InitialPayload.Types': 'MORPGGI,MORPENFO,MORPHCRUIS',
+        'InitialPayload.Nums': '5,5,1',
+        'SizeLimit': '18',
+        'OpenTopped': 'yes',
+        'NoManualUnload': 'yes',
+        'NoManualEnter': 'yes',
+    },
+    'YURIX2': {
+        # Existing packaged configs can retain the former Death's Hand
+        # template. Enforce Purgatory Challenge's installed YURIX identity in
+        # memory while retaining the stable YURIX2 reward/catalogue key.
+        'Name': 'Yuri',
+        'UIName': 'NAME:YURIHIMSELF',
+        'Image': 'YURIX',
+        'Primary': 'SuperMindControl',
+        'Secondary': 'SuperPsiWave',
+        'Strength': '400',
+        'Armor': 'sieg',
+        'Speed': '7',
+        'Cost': '1500',
+        'Soylent': '750',
+        'PixelSelectionBracketDelta': '-24',
+        'Experience.MindControlSelfModifier': '100%',
+        'DieSound': 'YuriPrimeDie',
+        'ImmuneToEMP': 'no',
+        'ImmuneToPsionicWeapons': None,
+        'OpenTransportWeapon': None,
+        'BuildLimit': '1',
+        'BuildTimeMultiplier': '2',
+        'AttachEffect.Animation': None,
+        'AttachEffect.Duration': None,
+    },
+    'MAMUP': {
+        'Name': 'Apocalypse Prototype',
+        'UIName': 'NAME:COPA',
+        'Image': 'COPA',
+        'Armor': 'ex_apoc',
+        'Strength': '3600',
+        'Speed': '5',
+        'Operator': None,
+        'Passengers': '0',
+        'InitialPayload.Types': None,
+        'InitialPayload.Nums': None,
+    },
+}
+
+
 def case_insensitive_section(sections, wanted):
     """Return the actual section name matching ``wanted``, ignoring case."""
     wanted = str(wanted or '').lower()
@@ -517,4 +624,13 @@ def build_template_values(
     for key in list(values):
         if str(key).lower() in removed_keys:
             del values[key]
+    for key, value in FINAL_TEMPLATE_OVERRIDES.get(source_id, {}).items():
+        if value is None:
+            # A reviewed identity dropping a key its source carries, such as
+            # a campaign-only theater gate.
+            for existing in list(values):
+                if str(existing).lower() == str(key).lower():
+                    del values[existing]
+            continue
+        values[key] = value
     return values

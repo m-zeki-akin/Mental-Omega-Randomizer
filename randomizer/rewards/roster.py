@@ -20,8 +20,8 @@ from randomizer.core.paths import APP_DIR, FROZEN, SOURCE_DIR
 ROSTER_REGISTRY_FILENAME = 'RandomizerUnits.ini'
 MAP_ONLY_SOURCE_FILENAME = 'RandomizerMapOnlySources.ini'
 ROSTER_FILENAMES = (ROSTER_REGISTRY_FILENAME, MAP_ONLY_SOURCE_FILENAME)
-# Files the bake used to occupy, moved out of the way once rather than
-# deleted: a player may have edited one, and they stop being read either way.
+# Files the bake used to occupy. Removed from a packaged install on load;
+# nothing reads them and they are half a megabyte each time.
 OBSOLETE_ROSTER_FILENAMES = (
     'RandomizerInfantry.ini',
     'RandomizerHeroes.ini',
@@ -37,189 +37,6 @@ ROSTER_CATEGORIES = {
     'defenses': 'BuildingTypes',
     'special_buildings': 'BuildingTypes',
 }
-MANDATORY_TEMPLATE_OVERRIDES = {
-    # Installed Drakuv is a delayed nontrainable aid payload. Both production
-    # access and DrakuvSpecial use one player clone with normal build timing.
-    'RAVA': {
-        'BuildTimeMultiplier': '1',
-        'Trainable': 'yes',
-    },
-    # Keep the distinct installed tooltip when an older editable packaged
-    # roster still points the Command Airship at the normal Kirov CSF key.
-    'CZEP': {
-        'Name': 'Kirov Command Airship',
-        'UIName': 'NAME:CZEP',
-    },
-    # Installed OTRK reuses DTRUCK's CSF key. When both exact access rewards
-    # are earned, that makes two distinct buildable units show the same
-    # sidebar name. Ares NOSTR keeps the old unit distinct without replacing
-    # or extending the installed string tables.
-    'OTRK': {
-        'Name': 'Old Demo Truck',
-        'UIName': 'NOSTR:Old Demo Truck',
-    },
-    # Preserved packaged rosters may retain the campaign-only lunar gate.
-    'CBRIS': {
-        'Prerequisite.RequiredTheaters': None,
-    },
-    # Old packaged editable roster files are preserved across upgrades. Keep
-    # this EMPulse field generator uncloaked even when its visible file predates
-    # the reviewed static-template correction.
-    'NAIRDM': {
-        'Cloakable.Allowed': 'no',
-    },
-    'CHRP': {
-        'Image': 'CHRP',
-        'Strength': '950',
-        'Armor': 'prison',
-        'Locomotor': '{4A582741-9839-11d1-B709-00A024DDAFD1}',
-        'MovementZone': 'Normal',
-        'Speed': '4',
-        'Turret': 'yes',
-        'TurretCount': '2',
-        'PipScale': 'Passengers',
-        'PassengerTurret': 'yes',
-        'Passengers.BySize': 'no',
-        'Passengers': '3',
-        'NoManualEnter': 'yes',
-        'NoManualUnload': None,
-        'Survivor.RookiePassengerChance': '100%',
-        'Survivor.VeteranPassengerChance': '100%',
-        'Survivor.ElitePassengerChance': '100%',
-        'SizeLimit': '9',
-        'EnterTransportSound': 'EnterTransport',
-        'LeaveTransportSound': 'ExitTransport',
-    },
-    # Native mission Hands deliberately move their health bracket off-screen.
-    # Player-buildable copies need normal unit health feedback and death.
-    # Keep this runtime override for preserved editable packaged rosters which
-    # predate the corrected static templates.
-    'DHANDL': {
-        'Strength': '3000',
-        'Armor': 'f_heroic',
-        'PixelSelectionBracketDelta': '0',
-    },
-    # Preserved editable packaged rosters may predate hidden-payload fixes.
-    # Enforce interaction/UI safety in memory even when those files remain
-    # authoritative for every unrelated value.
-    'SALA': {
-        'Passengers.Allowed': 'MORPSALA_1,MORPSALA_2',
-        'Survivor.RookiePassengerChance': '0%',
-        'Survivor.VeteranPassengerChance': '0%',
-        'Survivor.ElitePassengerChance': '0%',
-        'Passengers': '4',
-        'PipScale': 'none',
-        'InitialPayload.Types': 'MORPSALA_1,MORPSALA_2',
-        'InitialPayload.Nums': '3,1',
-        'SizeLimit': '1',
-        'OpenTopped': 'yes',
-        'NoManualUnload': 'yes',
-        'NoManualEnter': 'yes',
-    },
-    'STHOR': {
-        'AttachEffect.Animation': 'none',
-        'AttachEffect.Duration': '0',
-        'Passengers.Allowed': 'MORPGGI,MORPENFO,MORPHCRUIS',
-        'Survivor.RookiePassengerChance': '0%',
-        'Survivor.VeteranPassengerChance': '0%',
-        'Survivor.ElitePassengerChance': '0%',
-        'Passengers': '28',
-        'PipScale': 'none',
-        'InitialPayload.Types': 'MORPGGI,MORPENFO,MORPHCRUIS',
-        'InitialPayload.Nums': '5,5,1',
-        'SizeLimit': '18',
-        'OpenTopped': 'yes',
-        'NoManualUnload': 'yes',
-        'NoManualEnter': 'yes',
-    },
-    'YURIX2': {
-        # Existing packaged configs can retain the former Death's Hand
-        # template. Enforce Purgatory Challenge's installed YURIX identity in
-        # memory while retaining the stable YURIX2 reward/catalogue key.
-        'Name': 'Yuri',
-        'UIName': 'NAME:YURIHIMSELF',
-        'Image': 'YURIX',
-        'Primary': 'SuperMindControl',
-        'Secondary': 'SuperPsiWave',
-        'Strength': '400',
-        'Armor': 'sieg',
-        'Speed': '7',
-        'Cost': '1500',
-        'Soylent': '750',
-        'PixelSelectionBracketDelta': '-24',
-        'Experience.MindControlSelfModifier': '100%',
-        'DieSound': 'YuriPrimeDie',
-        'ImmuneToEMP': 'no',
-        'ImmuneToPsionicWeapons': None,
-        'OpenTransportWeapon': None,
-        'BuildLimit': '1',
-        'BuildTimeMultiplier': '2',
-        'AttachEffect.Animation': None,
-        'AttachEffect.Duration': None,
-    },
-    'MAMUP': {
-        'Name': 'Apocalypse Prototype',
-        'UIName': 'NAME:COPA',
-        'Image': 'COPA',
-        'Armor': 'ex_apoc',
-        'Strength': '3600',
-        'Speed': '5',
-        'Operator': None,
-        'Passengers': '0',
-        'InitialPayload.Types': None,
-        'InitialPayload.Nums': None,
-    },
-    'YAHCRE': {
-        'Name': 'Gehenna Platform (Earthrise)',
-        'UIName': 'NOSTR:Gehenna Platform (Earthrise)',
-        'Image': 'YAHCRWO',
-        'Primary': 'MiniAntaresBeam',
-        'ElitePrimary': 'MiniAntaresBeamE',
-        'Spawns': 'none',
-        'SpawnsNumber': '0',
-        'Speed': '5',
-        'ROT': '3',
-        'Turret': 'yes',
-        'TurretROT': '4',
-        'GuardRange': '12',
-        'NoSpawnAlt': 'no',
-        'PipScale': 'none',
-        'LandTargeting': '0',
-        'ImmuneToPsionics': 'yes',
-        'VoiceMove': 'ChaosDroneMove',
-        'VoiceAttack': 'ChaosDroneAttackCommand',
-        'VoiceSelect': 'ChaosDroneSelect',
-        'MaxDebris': '8',
-        'MinDebris': '4',
-        'Weight': '3',
-    },
-    'STARDUSTB': {
-        'Name': 'The Paradox Engine',
-        'BuildTimeMultiplier': '1',
-        'IsGattling': 'yes',
-        'Turret': 'no',
-        'TurretCount': '1',
-        'CanPassiveAquire': 'yes',
-        'CanRetaliate': 'yes',
-        'WeaponCount': '6',
-        'WeaponStages': '3',
-        'Stage1': '40',
-        'Stage2': '80',
-        'Stage3': '120',
-        'EliteStage1': '40',
-        'EliteStage2': '80',
-        'EliteStage3': '120',
-        'RateUp': '5',
-        'RateDown': '10',
-        **{
-            f'{prefix}Weapon{number}': (
-                'ParadoxMedusa' if number % 2 == 0 else 'ParadoxPrism'
-            )
-            for prefix in ('', 'Elite')
-            for number in range(1, 7)
-        },
-    },
-}
 MAX_PLAYER_BUILD_TIME_MULTIPLIER = 10.0
 BUILD_TIME_MULTIPLIER_KEYS = frozenset({
     'buildtimemultiplier',
@@ -232,24 +49,27 @@ def randomizer_unit_id(source_id):
 
 
 def _retire_obsolete_visible_rosters():
-    """Move the old editable stat bake aside, once, on a packaged install."""
+    """Delete the old editable stat bake from a packaged install.
+
+    Half a megabyte per installation of clone stat lines nothing reads any
+    more. They were briefly renamed ``.replaced`` instead of deleted, which
+    only meant the same bytes with a longer name: a player edit to them was
+    authoritative for stats the launcher now takes from the installed rules,
+    so there is nothing in them left to preserve. Both forms go.
+    """
     folder = APP_DIR / 'configs'
     if not FROZEN or not folder.is_dir():
         return []
     retired = []
     for name in OBSOLETE_ROSTER_FILENAMES:
-        path = folder / name
-        if not path.is_file():
-            continue
-        replacement = path.with_suffix(path.suffix + '.replaced')
-        try:
-            if replacement.exists():
+        for path in (folder / name, folder / (name + '.replaced')):
+            if not path.is_file():
+                continue
+            try:
                 path.unlink()
-            else:
-                path.rename(replacement)
-        except OSError:
-            continue
-        retired.append(name)
+            except OSError:
+                continue
+            retired.append(path.name)
     return retired
 
 
@@ -464,10 +284,7 @@ def randomizer_unit_template_values():
             special_reward=False,
             description=CLONE_UI_DESCRIPTION,
         )
-        built.update(MANDATORY_TEMPLATE_OVERRIDES.get(source_id, {}))
-        templates[source_id] = {
-            key: value for key, value in built.items() if value is not None
-        }
+        templates[source_id] = dict(built)
     return templates
 
 
@@ -552,13 +369,8 @@ def randomizer_unit_roster():
             special_reward=source_id in SPECIAL_REWARD_UNIT_IDS,
             description=CLONE_UI_DESCRIPTION,
         )
-        values.update(MANDATORY_TEMPLATE_OVERRIDES.get(source_id, {}))
-        # A None override means "this key must not be present", which is how
-        # a reviewed identity drops a campaign-only gate the source carries.
         clone_ids[source_id] = clone_id
-        templates[source_id] = {
-            key: value for key, value in values.items() if value is not None
-        }
+        templates[source_id] = dict(values)
     if unregistered:
         raise ValueError(
             'Randomizer roster registry lacks required TechnoTypes: '
