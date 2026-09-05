@@ -49,8 +49,9 @@ from randomizer.shop.config import (
     run_shop_config,
 )
 from randomizer.shop.summary import (
-    shop_run_picker_label,
+    shop_run_identity_text,
     shop_run_progress_text,
+    shop_run_row_values,
 )
 from randomizer.shop.economy import (
     permanent_target_surcharged,
@@ -131,10 +132,7 @@ class ShopController(ShopPolishController):
         self.shop_rerolls_var = tk.StringVar(value='Rerolls: 0 / 0')
         self.shop_difficulty_var = tk.StringVar(value='Difficulty: +0')
         self.shop_message_var = tk.StringVar(value='')
-        self.shop_run_picker_var = tk.StringVar(value='No runs yet')
-        # Labels can repeat -- two runs on the same stage of the same seed
-        # read alike -- so the picker resolves its choice by position.
-        self.shop_run_picker_ids = ()
+        self.shop_run_identity_var = tk.StringVar(value='none yet')
         self.shop_ap_purchase_status_var = tk.StringVar(value='')
         saved_faction_pool = self.config.get('shop_faction_pool')
         if saved_faction_pool not in SHOP_FACTION_POOLS:
@@ -888,7 +886,7 @@ class ShopController(ShopPolishController):
         capacity = self._shop_reroll_capacity()
         used = run.rerolls_used if run is not None else 0
         self.shop_rerolls_var.set(f'Rerolls: {used} / {capacity}')
-        self.refresh_shop_run_picker()
+        self.refresh_shop_run_controls()
         self._schedule_shop_workspace_repaint()
         self.refresh_progress_view()
 
@@ -1106,60 +1104,109 @@ class ShopController(ShopPolishController):
                 self._shop_cameo_images[cache_key] = None
         return self._shop_cameo_images[cache_key]
 
-    def refresh_shop_run_picker(self):
-        """Show every stored run, with the one being played selected."""
-        if not hasattr(self, 'shop_run_picker_combo'):
+    def refresh_shop_run_controls(self):
+        """Say which run the header describes, and how many are saved."""
+        if not hasattr(self, 'shop_new_run_button'):
             return
         runs, active_run_id = self.shop_repository.list_runs()
-        self.shop_run_picker_ids = tuple(run.run_id for run in runs)
-        labels = [
-            shop_run_picker_label(run, self.shop_profile) for run in runs
-        ]
-        self.shop_run_picker_combo.configure(values=labels)
-        if active_run_id in self.shop_run_picker_ids:
-            self.shop_run_picker_combo.current(
-                self.shop_run_picker_ids.index(active_run_id)
+        active = next(
+            (run for run in runs if run.run_id == active_run_id), None
+        )
+        if active is None:
+            self.shop_run_identity_var.set(
+                'none chosen — open Saved Runs' if runs else 'none yet'
             )
         else:
-            self.shop_run_picker_var.set(
-                'Choose a run' if runs else 'No runs yet'
+            saved = (
+                f' ({len(runs)} saved)' if len(runs) > 1 else ''
+            )
+            self.shop_run_identity_var.set(
+                f'{shop_run_identity_text(active)}{saved}'
             )
         # A run switched under a mission that is already running would report
-        # its victory against whichever run was switched to, so the picker
-        # closes for as long as the game is up.
+        # its victory against whichever run was switched to, so every control
+        # that changes which run is played closes while the game is up.
         locked = self.shop_launch_active()
-        self.shop_run_picker_combo.configure(
-            state='disabled' if locked or not runs else 'readonly'
-        )
         self.shop_new_run_button.configure(
             state='disabled' if locked else 'normal'
         )
-        self.shop_delete_run_button.configure(
-            state='normal' if runs and not locked else 'disabled'
+        self.refresh_shop_run_window()
+
+    def refresh_shop_run_window(self):
+        """Repaint the saved-run list, if it is open."""
+        window = getattr(self, '_shop_run_window', None)
+        if window is None or not window.winfo_exists():
+            return
+        tree = self.shop_run_tree
+        selected = set(tree.selection())
+        tree.delete(*tree.get_children())
+        runs, active_run_id = self.shop_repository.list_runs()
+        for run in runs:
+            # The run id is the row id, so a selection survives a repaint and
+            # every button reads which run it acts on straight off the tree.
+            tree.insert(
+                '',
+                'end',
+                iid=run.run_id,
+                values=shop_run_row_values(
+                    run,
+                    self.shop_profile,
+                    playing=run.run_id == active_run_id,
+                ),
+            )
+        restored = [
+            run.run_id for run in runs if run.run_id in selected
+        ] or [run.run_id for run in runs if run.run_id == active_run_id]
+        if restored:
+            tree.selection_set(restored)
+        self.refresh_shop_run_buttons()
+
+    def refresh_shop_run_buttons(self, _event=None):
+        window = getattr(self, '_shop_run_window', None)
+        if window is None or not window.winfo_exists():
+            return
+        run_id = self._selected_shop_run_id()
+        _runs, active_run_id = self.shop_repository.list_runs()
+        locked = self.shop_launch_active()
+        self.shop_run_resume_button.configure(
+            state=(
+                'normal'
+                if run_id and run_id != active_run_id and not locked
+                else 'disabled'
+            )
+        )
+        self.shop_run_delete_button.configure(
+            state='normal' if run_id and not locked else 'disabled'
         )
 
-    def _picked_shop_run_id(self):
-        index = self.shop_run_picker_combo.current()
-        if index < 0 or index >= len(self.shop_run_picker_ids):
+    def _selected_shop_run_id(self):
+        window = getattr(self, '_shop_run_window', None)
+        if window is None or not window.winfo_exists():
             return ''
-        return self.shop_run_picker_ids[index]
+        selection = self.shop_run_tree.selection()
+        return selection[0] if selection else ''
 
-    def on_shop_run_selected(self, _event=None):
+    def _selected_shop_run(self):
+        run_id = self._selected_shop_run_id()
+        runs, _active_run_id = self.shop_repository.list_runs()
+        return next(
+            (run for run in runs if run.run_id == run_id), None
+        )
+
+    def resume_selected_shop_run(self):
         if self.shop_launch_active():
             self._set_shop_message('Wait for current mission process to close.')
-            self.refresh_shop_run_picker()
             return
-        run_id = self._picked_shop_run_id()
-        if not run_id:
+        run = self._selected_shop_run()
+        if run is None:
+            self._set_shop_message('Choose a run to resume.')
             return
         try:
-            run = self.shop_repository.select_run(run_id)
+            self.shop_repository.select_run(run.run_id)
         except ShopPersistenceError as exc:
             self._set_shop_message(exc, error=True)
         else:
-            self._set_shop_message(
-                f'Resumed the run on seed {run.seed}.'
-            )
+            self._set_shop_message(f'Resumed the run on seed {run.seed}.')
         self.sync_shop_workspace()
         self.refresh_shop_mode()
 
@@ -1167,16 +1214,9 @@ class ShopController(ShopPolishController):
         if self.shop_launch_active():
             self._set_shop_message('Wait for current mission process to close.')
             return
-        run_id = self._picked_shop_run_id()
-        if not run_id:
-            self._set_shop_message('Choose a run to delete.')
-            return
-        runs, _active_run_id = self.shop_repository.list_runs()
-        run = next(
-            (stored for stored in runs if stored.run_id == run_id), None
-        )
+        run = self._selected_shop_run()
         if run is None:
-            self.refresh_shop_run_picker()
+            self._set_shop_message('Choose a run to delete.')
             return
         warning = (
             'This run is still in progress.\n\n'
@@ -1184,20 +1224,21 @@ class ShopController(ShopPolishController):
         )
         if not messagebox.askyesno(
             'Delete Shop Run?',
-            f'{warning}Delete {shop_run_picker_label(run, self.shop_profile)}?'
+            f'{warning}Delete the run on seed {run.seed}, at '
+            f'{shop_run_progress_text(run, self.shop_profile).lower()}?'
             '\n\nRun Ore and run purchases are lost. Gems and permanent '
             'unlocks are kept.',
             parent=self,
         ):
             return
         try:
-            self.shop_repository.delete_run(run_id)
+            self.shop_repository.delete_run(run.run_id)
         except ShopPersistenceError as exc:
             self._set_shop_message(exc, error=True)
         else:
             self._set_shop_message(
                 f'Deleted the run on seed {run.seed}. '
-                'Choose another run or start a new one.'
+                'Resume another run or start a new one.'
             )
         self.sync_shop_workspace()
         self.refresh_shop_mode()

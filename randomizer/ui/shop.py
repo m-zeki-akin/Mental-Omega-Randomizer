@@ -1,7 +1,10 @@
 """Shop Mode workspace widgets."""
 
+from randomizer.shop.summary import SHOP_RUN_COLUMNS
+
 from ._builder_dependencies import TreeTooltip, WidgetTooltip, tk, ttk
 from .scrolling import block_wheel, claim_wheel, scroll_owner
+from .windows import center_on_pointer
 
 
 def _tree(
@@ -49,6 +52,84 @@ def _keep_wheel_off_tabs(notebook):
     claim_wheel(notebook)
     block_wheel(notebook, '<TouchpadScroll>')
     return notebook
+
+
+def open_shop_run_window(self, _event=None):
+    """Open every saved run in a list of its own.
+
+    A run reads as a row rather than a line of text: several runs are told
+    apart by comparing the same fields down a column, which a single label
+    in a dropdown cannot do without growing past the width it has.
+    """
+    window = getattr(self, '_shop_run_window', None)
+    if window is not None and window.winfo_exists():
+        window.deiconify()
+        self.refresh_shop_run_window()
+        center_on_pointer(self, window)
+        window.lift()
+        window.focus_set()
+        return window
+    # The application object is the Tk root itself, not something holding one.
+    window = tk.Toplevel(self)
+    window.title('Saved Shop Runs')
+    window.transient(self)
+    frame = ttk.Frame(window, padding=12)
+    frame.grid(row=0, column=0, sticky='nsew')
+    window.columnconfigure(0, weight=1)
+    window.rowconfigure(0, weight=1)
+    frame.columnconfigure(0, weight=1)
+    frame.rowconfigure(1, weight=1)
+    ttk.Label(
+        frame,
+        text=(
+            'Every run you have saved. Runs never affect each other: Gems '
+            'and permanent unlocks are shared, everything a run owns is its '
+            'own. Resume one to make it the run the launcher plays.'
+        ),
+        style='Muted.TLabel',
+        wraplength=560,
+        justify='left',
+    ).grid(row=0, column=0, sticky='ew', pady=(0, 8))
+    tree_frame = ttk.Frame(frame)
+    tree_frame.grid(row=1, column=0, sticky='nsew')
+    self.shop_run_tree = _tree(
+        tree_frame,
+        tuple(column for column, _heading, _width in SHOP_RUN_COLUMNS),
+        SHOP_RUN_COLUMNS,
+        height=8,
+    )
+    self.shop_run_tree.bind(
+        '<Double-1>', lambda _event: self.resume_selected_shop_run()
+    )
+    self.shop_run_tree.bind(
+        '<<TreeviewSelect>>', self.refresh_shop_run_buttons
+    )
+    buttons = ttk.Frame(frame)
+    buttons.grid(row=2, column=0, sticky='ew', pady=(8, 0))
+    self.shop_run_resume_button = ttk.Button(
+        buttons,
+        text='Resume Run',
+        command=self.resume_selected_shop_run,
+        state='disabled',
+    )
+    self.shop_run_resume_button.pack(side='left')
+    self.shop_run_delete_button = ttk.Button(
+        buttons,
+        text='Delete Run',
+        style='Danger.TButton',
+        command=self.delete_selected_shop_run,
+        state='disabled',
+    )
+    self.shop_run_delete_button.pack(side='left', padx=(6, 0))
+    ttk.Button(buttons, text='Close', command=window.destroy).pack(
+        side='right'
+    )
+    self._shop_run_window = window
+    self.refresh_shop_run_window()
+    center_on_pointer(self, window)
+    window.lift()
+    window.focus_set()
+    return window
 
 
 def build_shop_tab(self, workspace_tabs):
@@ -121,32 +202,27 @@ def build_shop_tab(self, workspace_tabs):
     run_picker = ttk.Frame(header)
     self.shop_run_picker_frame = run_picker
     run_picker.grid(row=1, column=0, columnspan=6, sticky='ew', pady=(8, 0))
-    self.shop_run_picker_label = ttk.Label(run_picker, text='Run:')
-    self.shop_run_picker_label.pack(side='left')
-    self.shop_run_picker_combo = ttk.Combobox(
+    ttk.Label(run_picker, text='Run:').pack(side='left')
+    # The header above already reports this run's stage, Ore and status, so
+    # what is named here is which run those numbers belong to.
+    self.shop_run_identity_label = ttk.Label(
         run_picker,
-        textvariable=self.shop_run_picker_var,
-        state='readonly',
-        width=54,
+        textvariable=self.shop_run_identity_var,
+        style='Shop.Help.TLabel',
     )
-    self.shop_run_picker_combo.pack(side='left', padx=(5, 8))
-    claim_wheel(self.shop_run_picker_combo)
-    self.shop_run_picker_combo.bind(
-        '<<ComboboxSelected>>', self.on_shop_run_selected
+    self.shop_run_identity_label.pack(side='left', padx=(5, 10))
+    self.shop_run_list_button = ttk.Button(
+        run_picker,
+        text='Saved Runs...',
+        command=lambda: open_shop_run_window(self),
     )
+    self.shop_run_list_button.pack(side='left', padx=(0, 4))
     self.shop_new_run_button = ttk.Button(
         run_picker,
         text='New Run',
         command=self.start_shop_run,
     )
-    self.shop_new_run_button.pack(side='left', padx=(0, 4))
-    self.shop_delete_run_button = ttk.Button(
-        run_picker,
-        text='Delete Run',
-        style='Danger.TButton',
-        command=self.delete_selected_shop_run,
-    )
-    self.shop_delete_run_button.pack(side='left')
+    self.shop_new_run_button.pack(side='left')
 
     choices = ttk.LabelFrame(content, text='Mission Choices', padding=8)
     self.shop_choices_frame = choices

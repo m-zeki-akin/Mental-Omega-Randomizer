@@ -1,6 +1,7 @@
 """Advanced and gameplay settings widgets."""
 
 from .starting_unlocks import build_starting_unlocks_tab
+from .windows import center_on_pointer
 from .enemy_scaling import build_enemy_scaling_settings
 from .general_settings import build_general_settings
 
@@ -32,35 +33,6 @@ from ._builder_dependencies import (
 )
 
 
-def _center_on_pointer(root, window):
-    """Place a window under the pointer that opened it.
-
-    A Toplevel with no geometry lands wherever the window manager likes,
-    which on Windows is the top-left of the primary monitor -- possibly a
-    different screen from the button that was just clicked.
-
-    Clamping is only applied when the pointer is on the primary monitor.
-    Tk reports the primary screen's size, so clamping a window opened on a
-    second monitor against those bounds would drag it back to the first.
-    """
-    window.update_idletasks()
-    width = max(window.winfo_reqwidth(), window.winfo_width())
-    height = max(window.winfo_reqheight(), window.winfo_height())
-    pointer_x = root.winfo_pointerx()
-    pointer_y = root.winfo_pointery()
-    x = pointer_x - width // 2
-    y = pointer_y - height // 2
-    screen_width = root.winfo_screenwidth()
-    screen_height = root.winfo_screenheight()
-    if 0 <= pointer_x < screen_width and 0 <= pointer_y < screen_height:
-        x = max(0, min(x, screen_width - width))
-        y = max(0, min(y, screen_height - height))
-    # Position only. Giving geometry a size as well would freeze the window at
-    # whatever it measured before it was mapped and stop it fitting its own
-    # contents afterwards.
-    window.geometry(f'+{int(x)}+{int(y)}')
-
-
 def open_sub_weight_window(self, section):
     """Open one group's sub-weights in a window of their own."""
     existing = getattr(self, '_sub_weight_windows', None)
@@ -69,7 +41,7 @@ def open_sub_weight_window(self, section):
     window = existing.get(section['id'])
     if window is not None and window.winfo_exists():
         window.deiconify()
-        _center_on_pointer(self, window)
+        center_on_pointer(self, window)
         window.lift()
         window.focus_set()
         return window
@@ -108,7 +80,7 @@ def open_sub_weight_window(self, section):
     ttk.Button(frame, text='Close', command=window.destroy).grid(
         row=len(section['types']) + 1, column=1, sticky='e', pady=(8, 0)
     )
-    _center_on_pointer(self, window)
+    center_on_pointer(self, window)
     window.lift()
     window.focus_set()
     existing[section['id']] = window

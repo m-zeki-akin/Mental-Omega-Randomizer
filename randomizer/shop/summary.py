@@ -97,20 +97,38 @@ def shop_run_progress_text(run, profile=None, config=SHOP_CONFIG):
     )
 
 
-def shop_run_picker_label(run, profile=None, config=SHOP_CONFIG):
-    """Return one line naming a stored run in a list of them.
+SHOP_RUN_COLUMNS = (
+    ('playing', '', 60),
+    ('progress', 'Progress', 210),
+    ('ore', 'Ore', 70),
+    ('status', 'Status', 80),
+    ('won', 'Missions won', 100),
+    ('seed', 'Seed', 150),
+)
 
-    A player with several runs open tells them apart by where they are and
-    what they are worth, so progress and Ore lead. The seed closes the line
-    because two runs can otherwise read identically on the stage they were
-    both started on.
+
+def shop_run_row_values(run, profile=None, config=SHOP_CONFIG, playing=False):
+    """Return one stored run as the cells of a run-list row.
+
+    An endless run has no mission count to finish, so what it reports won is
+    the victories it was paid for rather than a fraction of a run length.
     """
-    return ' — '.join((
+    return (
+        'Playing' if playing else '',
         shop_run_progress_text(run, profile, config),
-        f'{run.run_coins} Ore',
+        str(run.run_coins),
         run.status.value.title(),
-        f'seed {run.seed}',
-    ))
+        (
+            str(len(run.rewarded_victories)) if run.endless
+            else f'{len(run.completed_missions)} / {run.run_length}'
+        ),
+        run.seed,
+    )
+
+
+def shop_run_identity_text(run):
+    """Return the short line naming which run the header describes."""
+    return f'seed {run.seed} — {run.status.value.title()}'
 
 
 def _missions_won_line(run, config=SHOP_CONFIG):
