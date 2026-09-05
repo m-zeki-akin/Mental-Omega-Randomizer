@@ -566,3 +566,26 @@ required data stops startup with the exact file and section in the error.
 Keep a backup before gameplay changes. These files define compatibility facts;
 invalid mission houses, production IDs, or role groups can break campaign maps
 even when JSON validation succeeds.
+
+## authenticity_manifest.json
+
+Generated, not edited. `tools/build_authenticity_manifest.py` runs over a
+pristine Mental Omega tree and writes the hashes an installation is compared
+against: 487 files by path and 105 members inside the MIX archives, in 59 KB
+describing about a gigabyte.
+
+Members rather than archives, because Mental Omega ships the archives
+protected and unprotecting one repacks the container. Every archive-level hash
+then breaks -- including Mental Omega's own `version` manifest, on archives
+nobody modified -- while the members inside are untouched. Text is hashed with
+line endings normalised, since the same INI reaches the launcher CRLF from one
+source and LF from another.
+
+`MapsMO/Standard` is deliberately outside the manifest: 1,440 skirmish maps
+and 276 MB that a campaign randomizer never reads. The map pool that matters
+comes from `configs/maps`, which is also where the member names are taken
+from -- MIX indexes store hashed names rather than names, so a member can be
+looked up but never enumerated, and anything unnamed is unchecked.
+
+The result is reported, never enforced. A modded or patched installation is a
+fact about the player's game, not a fault in the launcher.
