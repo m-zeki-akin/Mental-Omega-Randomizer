@@ -130,6 +130,9 @@ REQUIRED_SECTIONS = {
         'standalone_weapon_templates': dict,
         'standalone_unit_rule_templates': dict,
         'special_damage_fields': dict,
+        'transport_gunner_unit_ids': list,
+        'harvester_storage': dict,
+        'produce_cash_rates': dict,
     },
     'rewards/catalogue.json': {
         'unit_unlock_rewards': list,

@@ -14,10 +14,6 @@ from randomizer.rewards.power_buff_definitions import (
     build_power_buff_rewards,
 )
 from randomizer.rewards.enemy_scaling import build_enemy_reward_pool
-from randomizer.rewards.roster import (
-    randomizer_unit_ids_with_behavior,
-    randomizer_unit_template_values,
-)
 
 
 _UNIT_DATA_CONFIG = load_static_config('rewards/unit_data.json')
@@ -166,10 +162,16 @@ EXISTING_OPEN_TOPPED_IDS = frozenset(
     for unit_id, stats in TRANSPORT_BASE_STATS.items()
     if stats['open_topped']
 )
+# Reviewed rather than read from the installed rules, and that is deliberate:
+# BUFF_TARGETS is what the Archipelago catalogue checksum is taken over, so a
+# multiworld host generating without the game installed must arrive at the
+# same catalogue as a player with it. Stock Mental Omega's values; a submod
+# that changes them still reaches the clone body, and buffs read that first.
 TRANSPORT_GUNNER_IDS = frozenset(
     TRANSPORT_BASE_STATS
 ).intersection(
-    randomizer_unit_ids_with_behavior('Gunner', 'yes')
+    str(unit_id).upper()
+    for unit_id in _UNIT_DATA_CONFIG['transport_gunner_unit_ids']
 )
 TRANSPORT_OPEN_TOPPED_BLOCKED_IDS = frozenset(
     unit_id
@@ -637,20 +639,10 @@ for unit_id, support in _UNIT_DATA_CONFIG.get(
 
 # Normal miners expose clone-local vanilla Storage. Harvest speed remains a
 # global rules setting in the installed engine, so only capacity is eligible.
-_RANDOMIZER_TEMPLATE_VALUES = randomizer_unit_template_values()
-for harvester_id in randomizer_unit_ids_with_behavior('Harvester', 'yes'):
-    target = BUFF_TARGETS.get(harvester_id)
-    template = _RANDOMIZER_TEMPLATE_VALUES.get(harvester_id, {})
-    storage = next((
-        value for key, value in template.items()
-        if str(key).lower() == 'storage'
-    ), None)
-    try:
-        storage = int(float(str(storage).strip()))
-    except (TypeError, ValueError):
-        continue
-    if target is not None and storage > 0:
-        target['storage'] = storage
+for harvester_id, storage in _UNIT_DATA_CONFIG['harvester_storage'].items():
+    target = BUFF_TARGETS.get(str(harvester_id).upper())
+    if target is not None and int(storage) > 0:
+        target['storage'] = int(storage)
         target['allowed_buff_types'] = ['storage']
 
 # Engineers are always-accessible base essentials. Cloaking is their only
@@ -686,18 +678,10 @@ for definition in SPECIAL_BUILDING_DEFINITIONS:
         'trainable': False,
         'special_reward': bool(definition.get('special_reward')),
     }
-    template = _RANDOMIZER_TEMPLATE_VALUES.get(building_id, {})
-    cash_amount = next((
-        value for key, value in template.items()
-        if str(key).lower() == 'producecashamount'
-    ), None)
-    cash_delay = next((
-        value for key, value in template.items()
-        if str(key).lower() == 'producecashdelay'
-    ), None)
+    rates = _UNIT_DATA_CONFIG['produce_cash_rates'].get(building_id) or {}
     try:
-        cash_amount = int(float(str(cash_amount).strip()))
-        cash_delay = int(float(str(cash_delay).strip()))
+        cash_amount = int(rates.get('amount') or 0)
+        cash_delay = int(rates.get('delay') or 0)
     except (TypeError, ValueError):
         cash_amount = cash_delay = 0
     if cash_amount > 0 and cash_delay > 0:

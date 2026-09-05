@@ -979,12 +979,46 @@ def validate_unit_buff_application_contracts():
             'Unit buff application contract validation failed: '
             + '; '.join(errors)
         )
+    # A buff has to add to what the unit is, not to a number remembered from
+    # stock rules. Super Thor is the case that proves it without depending on
+    # the installation: its body is committed, its reviewed Passengers is 28,
+    # and the catalogue says 25 -- so the old arithmetic wrote 26 and took a
+    # seat away. The synthetic rows below pin the same rule for the stats
+    # whose baseline does come from the installed rules.
+    sthor = dict(templates.get('STHOR', {}))
+    sthor_target = BUFF_TARGETS.get('STHOR', {})
+    apply_unit_buff_value(sthor, sthor_target, 'passenger_capacity', 1)
+    probe_target = {'category': 'units', 'strength': 500, 'sight': 5, 'speed': 4}
+    health_probe = {'Strength': '1000'}
+    apply_unit_buff_value(health_probe, probe_target, 'health', 1)
+    sight_probe = {'Sight': '9'}
+    apply_unit_buff_value(sight_probe, probe_target, 'sight', 1)
+    live_baselines = {
+        'sthor_passengers': _case_insensitive_item(
+            templates.get('STHOR', {}), 'Passengers'
+        )[1],
+        'sthor_buffed': _case_insensitive_item(sthor, 'Passengers')[1],
+        'health_from_live_strength': health_probe['Strength'],
+        'sight_from_live_sight': sight_probe['Sight'],
+    }
+    if (
+        str(live_baselines['sthor_passengers']) != '28'
+        or str(live_baselines['sthor_buffed']) != '29'
+        or int(health_probe['Strength']) <= 1000
+        or str(sight_probe['Sight']) != '10'
+    ):
+        errors.append(
+            'buffs no longer add to a unit its own values: '
+            + repr(live_baselines)
+        )
+
     return {
         'rewards': len(UNIT_BUFF_REWARDS),
         'buff_types': counts_by_type,
         'all_change_generated_rules': True,
         'stock_units_checked': stock_report.get('original', 0),
         'inert_off_stock': sorted(inert_off_stock),
+        'live_baselines': live_baselines,
         'suicide_range_excluded_ids': sorted(
             SUICIDE_RANGE_EXCLUDED_UNIT_IDS
         ),
