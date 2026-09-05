@@ -123,7 +123,7 @@ PLAYER_COUNTRY = 0    # UnitedStates, Allies
 ALLY_COUNTRY = 3      # USSR, Soviets
 ENEMY_COUNTRIES = (6, 9)  # PsiCorps and Guild1: Epsilon and Foehn
 COLORS = (0, 2, 4, 6)
-AI_HANDICAP = 2       # the client's own SkirmishSettings.ini uses 2 for Hard
+AI_HANDICAP = 0       # the client writes 0 for Hard; 2 is Easy
 
 
 def installed_countries():
@@ -172,19 +172,19 @@ def spawn_ini_text(chosen, seed):
     starts the game with it.
     """
     from randomizer.skirmish.spawn import (
-        AI_HANDICAP_HARD,
+        AI_DIFFICULTY_HARD,
         SkirmishHouse,
         skirmish_spawn_ini_text,
     )
 
     houses = [SkirmishHouse(
         country=ALLY_COUNTRY, color=COLORS[1],
-        friendly=True, handicap=AI_HANDICAP_HARD,
+        friendly=True, handicap=AI_DIFFICULTY_HARD,
     )]
     for index, country in enumerate(ENEMY_COUNTRIES):
         houses.append(SkirmishHouse(
             country=country, color=COLORS[2 + index],
-            friendly=False, handicap=AI_HANDICAP_HARD,
+            friendly=False, handicap=AI_DIFFICULTY_HARD,
         ))
     return skirmish_spawn_ini_text(
         map_name=chosen['name'],

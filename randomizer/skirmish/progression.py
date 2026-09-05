@@ -18,10 +18,12 @@ one that is played.
 from dataclasses import dataclass
 import random
 
+from .challenges import challenge_for
 from .model import BATTLES_PER_TIER, BattleOffer
 from .spawn import (
-    AI_HANDICAP_HARD,
-    AI_HANDICAP_NORMAL,
+    AI_DIFFICULTY_EASY,
+    AI_DIFFICULTY_HARD,
+    AI_DIFFICULTY_MEDIUM,
 )
 
 
@@ -35,10 +37,10 @@ class Tier:
 
 
 TIERS = (
-    Tier(enemies=(1, 1, 2), handicap=AI_HANDICAP_NORMAL),
-    Tier(enemies=(2,), handicap=AI_HANDICAP_HARD, ally_absent_in=3),
-    Tier(enemies=(2, 3), handicap=AI_HANDICAP_HARD, ally_absent_in=3),
-    Tier(enemies=(3,), handicap=AI_HANDICAP_HARD, ally_absent_in=2),
+    Tier(enemies=(1, 1, 2), handicap=AI_DIFFICULTY_EASY),
+    Tier(enemies=(2,), handicap=AI_DIFFICULTY_MEDIUM, ally_absent_in=3),
+    Tier(enemies=(2, 3), handicap=AI_DIFFICULTY_MEDIUM, ally_absent_in=3),
+    Tier(enemies=(3,), handicap=AI_DIFFICULTY_HARD, ally_absent_in=2),
 )
 OFFER_COUNT = 3
 
@@ -68,8 +70,26 @@ def _relative(path, maps_dir):
         return path.name
 
 
+# Which of the client's three challenge modes a tier is fought under. They
+# count the other way: 0 is Hard.
+CHALLENGE_LEVEL_BY_TIER = (AI_DIFFICULTY_EASY, AI_DIFFICULTY_MEDIUM)
+CHALLENGE_LEVEL_AFTER = AI_DIFFICULTY_HARD
+
+
+def challenge_level(battle):
+    tier = tier_for(battle)
+    if tier <= len(CHALLENGE_LEVEL_BY_TIER):
+        return CHALLENGE_LEVEL_BY_TIER[tier - 1]
+    return CHALLENGE_LEVEL_AFTER
+
+
 def challenge_offer(run, pool, maps_dir, countries):
     """Return the one challenge that closes this tier.
+
+    A challenge is the map's own fight: the client describes each one with
+    the three armies it was designed against, and those are the armies it is
+    played against here. What the tier decides is only which of the client's
+    three challenge modes it is fought under.
 
     A challenge map is not offered again until the pool has been through
     once; when the last one is used the pool comes back whole.
@@ -83,21 +103,29 @@ def challenge_offer(run, pool, maps_dir, countries):
     ]
     if not remaining:
         remaining = list(pool)
-    rules = tier_rules(run.battle)
     generator = _rng(run.seed, run.battle, 'challenge')
     entry = generator.choice(sorted(remaining, key=lambda item: item.name))
-    # A challenge seats what it seats. The opposition fills the map rather
-    # than the tier deciding, since the fight is the map's own.
-    enemies = max(1, min(entry.seats - 2, max(rules.enemies)))
+    relative = _relative(entry.path, maps_dir)
+    described = challenge_for(relative)
+    if described is not None and described.houses:
+        enemies = tuple(house.country for house in described.houses)
+    else:
+        # A map the installation lists nowhere: the opposition fills what
+        # the map seats, so the fight is at least the right size.
+        rules = tier_rules(run.battle)
+        enemies = tuple(
+            generator.choice(countries).index
+            for _ in range(max(1, min(entry.seats - 1, max(rules.enemies))))
+        )
     return BattleOffer(
-        map_path=_relative(entry.path, maps_dir),
+        map_path=relative,
         map_name=entry.name,
-        enemy_countries=tuple(
-            generator.choice(countries).index for _ in range(enemies)
-        ),
-        handicap=rules.handicap,
+        enemy_countries=enemies,
+        handicap=challenge_level(run.battle),
         seed=generator.randrange(1, 2 ** 31),
-        ally=entry.seats > enemies + 1,
+        # A challenge is fought alone. The second start on those maps is the
+        # co-op partner's, and the fight was balanced for who stands in it.
+        ally=False,
         challenge=True,
     )
 
@@ -155,9 +183,10 @@ def describe_offer(offer):
     enemies = len(offer.enemy_countries)
     company = 'with your ally' if offer.ally else 'alone'
     skill = {
-        AI_HANDICAP_NORMAL: 'trained',
-        AI_HANDICAP_HARD: 'hardened',
-    }.get(offer.handicap, 'green')
+        AI_DIFFICULTY_EASY: 'green',
+        AI_DIFFICULTY_MEDIUM: 'trained',
+        AI_DIFFICULTY_HARD: 'hardened',
+    }.get(offer.handicap, 'trained')
     return (
         f'{enemies} {skill} '
         f'{"enemy" if enemies == 1 else "enemies"}, {company}'

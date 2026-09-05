@@ -29,7 +29,11 @@ from .maps import (
     summarize_map_pools,
 )
 from .results import last_game_result, result_blocks
-from .spawn import SkirmishHouse, skirmish_spawn_ini_text
+from .spawn import (
+    AI_DIFFICULTY_HARD,
+    SkirmishHouse,
+    skirmish_spawn_ini_text,
+)
 
 
 # Keys the campaign spawn file carries. One of them, IsSinglePlayer, is read
@@ -192,7 +196,9 @@ def _parsed(text):
 
 
 def _spawn_checks():
-    ally = SkirmishHouse(country=3, color=2, friendly=True)
+    ally = SkirmishHouse(
+        country=3, color=2, friendly=True, handicap=AI_DIFFICULTY_HARD
+    )
     enemies = (
         SkirmishHouse(country=6, color=4, friendly=False),
         SkirmishHouse(country=9, color=6, friendly=False),
@@ -231,7 +237,10 @@ def _spawn_checks():
         and spawn['HouseCountries']['Multi3'] == '6'
         and spawn['HouseCountries']['Multi4'] == '9'
         and spawn['HouseColors']['Multi2'] == '2'
-        and spawn['HouseHandicaps']['Multi2'] == '2'
+        # Hard is 0: the AI's difficulty counts the other way from
+        # everything else, and a lobby of Hard/Medium/Easy/Easy became
+        # handicaps of 0/1/2/2 in the file the client wrote.
+        and spawn['HouseHandicaps']['Multi2'] == '0'
     )
     # An ally is the ally's house index minus one, and a house with nobody to
     # ally with has no section at all.
@@ -537,6 +546,152 @@ def _run_checks():
     }
 
 
+# A challenge map as the client's own map list describes it, verbatim from
+# the installation, beside the game mode that forces its options.
+CHALLENGE_INI = """[Challenge Hard]
+CustomIniPath=INI\\Map Code\\Challenge Hard.ini
+ForcedOptions=Challenge HardForcedOptions
+CoopDifficultyLevel=0
+
+[Challenge HardForcedOptions]
+chkShortGame=true
+chkIngameAllying=false
+chkNoSpawnPreviews=true
+cmbUnitCount=6
+cmbTechLevel=0
+
+[noconyardstartForcedOptions]
+chkConYardStart=false
+
+[MapsMO\\Challenge\\c_aberration]
+Description=Challenge XIII: Aberration
+GameModes=Challenge Easy,Challenge Medium,Challenge Hard
+MinPlayers=1
+MaxPlayers=2
+Waypoint0=142134
+Waypoint1=142154
+IsCoopMission=yes
+DisallowedPlayerColors=6
+EnemyHouse0=0,6,2 ; United States, Blue
+EnemyHouse1=1,6,3 ; Euro Alliance, Blue
+EnemyHouse2=2,6,4 ; Pacific Front, Blue
+ForcedOptions=noconyardstartForcedOptions
+"""
+
+MAP_CODE = """; Mental Omega Mode Client INI
+
+[General]
+TeamRetaliate=no
+TeamDelays=500,1500,2500
+
+[Actions]
+MODEINT1=1,11,4,MISSION:AIDHARD,0,0,0,0,A
+"""
+
+
+def _challenge_checks():
+    from .challenges import (
+        _sections,
+        merge_map_code,
+        parse_challenges,
+        parse_forced_options,
+    )
+    from .progression import challenge_level, challenge_offer
+    from .spawn import (
+        AI_DIFFICULTY_EASY,
+        AI_DIFFICULTY_HARD,
+        AI_DIFFICULTY_MEDIUM,
+    )
+    from .transitions import start_run
+
+    sections = _sections(CHALLENGE_INI)
+    described = parse_challenges(sections).get('Challenge/c_aberration.map')
+    forced = parse_forced_options(
+        sections, 'Challenge HardForcedOptions', described.forced_options
+    )
+    read_valid = bool(
+        described is not None
+        and [house.country for house in described.houses] == [0, 1, 2]
+        and [house.start for house in described.houses] == [2, 3, 4]
+        and described.disallowed_colors == (6,)
+        # Only the options that are spawn settings; cmbUnitCount and its
+        # like are applied as map code, not written here.
+        and forced == {
+            'ShortGame': 'True',
+            'AlliesAllowed': 'False',
+            'NoSpawnPreviews': 'True',
+            'ConYardStart': 'False',
+        }
+    )
+
+    # The three challenge modes count the other way: Hard is 0. A run meets
+    # them in order as its tiers rise.
+    level_valid = bool(
+        challenge_level(5) == AI_DIFFICULTY_EASY
+        and challenge_level(10) == AI_DIFFICULTY_MEDIUM
+        and challenge_level(15) == AI_DIFFICULTY_HARD
+        and challenge_level(40) == AI_DIFFICULTY_HARD
+    )
+
+    with TemporaryDirectory(prefix='mo-skirmish-challenge-') as temporary:
+        root = Path(temporary)
+        maps_dir = root / 'MapsMO'
+        pool_dir = maps_dir / 'Challenge'
+        pool_dir.mkdir(parents=True)
+        pool = _fixture_pool(pool_dir, 2, prefix='chl', seats=5)
+
+        # The offer is drawn from the pool; whichever it lands on, a
+        # challenge is fought alone, since the second start on those maps is
+        # a co-op partner's and the fight was balanced for who stands in it.
+        run = start_run(
+            run_id='challenge-check',
+            seed='CHALLENGE-CHECK',
+            player_country=0,
+            ally_country=3,
+        )
+        offer = challenge_offer(
+            replace(run, battle=5), pool, maps_dir,
+            skirmish_countries() or (SimpleCountry(0),),
+        )
+        offer_valid = bool(
+            offer is not None
+            and offer.challenge
+            and not offer.ally
+            and offer.handicap == AI_DIFFICULTY_EASY
+        )
+
+        # The mode's INI is merged into the map rather than appended: the
+        # reader keeps the first value it sees, so a second [Actions] under
+        # the map's own would change nothing.
+        map_file = root / 'spawnmap.ini'
+        map_file.write_bytes(
+            (
+                '[Header]\nWidth=100\n\n[Actions]\nOWN1=1,2,3\n\n'
+                '[Basic]\nName=Fixture\n'
+            ).encode('utf-8')
+        )
+        code_file = root / 'code.ini'
+        code_file.write_text(MAP_CODE, encoding='utf-8')
+        applied = merge_map_code(map_file, code_file)
+        merged = map_file.read_bytes().decode('utf-8')
+        merge_valid = bool(
+            applied == 3
+            and merged.count('[Actions]') == 1
+            and 'MISSION:AIDHARD' in merged
+            and 'OWN1=1,2,3' in merged
+            and '[General]' in merged
+            and 'TeamRetaliate=no' in merged
+            # The map is written with bare line feeds and stays that way.
+            and b'\r\n' not in map_file.read_bytes()
+        )
+
+    return {
+        'skirmish_challenge_read_valid': read_valid,
+        'skirmish_challenge_level_valid': level_valid,
+        'skirmish_challenge_offer_valid': offer_valid,
+        'skirmish_challenge_map_code_valid': merge_valid,
+    }
+
 def validate_skirmish_contract():
     """Return the skirmish self-check rows, plus what the pools hold."""
     report = {}
@@ -545,6 +700,7 @@ def validate_skirmish_contract():
     report.update(_map_reader_checks())
     report.update(_country_checks())
     report.update(_run_checks())
+    report.update(_challenge_checks())
     report['skirmish_map_pools'] = (
         summarize_map_pools()
         if STANDARD_POOL_DIR.is_dir() or CHALLENGE_POOL_DIR.is_dir()

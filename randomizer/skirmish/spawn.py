@@ -28,10 +28,13 @@ keyed on mission TeamType names that a skirmish has none of.
 from dataclasses import dataclass
 
 
-# The client's own SkirmishSettings.ini uses 2 for Hard.
-AI_HANDICAP_EASY = 0
-AI_HANDICAP_NORMAL = 1
-AI_HANDICAP_HARD = 2
+# The AI's difficulty counts the other way from everything else: 0 is the
+# hardest. Read off a spawn.ini the client wrote beside the settings it was
+# written from -- a lobby of Hard, Medium, Easy, Easy became HouseHandicaps
+# of 0, 1, 2, 2 -- and it is the same scale the challenge modes count with.
+AI_DIFFICULTY_HARD = 0
+AI_DIFFICULTY_MEDIUM = 1
+AI_DIFFICULTY_EASY = 2
 
 ALLY_ORDINALS = (
     'One', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven', 'Eight',
@@ -76,7 +79,7 @@ class SkirmishHouse:
     country: int
     color: int
     friendly: bool
-    handicap: int = AI_HANDICAP_HARD
+    handicap: int = AI_DIFFICULTY_MEDIUM
 
 
 def skirmish_spawn_ini_text(
@@ -87,7 +90,9 @@ def skirmish_spawn_ini_text(
     houses,
     seed,
     player_name='Commander',
+    game_mode='Standard',
     spawn_locations=True,
+    starts=None,
     load_screen=DEFAULT_LOAD_SCREEN,
     options=None,
 ):
@@ -95,6 +100,10 @@ def skirmish_spawn_ini_text(
 
     ``houses`` are the computer players in seating order, becoming ``Multi2``
     onwards. The human is always ``Multi1``.
+
+    ``starts`` names each house's starting point when the map decides them,
+    as a challenge map does: ``{1: 0, 2: 2, 3: 3, 4: 4}``. Without it the
+    houses take the first starts in order.
     """
     houses = tuple(houses)
     numbered = tuple(
@@ -111,7 +120,7 @@ def skirmish_spawn_ini_text(
         # The map itself is copied to spawnmap.ini beside the game; the
         # spawner reads the scenario under that name and nothing else.
         'Scenario=spawnmap.ini',
-        'UIGameMode=Standard',
+        f'UIGameMode={game_mode}',
         f'UIMapName={map_name}',
         'PlayerCount=1',
         f'Side={int(player_country)}',
@@ -148,10 +157,11 @@ def skirmish_spawn_ini_text(
     if spawn_locations:
         lines.append('')
         lines.append('[SpawnLocations]')
-        for position, multi in enumerate(
-            [1] + [multi for multi, _house in numbered]
-        ):
-            lines.append(f'Multi{multi}={position}')
+        ordered = [1] + [multi for multi, _house in numbered]
+        for position, multi in enumerate(ordered):
+            lines.append(
+                f'Multi{multi}={(starts or {}).get(multi, position)}'
+            )
     return '\r\n'.join(lines) + '\r\n'
 
 

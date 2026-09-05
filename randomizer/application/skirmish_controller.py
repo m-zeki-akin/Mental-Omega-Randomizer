@@ -32,6 +32,13 @@ from randomizer.core.paths import (
     SPAWN_INI,
 )
 from randomizer.shop.model import RunStatus
+from randomizer.skirmish.challenges import (
+    challenge_for,
+    challenge_mode_for_level,
+    forced_options,
+    map_code_path,
+    merge_map_code,
+)
 from randomizer.skirmish.factions import country_by_index, skirmish_countries
 from randomizer.skirmish.maps import (
     MAPS_DIR,
@@ -518,6 +525,19 @@ class SkirmishController:
 
     def skirmish_houses(self, run, offer):
         """Return the computer players, ally first, in seating order."""
+        described = challenge_for(offer.map_path) if offer.challenge else None
+        if described is not None and described.houses:
+            # A challenge is the map's fight: its armies, its colours, its
+            # starting points, and nobody standing beside the player.
+            return tuple(
+                SkirmishHouse(
+                    country=house.country,
+                    color=house.color,
+                    friendly=False,
+                    handicap=offer.handicap,
+                )
+                for house in described.houses
+            )
         houses = []
         if offer.ally:
             houses.append(SkirmishHouse(
@@ -574,12 +594,21 @@ class SkirmishController:
             )
             return
         self.skirmish_run = self.skirmish_repository.save_run(run)
+        described = challenge_for(offer.map_path) if offer.challenge else None
         battle = {
             'run_id': run.run_id,
             'battle': run.battle,
             'offer': offer,
+            'challenge': described,
             'map': entry,
             'player': player,
+            # A challenge names a colour its own armies wear, and the client
+            # keeps the player out of it.
+            'player_color': next(
+                color for color in HOUSE_COLORS
+                if described is None
+                or color not in described.disallowed_colors
+            ),
             'houses': self.skirmish_houses(run, offer),
             'seed': offer.seed,
             'player_name': SKIRMISH_PLAYER_NAME,
@@ -604,19 +633,38 @@ class SkirmishController:
         self.cleanup_generated_root_maps()
         entry = battle['map']
         shutil.copy2(entry.path, SPAWN_MAP_INI)
+        options = {'GameSpeed': str(battle['game_speed'])}
+        game_mode = 'Standard'
+        starts = None
+        described = battle['challenge']
+        if described is not None:
+            game_mode = challenge_mode_for_level(battle['offer'].handicap)
+            # The mode forces its own match options and merges an INI of
+            # triggers into the map -- which is what makes a challenge one.
+            options.update(forced_options(
+                f'{game_mode}ForcedOptions', described.forced_options
+            ))
+            code = map_code_path(game_mode)
+            if code is not None:
+                merge_map_code(SPAWN_MAP_INI, code)
+            starts = {1: 0}
+            for index, house in enumerate(described.houses):
+                starts[index + 2] = house.start
         write_skirmish_spawn_ini(
             SPAWN_INI,
             skirmish_spawn_ini_text(
                 map_name=entry.name,
                 player_name=battle['player_name'],
                 player_country=battle['player'].index,
-                player_color=HOUSE_COLORS[0],
+                player_color=battle['player_color'],
                 houses=battle['houses'],
                 seed=battle['seed'],
+                game_mode=game_mode,
+                starts=starts,
                 # The spawner takes the match speed from here, not from the
                 # option files, so a skirmish plays at the speed the
                 # launcher locks its missions to rather than the client's.
-                options={'GameSpeed': str(battle['game_speed'])},
+                options=options,
             ),
         )
         self.write_launch_options(battle['difficulty'], battle['game_speed'])
@@ -729,12 +777,12 @@ class SkirmishController:
             # The player switched runs while the game was up, or deleted the
             # one that was playing. The battle stands for nothing.
             return f'{entry.name} finished, but its run is no longer open.'
-        if result is None:
-            # No score block: the game was closed before it finished, which
-            # is neither a win nor a loss and must not cost a life.
-            return f'Left {entry.name} without finishing. The battle stands.'
+        # A game closed before it finished is a defeat. It cannot be
+        # anything else: a battle going badly could otherwise be thrown away
+        # from the menu at no cost, which is the whole of the difficulty.
+        won = bool(result is not None and result.won)
         try:
-            if result.won:
+            if won:
                 run = self.offer_skirmish_battles(record_victory(run))
                 message = (
                     f'Victory on {entry.name} — {result.kills} kills, '
@@ -743,15 +791,20 @@ class SkirmishController:
                 )
             else:
                 run = record_defeat(run)
+                how = (
+                    f'Defeat on {entry.name}' if result is not None
+                    else f'Left {entry.name} unfinished, which counts as a '
+                    'defeat'
+                )
                 if run.status is RunStatus.ACTIVE:
                     message = (
-                        f'Defeat on {entry.name}. {run.lives_left} '
+                        f'{how}. {run.lives_left} '
                         f'{"life" if run.lives_left == 1 else "lives"} left; '
                         'the same battle stands.'
                     )
                 else:
                     message = (
-                        f'Defeat on {entry.name}. The run ends at battle '
+                        f'{how}. The run ends at battle '
                         f'{run.battle}, {run.won_battles} won.'
                     )
         except SkirmishTransitionError as exc:
