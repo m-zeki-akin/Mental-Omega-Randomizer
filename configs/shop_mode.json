@@ -57,7 +57,7 @@
       }
     },
     "power_target_prices": {
-      "AMERICANPARADROPSPECIAL": {"tier": "tier_1"},
+      "AMERICANPARADROPSPECIAL": {"tier": "tier_2"},
       "BACKWARPSPECIAL": {"tier": "tier_3"},
       "BLACKOUTMISSILESPECIAL": {"tier": "tier_2"},
       "BLACKWIDOWALPHASPECIAL": {"tier": "tier_2"},
@@ -117,11 +117,11 @@
       "OVERCHARGESPECIAL": {"tier": "tier_2"},
       "OVERFORGESPECIAL": {"tier": "tier_3"},
       "PACKATTACKSPECIAL": {"tier": "tier_3"},
-      "PALADINAIDSPECIAL": {"tier": "tier_2"},
+      "PALADINAIDSPECIAL": {"tier": "tier_3"},
       "PSYCHICDOMINATORSPECIAL": {"tier": "tier_3"},
       "PSYCHICFLASHSPECIAL": {"tier": "tier_2"},
       "QUICKFORTSPECIAL": {"tier": "tier_1"},
-      "RADATTACKSPECIAL": {"tier": "tier_2"},
+      "RADATTACKSPECIAL": {"tier": "tier_3"},
       "RAGEINDUCTORSPECIAL": {"tier": "tier_3"},
       "RAVENSPECIAL": {"tier": "tier_1"},
       "RECONSORTIESPECIAL": {"tier": "tier_1"},
@@ -142,27 +142,31 @@
       "TANKDROPSPECIAL": {"tier": "tier_2"},
       "TARGETPAINTERSPECIAL": {"tier": "tier_2"},
       "TECHMISSILESPECIAL": {"tier": "tier_2"},
-      "TERRORDROPSPECIAL": {"tier": "tier_1"},
-      "TICKTRAPSPECIAL": {"tier": "tier_1"},
+      "TERRORDROPSPECIAL": {"tier": "tier_2"},
+      "TICKTRAPSPECIAL": {"tier": "tier_2"},
       "TIMEFREEZESPECIAL": {"tier": "tier_3"},
       "TOXICSTRIKESPECIAL": {"tier": "tier_3"},
       "VISIONSPECIAL": {"tier": "tier_1"},
       "WALLBUSTERSPECIAL": {"tier": "tier_1"},
       "WARPMINERSSPECIAL": {"tier": "tier_3"},
       "WONDERDRUGSSPECIAL": {"tier": "tier_2"},
-      "ZEPHYRBEACONSPECIAL": {"tier": "tier_1"}
+      "ZEPHYRBEACONSPECIAL": {"tier": "tier_2"}
     },
     "price_scales": {
       "run_ore": {
         "name": "run_ore",
         "tier_prices": {
-          "tier_1": [40, 60],
-          "tier_2": [80, 120],
-          "tier_3": [160, 240]
+          "tier_1": [60, 80],
+          "tier_2": [100, 140],
+          "tier_3": [180, 260]
         },
         "unique_infantry": 260,
         "unique_unit": 380,
         "stolen_tech": [300, 340],
+        "build_limited_building": 0,
+        "campaign_infantry": 0,
+        "campaign_unit": 0,
+        "campaign_building": 0,
         "power_tier_prices": {"tier_1": 75, "tier_2": 150, "tier_3": 250},
         "flagged_power_price": 750,
         "buff_percent_of_access": 25,
@@ -174,15 +178,19 @@
       "permanent_gem": {
         "name": "permanent_gem",
         "tier_prices": {
-          "tier_1": [80, 180],
-          "tier_2": [180, 280],
-          "tier_3": [280, 380]
+          "tier_1": [100, 200],
+          "tier_2": [200, 300],
+          "tier_3": [300, 400]
         },
         "unique_infantry": 500,
         "unique_unit": 750,
         "stolen_tech": [600, 600],
+        "build_limited_building": 600,
+        "campaign_infantry": 800,
+        "campaign_unit": 1500,
+        "campaign_building": 1000,
         "power_tier_prices": {"tier_1": 150, "tier_2": 300, "tier_3": 500},
-        "flagged_power_price": 2500,
+        "flagged_power_price": 1500,
         "buff_percent_of_access": 25,
         "cost_window_trim_percent": 5,
         "rounding_step": 10,
@@ -814,7 +822,6 @@
         "target_ids": [
           "LIGHTNINGSTORMSPECIAL",
           "EMPULSSPECIAL",
-          "PALADINAIDSPECIAL",
           "IRONCURTAINSPECIAL",
           "NUKESPECIAL",
           "RAGEINDUCTORSPECIAL",

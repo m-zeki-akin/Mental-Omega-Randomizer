@@ -165,6 +165,10 @@ class ShopPriceScale:
     unique_infantry: int
     unique_unit: int
     stolen_tech: tuple[int, int]
+    build_limited_building: int
+    campaign_infantry: int
+    campaign_unit: int
+    campaign_building: int
     power_tier_prices: Mapping[str, int]
     flagged_power_price: int
     buff_percent_of_access: int

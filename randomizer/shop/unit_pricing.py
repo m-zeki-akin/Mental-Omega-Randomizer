@@ -35,6 +35,10 @@ from .model import ShopModeConfig
 # absurd, so buildings and defenses fall through to the ordinary tier band.
 UNIQUE_INFANTRY_CATEGORIES = frozenset({'infantry'})
 UNIQUE_UNIT_CATEGORIES = frozenset({'units', 'aircraft', 'ships'})
+# Buildings and defenses. Build-limited members of these are not heroes, so
+# they take neither of the flat hero prices -- but a Gem scale may still want
+# one number for all of them rather than a band position.
+BUILDING_CATEGORIES = frozenset({'defenses', 'special_buildings'})
 
 # Derived tables, memoised. A config carries dictionaries and so cannot be an
 # lru_cache key; entries are keyed on its identity and hold it alive so the id
@@ -295,10 +299,46 @@ def _require_offer(target_id, reward_type):
         )
 
 
+def _flat_override(target_id, scale, config):
+    """Return a price that replaces the band outright, or 0.
+
+    Two kinds of target are worth a number rather than a position. A unit no
+    skirmish game offers is worth what owning it forever is worth, and that
+    does not vary with the credit cost of a thing you cannot build. A
+    build-limited building is the same argument one step down.
+
+    A campaign-only building answers to the campaign rule, not the building
+    one: being absent from every skirmish game is the stronger claim, and it
+    is the one the player is buying past.
+    """
+    category = unit_pricing_traits(target_id).get('category')
+    if reward_pool_target(target_id, config):
+        by_category = (
+            (UNIQUE_INFANTRY_CATEGORIES, scale.campaign_infantry),
+            (UNIQUE_UNIT_CATEGORIES, scale.campaign_unit),
+            (BUILDING_CATEGORIES, scale.campaign_building),
+        )
+        for categories, price in by_category:
+            if category in categories and int(price) > 0:
+                return int(price)
+    if (
+        category in BUILDING_CATEGORIES
+        and unit_pricing_traits(target_id).get('unique')
+        and int(scale.build_limited_building) > 0
+    ):
+        return int(scale.build_limited_building)
+    return 0
+
+
 def _access_value(target_id, scale, config):
     """Return what a unit is worth, whether or not it is for sale."""
     from .catalogue import unit_access_tier
 
+    override = _flat_override(target_id, scale, config)
+    if override:
+        # A set price is set: the multipliers below exist to move a derived
+        # number, and there is nothing derived left to move.
+        return override
     traits = unit_pricing_traits(target_id)
     flat = _unique_price(traits, scale)
     if traits.get('stolen_tech'):

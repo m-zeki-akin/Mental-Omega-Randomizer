@@ -187,6 +187,10 @@ def load_shop_mode_config() -> ShopModeConfig:
                     key: int(scale[key])
                     for key in (
                         'unique_infantry',
+                        'build_limited_building',
+                        'campaign_infantry',
+                        'campaign_unit',
+                        'campaign_building',
                         'unique_unit',
                         'flagged_power_price',
                         'buff_percent_of_access',

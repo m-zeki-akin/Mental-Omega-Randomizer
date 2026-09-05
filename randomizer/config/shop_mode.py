@@ -191,6 +191,19 @@ def _validate_price_scales(sections, path, invalid):
             )
         ):
             invalid(f'Invalid Shop Mode price_scales.{name} prices', path)
+        # Flat prices that replace the band for one kind of target. Zero is
+        # the way a scale says it has no such rule, which is why these are
+        # checked apart from the prices that must be positive.
+        if any(
+            not isinstance(scale.get(key), int)
+            or isinstance(scale.get(key), bool)
+            or scale[key] < 0
+            for key in (
+                'build_limited_building', 'campaign_infantry',
+                'campaign_unit', 'campaign_building',
+            )
+        ):
+            invalid(f'Invalid Shop Mode price_scales.{name} flat prices', path)
         trim = scale.get('cost_window_trim_percent')
         if (
             not isinstance(trim, int) or isinstance(trim, bool)

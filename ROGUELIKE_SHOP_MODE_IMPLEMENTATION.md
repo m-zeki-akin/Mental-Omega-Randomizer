@@ -865,8 +865,17 @@ Ore and Gems price the same way at two scales, both in `price_scales`.
 
 | | Tier 1 | Tier 2 | Tier 3 | Hero inf. | Hero unit | Stolen tech | Power T1/T2/T3 | Superweapon |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| Ore | 40-60 | 80-120 | 160-240 | 260 | 380 | 300-340 | 75 / 150 / 250 | 750 |
-| Gems | 80-180 | 180-280 | 280-380 | 500 | 750 | 600 | 150 / 300 / 500 | 2500 |
+| Ore | 60-80 | 100-140 | 180-260 | 260 | 380 | 300-340 | 75 / 150 / 250 | 750 |
+| Gems | 100-200 | 200-300 | 300-400 | 500 | 750 | 600 | 150 / 300 / 500 | 1500 |
+
+Some targets never reach a band. In Gems a build-limited **building** is a
+flat 600, and a campaign-only target is flat by category -- 800 infantry,
+1,500 vehicle, 1,000 building -- with no multiplier after. A credit cost is a
+poor guide to what owning something forever is worth when the thing cannot be
+built at all: a campaign unit's cost is a number the player will never pay,
+and a build-limited building's says what putting one down costs rather than
+what the right to put it down is worth. Campaign-only wins when a target is
+both. Ore declares none of these and derives every price.
 
 Within a tier the unit's credit cost decides where in the range it lands,
 interpolated across the costs of its own tier. Units nobody can build more

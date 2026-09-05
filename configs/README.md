@@ -187,6 +187,18 @@ superunit cannot flatten its tier. `rounding_step` rounds the result. The
 ranges must not overlap downwards: a Tier 1 unit may never cost more than the
 cheapest Tier 3 one, or pricing by tier means nothing.
 
+`build_limited_building`, `campaign_infantry`, `campaign_unit` and
+`campaign_building` are flat prices that replace the band outright and are not
+multiplied afterwards; `0` means the scale has no such rule, which is how the
+Ore scale declines all four. They exist because a credit cost is a poor guide
+to what owning something forever is worth when the thing cannot be built at
+all: a campaign unit has a cost the player will never pay, and a build-limited
+building has one that says what it costs to put down rather than what having
+the right to put it down is worth. Campaign-only outranks build-limited when a
+target is both -- being absent from every skirmish game is the stronger claim,
+and it is the one the player is buying past. A campaign target whose category
+is unknown falls through to `reward_pool_multiplier` instead.
+
 `unique_infantry` and `unique_unit` price units nobody can build more than
 one of; `stolen_tech` is a `[low, high]` range for units gated behind
 `Prerequisite.StolenTechs` (set both ends equal for a flat price). A unit that

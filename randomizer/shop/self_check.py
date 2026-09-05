@@ -112,6 +112,7 @@ from .purchases import apply_validated_run_purchase, validate_run_purchase
 from .unit_pricing import (
     UNIQUE_INFANTRY_CATEGORIES,
     UNIQUE_UNIT_CATEGORIES,
+    _flat_override,
     one_off_target,
     power_access_price,
     premium_target,
@@ -122,6 +123,28 @@ from .unit_pricing import (
     unit_buff_price,
     unit_pricing_traits,
 )
+
+
+def _plain_scale(scale):
+    """The scale with its multipliers off, to show what they multiplied."""
+    return replace(scale, premium_target_multiplier=1, reward_pool_multiplier=1)
+
+
+def _model_scale(scale):
+    """The scale with every override off: the derived model, on its own.
+
+    Band membership, the flat hero prices and tier ordering are all claims
+    about how a price is *derived*. Measuring them on the live scale would
+    make every set price look like a broken band and prove nothing.
+    """
+    return replace(
+        _plain_scale(scale),
+        build_limited_building=0,
+        campaign_infantry=0,
+        campaign_unit=0,
+        campaign_building=0,
+    )
+
 from .shelf import (
     shop_shelf,
     shop_shelf_reward_ids,
@@ -1525,11 +1548,7 @@ def _gem_pricing_checks():
     # are measured on the scale with that knob at 1 and the premium is
     # asserted separately below. Measuring them on the live scale would make
     # every one-off look out of band and prove nothing about the model.
-    pricing = replace(
-        SHOP_CONFIG.price_scales['permanent_gem'],
-        premium_target_multiplier=1,
-        reward_pool_multiplier=1,
-    )
+    pricing = _model_scale(SHOP_CONFIG.price_scales['permanent_gem'])
     report = unit_access_price_report(pricing)
     access_targets = {
         entry.target_id for entry in shop_catalogue()
@@ -1613,6 +1632,7 @@ def _gem_pricing_checks():
     ore = SHOP_CONFIG.price_scales['run_ore']
     ore_report = unit_access_price_report(ore)
     live_gem = SHOP_CONFIG.price_scales['permanent_gem']
+    model_ore = _model_scale(ore)
 
     def multiplier(target, scale):
         factor = 1
@@ -1625,7 +1645,8 @@ def _gem_pricing_checks():
     # flat-priced, and everything premium carries a multiplier on top that
     # would put it above its tier's ceiling.
     ore_banded = {
-        target: price for target, price in ore_report.items()
+        target: price
+        for target, price in unit_access_price_report(model_ore).items()
         if not premium_target(target)
     }
     ore_band_valid = bool(
@@ -1638,11 +1659,6 @@ def _gem_pricing_checks():
     # And the premium is exactly the multiplier over what the same unit would
     # cost without it -- measured against the scale with the knob turned off,
     # so this cannot pass by restating the code that computes it.
-    def plain(scale):
-        return replace(
-            scale, premium_target_multiplier=1, reward_pool_multiplier=1
-        )
-
     one_offs = sorted(target for target in ore_report if one_off_target(target))
     pool_targets = sorted(
         target for target in ore_report if reward_pool_target(target)
@@ -1659,11 +1675,38 @@ def _gem_pricing_checks():
         and live_gem.premium_target_multiplier == 1
         and all(
             unit_access_price(target, scale) == unit_access_price(
-                target, plain(scale)
+                target, _plain_scale(scale)
             ) * multiplier(target, scale)
             for scale in (ore, live_gem)
             for target in ore_report
+            if not _flat_override(target, scale, SHOP_CONFIG)
         )
+    )
+    # A flat price replaces the band outright, and is not multiplied
+    # afterwards: campaign-only units by category, and build-limited
+    # buildings, which the Gem scale prices as one number rather than by
+    # where a credit cost nobody pays happens to fall.
+    overridden = sorted(
+        target for target in ore_report
+        if _flat_override(target, live_gem, SHOP_CONFIG)
+    )
+    flat_override_valid = bool(
+        overridden
+        and all(
+            unit_access_price(target, live_gem)
+            == _flat_override(target, live_gem, SHOP_CONFIG)
+            for target in overridden
+        )
+        # Ore declares no flat prices, so the same targets stay derived there.
+        and not any(
+            _flat_override(target, ore, SHOP_CONFIG) for target in ore_report
+        )
+        # Campaign-only outranks build-limited: a campaign building takes the
+        # campaign price, not the building one.
+        and _flat_override('NACLONS', live_gem, SHOP_CONFIG)
+        == live_gem.campaign_building
+        and _flat_override('NACLON', live_gem, SHOP_CONFIG)
+        == live_gem.build_limited_building
     )
     # Upgrades are a fixed fraction of what their target costs, on whichever
     # scale is being asked. The Ore side floors at minimum_shop_price, so it
@@ -1710,6 +1753,7 @@ def _gem_pricing_checks():
         'gem_price_coverage_valid': coverage_valid,
         'ore_price_tier_band_valid': ore_band_valid,
         'ore_price_premium_multiplier_valid': premium_valid,
+        'flat_override_price_valid': flat_override_valid,
         'price_buff_ratio_valid': buff_ratio_valid,
         'power_price_tier_valid': power_price_valid,
         'gem_price_tier_band_valid': band_valid,
@@ -1870,14 +1914,10 @@ def validate_shop_domain():
         and 280 <= permanent_unit_price('SPY') <= 380
         # A campaign-only superunit: 750 for being a hero, four times over
         # for being one no skirmish game offers.
-        and permanent_unit_price('STARDUSTB') == 3000
-        and permanent_unit_price('STARDUSTB') == unit_access_price(
-            'STARDUSTB',
-            replace(
-                SHOP_CONFIG.price_scales['permanent_gem'],
-                premium_target_multiplier=1,
-            ),
-        ) * SHOP_CONFIG.price_scales['permanent_gem'].premium_target_multiplier
+        # A campaign-only superunit: Gems price owning one at a flat rate
+        # for its category rather than off a credit cost nobody pays.
+        and permanent_unit_price('STARDUSTB')
+        == SHOP_CONFIG.price_scales['permanent_gem'].campaign_unit
         and unavailable_price_valid
         and starting_run_coins(starting_capital_level=999) == 1250
         and starting_credit_upgrade.max_level == 20
@@ -2498,14 +2538,11 @@ def validate_shop_domain():
             surcharge_targets
             and gem_scale.reward_pool_multiplier > 1
             and all(
-                permanent_unit_price(target) == unit_access_price(
-                    target,
-                    replace(
-                        gem_scale,
-                        premium_target_multiplier=1,
-                        reward_pool_multiplier=1,
-                    ),
-                ) * gem_scale.reward_pool_multiplier
+                permanent_unit_price(target) == (
+                    _flat_override(target, gem_scale, SHOP_CONFIG)
+                    or unit_access_price(target, _plain_scale(gem_scale))
+                    * gem_scale.reward_pool_multiplier
+                )
                 and permanent_target_surcharged(target)
                 for target in surcharge_targets
             )

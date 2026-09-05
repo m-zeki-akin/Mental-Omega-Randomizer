@@ -38,6 +38,7 @@ from randomizer.shop.model import ShopRewardType  # noqa: E402
 from randomizer.shop.unit_pricing import (  # noqa: E402
     _cost_position,
     _tier_cost_windows,
+    _flat_override,
     _unique_price,
     installed_rules_section,
     one_off_target,
@@ -59,7 +60,23 @@ def _plain(scale):
 
 
 def _basis(target_id, scale):
-    """Which of the model's four prices this unit took."""
+    """Which rule produced this unit's price on this scale.
+
+    Reported per scale rather than once, because the two disagree: Ore derives
+    every price and the Gem scale sets several outright.
+    """
+    override = _flat_override(target_id, scale, SHOP_CONFIG)
+    if override:
+        category = unit_pricing_traits(target_id).get('category')
+        if reward_pool_target(target_id):
+            if override == int(scale.campaign_infantry):
+                return 'campaign_infantry_flat'
+            if override == int(scale.campaign_unit):
+                return 'campaign_unit_flat'
+            if override == int(scale.campaign_building):
+                return 'campaign_building_flat'
+        del category
+        return 'build_limited_building_flat'
     traits = unit_pricing_traits(target_id)
     if traits.get('stolen_tech'):
         return 'stolen_tech'
@@ -71,6 +88,12 @@ def _basis(target_id, scale):
     return 'tier_band'
 
 
+def _base_price(target_id, scale):
+    """The price before multipliers -- the set price where one applies."""
+    override = _flat_override(target_id, scale, SHOP_CONFIG)
+    return override or unit_access_price(target_id, _plain(scale))
+
+
 def _optional(price_function, target_id, scale):
     try:
         return price_function(target_id, scale)
@@ -79,6 +102,8 @@ def _optional(price_function, target_id, scale):
 
 
 def _multiplier(target_id, scale):
+    if _flat_override(target_id, scale, SHOP_CONFIG):
+        return 1
     factor = 1
     if one_off_target(target_id):
         factor *= int(scale.premium_target_multiplier)
@@ -133,9 +158,9 @@ def write_unit_prices(path):
         'target_id', 'name', 'category', 'tier', 'cost', 'cost_source',
         'build_limit', 'stolen_tech', 'reward_pool', 'one_off',
         'cost_window_low', 'cost_window_high', 'cost_position',
-        'price_basis', 'ore_band_low', 'ore_band_high', 'ore_base',
+        'ore_basis', 'ore_band_low', 'ore_band_high', 'ore_base',
         'ore_multiplier', 'ore_price', 'ore_upgrade',
-        'gem_base', 'gem_multiplier', 'gem_price',
+        'gem_basis', 'gem_base', 'gem_multiplier', 'gem_price',
     ]]
     for target in targets:
         traits = unit_pricing_traits(target)
@@ -157,12 +182,13 @@ def write_unit_prices(path):
             round(_cost_position(target, ore), 4),
             _basis(target, ore),
             band[0], band[1],
-            unit_access_price(target, _plain(ore)),
+            _base_price(target, ore),
             _multiplier(target, ore),
             unit_access_price(target, ore),
             # A few units are sold without upgrades of their own.
             _optional(unit_buff_price, target, ore),
-            unit_access_price(target, _plain(gem)),
+            _basis(target, gem),
+            _base_price(target, gem),
             _multiplier(target, gem),
             unit_access_price(target, gem),
         ])
