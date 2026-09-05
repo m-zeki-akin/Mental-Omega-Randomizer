@@ -865,8 +865,8 @@ Ore and Gems price the same way at two scales, both in `price_scales`.
 
 | | Tier 1 | Tier 2 | Tier 3 | Hero inf. | Hero unit | Stolen tech | Power T1/T2/T3 | Superweapon |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| Ore | 40-60 | 80-120 | 160-240 | 260 | 380 | 300-340 | 50 / 100 / 200 | 400 |
-| Gems | 80-180 | 180-280 | 280-380 | 500 | 750 | 600 | 50 / 100 / 200 | 400 |
+| Ore | 40-60 | 80-120 | 160-240 | 260 | 380 | 300-340 | 75 / 150 / 250 | 750 |
+| Gems | 80-180 | 180-280 | 280-380 | 500 | 750 | 600 | 150 / 300 / 500 | 2500 |
 
 Within a tier the unit's credit cost decides where in the range it lands,
 interpolated across the costs of its own tier. Units nobody can build more
@@ -875,13 +875,21 @@ stolen tech takes the higher of the two. Unique *buildings* keep their range
 -- an Ore Purifier is limited for balance, not because it is a hero, and the
 raw BuildLimit flag does not make that distinction for you.
 
-One upgrade stack costs 18% of what its target costs on the same scale. On the
-Ore side that lands below `minimum_shop_price` for the cheapest units, so
-their upgrades sit at the floor.
+One upgrade stack costs 25% of what its target costs on the same scale. The
+cheapest Tier 1 unit lands exactly on `minimum_shop_price`, so nothing is
+clamped away, but there is no headroom left under the floor either.
 
 Powers have no credit cost to read, so their tier decides outright. The
 superweapons and campaign-only powers the Reward Pool groups name take a flat
-premium instead: they are what a run gets built around, not stock.
+premium instead: they are what a run gets built around, not stock, and 750 Ore
+is most of a run's slate on purpose.
+
+The Gem power prices are recorded but nothing charges them: the permanent shop
+sells units and upgrades, and every power price flows through the Ore scale.
+They are there for a Gem power offer that does not exist yet -- and whoever
+builds one should note that a permanent path modelled on `permanent_unit_price`
+would put the flagged powers through `excluded_target_surcharge`, which they
+are all members of, making a superweapon 2500 x 4.
 
 This replaced a hand-written table scaled off in-game cost with an 80 Gem
 floor. Cost answers what a unit is worth to build once you have it, which the

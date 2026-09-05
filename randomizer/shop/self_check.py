@@ -1809,7 +1809,9 @@ def validate_shop_domain():
         )
         and run_unit_price('STARDUSTB') == 380
         and run_buff_price('SPY') >= SHOP_CONFIG.minimum_shop_price
-        and run_buff_price('STARDUSTB') == 68
+        and run_buff_price('STARDUSTB') == unit_buff_price(
+            'STARDUSTB', SHOP_CONFIG.price_scales['run_ore']
+        )
         and (failed.run_coins, failed.meta_coins) == (0, 0)
         and meta_rewards_by_difficulty == [20, 30, 50, 70]
         and discounted_shop_price(0, shop_discount_level=999) == 10
@@ -1818,9 +1820,14 @@ def validate_shop_domain():
         # for being one no skirmish game offers.
         and permanent_unit_price('STARDUSTB') == 3000
         and permanent_buff_price('SPY') == round(
-            permanent_unit_price('SPY') * 18 / 100
+            permanent_unit_price('SPY')
+            * SHOP_CONFIG.price_scales['permanent_gem'].buff_percent_of_access
+            / 100
         )
-        and permanent_buff_price('STARDUSTB') == 540
+        # A hero unit's upgrade, four times over for being campaign-only.
+        and permanent_buff_price('STARDUSTB') == unit_buff_price(
+            'STARDUSTB', SHOP_CONFIG.price_scales['permanent_gem']
+        ) * SHOP_CONFIG.price_scales['permanent_gem'].excluded_target_multiplier
         and unavailable_price_valid
         and starting_run_coins(starting_capital_level=999) == 1250
         and starting_credit_upgrade.max_level == 20
