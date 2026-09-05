@@ -202,6 +202,9 @@ class ShopModeConfig:
     # How much of a challenge's enemy draw answers the player's
     # arsenal; the rest stays uniform so no branch is ever closed.
     enemy_adaptive_draft_percent: int
+    # How many of the upgrades a player left on the shelf the enemy
+    # takes at a stage-closing challenge. Zero switches it off.
+    enemy_hate_draft_count: int
     mission_offer_count: int
     unit_inventory_size: int
     power_inventory_size: int

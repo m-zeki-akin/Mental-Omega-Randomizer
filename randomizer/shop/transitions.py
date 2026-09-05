@@ -81,7 +81,7 @@ def _enemy_draft_notes(buff_ids, reasons):
 
 
 def drawn_enemy_buff_ids_with_reasons(
-    run, mission_code, config: ShopModeConfig = SHOP_CONFIG
+    run, mission_code, config: ShopModeConfig = SHOP_CONFIG, profile=None
 ):
     """Return the permanent enemy buffs a challenge adds, and why each one.
 
@@ -97,27 +97,44 @@ def drawn_enemy_buff_ids_with_reasons(
     and never closed off.
     """
     from randomizer.rewards.enemy_scaling import ENEMY_SCALING_BUFF_STACK_LIMITS
-    from randomizer.shop.enemy_draft import draw_enemy_buff_ids
+    from randomizer.shop.enemy_draft import (
+        draw_enemy_buff_ids,
+        hate_drafted_buff_ids,
+    )
 
     unlocked = unlocked_enemy_buff_ids(run.stage, config)
     if not unlocked:
         return (), {}
-    return draw_enemy_buff_ids(
+    counts = Counter(run.permanent_enemy_buff_ids)
+    # What the player walked past goes first, so the weighted draw fills the
+    # remaining slots around it rather than the other way round: the shelf is
+    # a decision the player just made and should be the visible half.
+    drafted, reasons = hate_drafted_buff_ids(
+        profile, run, unlocked, counts,
+        ENEMY_SCALING_BUFF_STACK_LIMITS, config,
+    )
+    drawn, drawn_reasons = draw_enemy_buff_ids(
         run,
         mission_code,
         unlocked,
         enemy_buffs_for_stage(run.stage, config),
-        Counter(run.permanent_enemy_buff_ids),
+        counts,
         ENEMY_SCALING_BUFF_STACK_LIMITS,
         config,
     )
+    merged = dict(drawn_reasons)
+    # A buff taken for both reasons is named by the one the player controlled.
+    merged.update(reasons)
+    return drafted + drawn, merged
 
 
 def drawn_enemy_buff_ids(
-    run, mission_code, config: ShopModeConfig = SHOP_CONFIG
+    run, mission_code, config: ShopModeConfig = SHOP_CONFIG, profile=None
 ):
     """Return the permanent enemy buffs a challenge victory adds."""
-    return drawn_enemy_buff_ids_with_reasons(run, mission_code, config)[0]
+    return drawn_enemy_buff_ids_with_reasons(
+        run, mission_code, config, profile
+    )[0]
 
 
 @dataclass(frozen=True)
@@ -526,7 +543,7 @@ def apply_mission_victory(
     # A challenge victory permanently strengthens the AI for the rest of
     # the run. That escalation is what the tier payout multiplier pays for.
     earned_enemy_buffs, enemy_draft_reasons = (
-        drawn_enemy_buff_ids_with_reasons(run, mission_code, config)
+        drawn_enemy_buff_ids_with_reasons(run, mission_code, config, profile)
         if challenge_stage else ((), {})
     )
     # Winning a mission strengthens the roster actually being fielded: a

@@ -243,6 +243,7 @@ def validate_shop_mode_config(sections, path, invalid):
         'permanent_enemy_buffs_per_challenge': (0, 5),
         'enemy_buff_escalation_stages': (1, 100),
         'enemy_adaptive_draft_percent': (0, 100),
+        'enemy_hate_draft_count': (0, 4),
         'mission_offer_count': (1, 10),
         'unit_inventory_size': (1, 100),
         'power_inventory_size': (1, 100),

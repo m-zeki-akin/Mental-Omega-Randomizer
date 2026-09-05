@@ -204,6 +204,24 @@ cannot see a mission being played. That is the more interesting rule anyway --
 buying a branch and never using it is a real feint, and the counter it draws
 is the price of the bluff.
 
+`enemy_hate_draft_count` is the other half of the same idea, and it reads
+what the player walked past rather than what they took. The shelf holds four
+upgrades and rotates every stage; at a stage-closing challenge the dearest one
+still unbought goes to the enemy, mirrored to the same buff type at the same
+tier. The shop's own price is the measure -- undiscounted, since a ranking
+does not care about a discount that applies to the whole shelf.
+
+The tension is the point. The best upgrade on the shelf is also the most
+dangerous one to leave, so the right buy is sometimes the second best. And a
+player who empties their Ore into the shelf hands over nothing at all, which
+turns saving for later into a real cost rather than free prudence.
+
+It fires at the challenge and not every stage: one extra effect per five
+stages against the two or three the challenge already draws, where every stage
+would have more than tripled the escalation rate. A mirror that is locked at
+this tier or already at its ceiling is skipped and the next-dearest decline is
+taken instead. `0` switches it off.
+
 Determinism is unchanged. Weights come from run state and the choice from the
 same seeded digest, so a replayed run escalates identically. The victory
 message names what the enemy took and why; an adaptation nobody can see is

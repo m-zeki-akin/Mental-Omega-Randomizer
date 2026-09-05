@@ -359,4 +359,161 @@ def validate_enemy_draft_contract():
         'enemy_draft_explains_itself_valid': (
             'cloak' in reason and not draft_reason(nothing, 'tier1_sensors')
         ),
+        **_hate_draft_checks(),
     }
+
+
+class _ShelfEntry:
+    """The three fields the hate draft reads off a shelf upgrade."""
+
+    def __init__(self, target_id, tier, buff_type):
+        self.target_id = target_id
+        self.tier = tier
+        self.buff_type = buff_type
+        self.reward_id = f'{target_id}:{buff_type}'
+
+
+def _hate_draft_checks():
+    """Prove the enemy takes what was left behind, and only what it can."""
+    stack_limits = {'tier1_damage': 5, 'tier2_armor': 5, 'tier3_speed': 5}
+    unlocked = set(stack_limits)
+    dearest = _ShelfEntry('RHINO', 'tier_2', 'armor')
+    cheaper = _ShelfEntry('E1', 'tier_1', 'damage')
+
+    # Dearest first is the caller's ordering, so the first entry is what the
+    # player most visibly walked past.
+    taken, reasons = hate_draft_from_declined(
+        (dearest, cheaper), unlocked, {}, stack_limits, 1
+    )
+    # A mirror that is locked at this stage is skipped rather than dropped:
+    # the next-dearest decline is taken instead.
+    locked, _ = hate_draft_from_declined(
+        (dearest, cheaper), {'tier1_damage'}, {}, stack_limits, 1
+    )
+    # And one already at its ceiling behaves the same way.
+    saturated, _ = hate_draft_from_declined(
+        (dearest, cheaper), unlocked, {'tier2_armor': 5}, stack_limits, 1
+    )
+    # An empty shelf is the reward for spending: nothing is handed over.
+    emptied, _ = hate_draft_from_declined(
+        (), unlocked, {}, stack_limits, 1
+    )
+    disabled, _ = hate_draft_from_declined(
+        (dearest, cheaper), unlocked, {}, stack_limits, 0
+    )
+    return {
+        'hate_draft_mirrors_dearest_decline_valid': (
+            taken == ('tier2_armor',)
+            and 'RHINO' in reasons.get('tier2_armor', '')
+        ),
+        'hate_draft_skips_locked_mirror_valid': locked == ('tier1_damage',),
+        'hate_draft_skips_saturated_mirror_valid': (
+            saturated == ('tier1_damage',)
+        ),
+        # Emptying the shelf denying the enemy is the whole economic tension;
+        # if this ever stopped holding, saving Ore would be free again.
+        'hate_draft_empty_shelf_gives_nothing_valid': emptied == (),
+        'hate_draft_disabled_at_zero_valid': disabled == (),
+    }
+
+
+# The other half of the same idea. The adaptive draw answers what the player
+# took; this answers what they walked past.
+#
+# The shelf rotates every stage and holds four upgrades. A player buys one or
+# two of them, and the rest disappear -- a decision made every stage that cost
+# nothing to get wrong. Now the most expensive upgrade left behind goes to the
+# enemy, mirrored: the shop's own price is the measure of what was passed on,
+# and the enemy catalogue already carries the same buff type at the same tier.
+#
+# The tension this creates is the point. The best upgrade on the shelf is also
+# the most dangerous one to leave, so sometimes the right buy is the second
+# best. And a player who empties their Ore into the shelf hands over nothing
+# at all, which turns "save for later" into a real cost rather than free
+# prudence.
+#
+# It fires at the stage-closing challenge, not every stage: one extra effect
+# per five stages against the two to three the challenge already draws. Every
+# stage would have more than tripled the escalation rate.
+
+
+def _mirrored_effect_id(entry):
+    """Return the enemy effect that mirrors one shelf upgrade, or ``None``."""
+    tier = str(getattr(entry, 'tier', '') or '')
+    buff_type = str(getattr(entry, 'buff_type', '') or '')
+    if not buff_type or tier not in TIER_NAMES:
+        return None
+    return f'tier{TIER_NAMES.index(tier) + 1}_{buff_type}'
+
+
+def declined_shelf_upgrades(profile, run, config=SHOP_CONFIG):
+    """Return this stage's unbought upgrades, dearest first.
+
+    Priced with the run's own Ore scale rather than a rank of our own, so the
+    thing the enemy takes is the thing the player most visibly walked past.
+    """
+    from randomizer.shop.economy import run_reward_price
+    from randomizer.shop.shelf import shop_shelf
+
+    if run is None:
+        return ()
+    _units, _powers, upgrades = shop_shelf(profile, run, config=config)
+    bought = set(run.stage_shelf_purchases or ())
+    declined = [entry for entry in upgrades if entry.reward_id not in bought]
+
+    def price(entry):
+        # Undiscounted on purpose: this is a ranking, and every discount the
+        # run carries applies to the whole shelf equally.
+        try:
+            return int(run_reward_price(entry, config=config))
+        except (TypeError, ValueError, KeyError):
+            return 0
+
+    return tuple(sorted(declined, key=lambda entry: (-price(entry),
+                                                     entry.reward_id)))
+
+
+def hate_draft_from_declined(
+    declined, unlocked, counts, stack_limits, wanted
+):
+    """Return the effects the enemy takes from a dearest-first decline list.
+
+    Separated from the shelf lookup so the rule can be asserted without
+    standing up a run: what is worth proving is the mirroring and the
+    skipping, not that ``shop_shelf`` returns a shelf.
+    """
+    wanted = max(0, int(wanted))
+    if not wanted:
+        return (), {}
+    unlocked = set(unlocked)
+    drafted = []
+    reasons = {}
+    for entry in declined:
+        if len(drafted) >= wanted:
+            break
+        effect_id = _mirrored_effect_id(entry)
+        if (
+            not effect_id
+            or effect_id not in unlocked
+            or counts.get(effect_id, 0) >= stack_limits.get(effect_id, 1)
+        ):
+            continue
+        counts[effect_id] = counts.get(effect_id, 0) + 1
+        drafted.append(effect_id)
+        reasons[effect_id] = (
+            f'you left {entry.target_id} {entry.buff_type} on the shelf'
+        )
+    return tuple(drafted), reasons
+
+
+def hate_drafted_buff_ids(
+    profile, run, unlocked, counts, stack_limits, config=SHOP_CONFIG
+):
+    """Return the effects the enemy takes from what the player left behind."""
+    return hate_draft_from_declined(
+        declined_shelf_upgrades(profile, run, config),
+        unlocked,
+        counts,
+        stack_limits,
+        getattr(config, 'enemy_hate_draft_count', 0),
+    )

@@ -115,6 +115,7 @@ def load_shop_mode_config() -> ShopModeConfig:
         enemy_adaptive_draft_percent=int(
             settings['enemy_adaptive_draft_percent']
         ),
+        enemy_hate_draft_count=int(settings['enemy_hate_draft_count']),
         mission_offer_count=int(settings['mission_offer_count']),
         unit_inventory_size=int(settings['unit_inventory_size']),
         power_inventory_size=int(settings['power_inventory_size']),

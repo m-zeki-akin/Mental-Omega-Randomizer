@@ -922,6 +922,10 @@ def _phase_four_checks():
         run_buffs=(BuffPurchase(buff_reward_id, 2),),
     )
     reward_names = [reward.get('name') for reward in active_shop_rewards(stacked)]
+    drawn_challenge_buffs = sum(
+        enemy_buffs_for_stage(index * SHOP_CONFIG.stage_length, SHOP_CONFIG)
+        for index in range(1, challenge_victories + 1)
+    )
     return {
         # A standalone run is endless: it stays active, banks Gems as it
         # goes, resets its offer history every stage, and collects two
@@ -941,13 +945,15 @@ def _phase_four_checks():
         'endless_challenge_cadence_valid': bool(
             challenge_victories
             == SHOP_CONFIG.run_length // SHOP_CONFIG.stage_length
-            and len(final_run.permanent_enemy_buff_ids)
-            == sum(
-                enemy_buffs_for_stage(
-                    index * SHOP_CONFIG.stage_length, SHOP_CONFIG
-                )
-                for index in range(1, challenge_victories + 1)
-            )
+            # Bounded rather than exact: the weighted draw is exact, and the
+            # hate draft adds up to enemy_hate_draft_count on top -- fewer
+            # when the player left nothing on the shelf, or when the mirror
+            # of what they left is locked or already at its ceiling. Asserting
+            # the upper bound only would pass a hate draft that never fired.
+            and drawn_challenge_buffs
+            <= len(final_run.permanent_enemy_buff_ids)
+            <= drawn_challenge_buffs
+            + challenge_victories * SHOP_CONFIG.enemy_hate_draft_count
         ),
         'active_shop_reward_payload_valid': bool(
             reward_names.count(unit_reward_ids[0]) == 1
