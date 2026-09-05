@@ -24,12 +24,17 @@ $tclBundleData = Join-Path $configManifestDir "_tcl_data"
 
 New-Item -ItemType Directory -Path $outputDir -Force | Out-Null
 
-$requiredPythonVersion = '3.14.6'
+# Pinned to the minor version, not the patch. 3.14.6 was exact, so every
+# patch release stopped the build until someone edited this line, and a
+# security patch is not a reason to refuse to build. The minor version is what
+# actually has to match: it decides the bytecode the bundle carries and the
+# Tcl/Tk that ships beside it.
+$requiredPythonSeries = '3.14'
 $pythonVersion = (& python -c "import platform; print(platform.python_version())" 2>$null).Trim()
-if ($LASTEXITCODE -ne 0 -or $pythonVersion -ne $requiredPythonVersion) {
+if ($LASTEXITCODE -ne 0 -or -not $pythonVersion.StartsWith("$requiredPythonSeries.")) {
     throw (
-        "Python $requiredPythonVersion is required for reproducible launcher builds; " +
-        "found $pythonVersion."
+        "Python $requiredPythonSeries.x is required for reproducible launcher " +
+        "builds; found $pythonVersion."
     )
 }
 if (-not (python -m PyInstaller --version 2>$null)) {

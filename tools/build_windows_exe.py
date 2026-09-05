@@ -19,7 +19,10 @@ import sys
 import tempfile
 
 
-REQUIRED_PYTHON = '3.14.6'
+# The minor series, not an exact patch: a Python security update is not a
+# reason for the launcher to refuse to build, and the minor version is what
+# decides the bytecode and the bundled Tcl/Tk.
+REQUIRED_PYTHON_SERIES = '3.14'
 REQUIRED_WEBSOCKETS = '17.0'
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 
@@ -110,9 +113,9 @@ def build(output: Path) -> None:
         raise RuntimeError(
             'A Windows Python runtime is required. On Linux use build_exe_wine.sh.'
         )
-    if platform.python_version() != REQUIRED_PYTHON:
+    if not platform.python_version().startswith(f'{REQUIRED_PYTHON_SERIES}.'):
         raise RuntimeError(
-            f'Python {REQUIRED_PYTHON} is required; '
+            f'Python {REQUIRED_PYTHON_SERIES}.x is required; '
             f'found {platform.python_version()}.'
         )
 

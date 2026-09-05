@@ -127,8 +127,10 @@ Build the packaged launcher from the Mental Omega folder with:
 powershell -ExecutionPolicy Bypass -File RandomizerLauncher\build_exe.ps1
 ```
 
-A Linux maintainer with Wine and the pinned Windows Python 3.14.6 runtime at
-`C:\Python3146` can build the Windows launcher and matching APWorld together:
+A Linux maintainer with Wine and a Windows Python 3.14.x runtime -- the
+`build_exe_wine.sh` default expects it at `C:\Python3146`, override with
+`WINE_PYTHON` -- can build the Windows launcher and matching APWorld
+together:
 
 ```bash
 cd RandomizerLauncher
