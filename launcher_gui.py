@@ -18,6 +18,7 @@ from randomizer.core.paths import (
     MAP_RENDERER_DIR,
     WINDOW_ICON_PATH,
 )
+from randomizer.core.undefined_globals import undefined_globals
 from randomizer.core.version import APP_VERSION
 from randomizer.config.static import REQUIRED_STATIC_CONFIGS, validate_static_configs
 from randomizer.maps.settings import validate_eva_voice_profiles
@@ -1146,6 +1147,11 @@ def run_self_check():
             }
             and runtime_reward_settings.get('starting_unlock_rewards') == []
         )
+        # A name a module loads but nothing defines is invisible until the
+        # line runs, so a dropped import ships and the first person to hover
+        # the wrong row gets a traceback dialog. Read from the bytecode, so
+        # this works in the frozen launcher too.
+        undefined_global_names = undefined_globals()
         eva_voice_profiles = validate_eva_voice_profiles(
             EVA_VOICE_TAGS,
             EVA_APPEARANCE_PROFILES,
@@ -1323,6 +1329,8 @@ def run_self_check():
             'eva_voice_profiles_valid': eva_voice_profiles['valid'],
             'eva_voice_profiles': eva_voice_profiles['profiles'],
             'missing_runtime_symbols': missing_runtime_symbols,
+            'undefined_globals': undefined_global_names,
+            'undefined_globals_valid': not undefined_global_names,
             'diagnostic_log': str(LAUNCHER_LOG),
             'deterministic_seed_rng_works': 0 <= random.Random('MO-SELF-CHECK').random() < 1,
         }
@@ -1338,6 +1346,7 @@ def run_self_check():
                 'lightning_storm_cameo_extracted',
                 'static_configs_valid',
                 'shop_domain_valid',
+                'undefined_globals_valid',
                 'archipelago_client_contract_valid',
                 'randomizer_unit_roster_valid',
                 'drakuv_contracts_valid',

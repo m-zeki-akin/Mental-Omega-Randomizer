@@ -13,6 +13,7 @@ from randomizer.shop.active import (
 from randomizer.shop.catalogue import canonical_reward_for_id
 from randomizer.shop.economy import (
     mission_reward,
+    permanent_target_surcharged,
     run_reward_price,
 )
 from randomizer.shop.model import RunStatus, ShopRewardType
