@@ -1156,6 +1156,27 @@ def run_self_check():
         # the wrong row gets a traceback dialog. Read from the bytecode, so
         # this works in the frozen launcher too.
         undefined_global_names, scanned_modules = scan_undefined_globals()
+        # A row that says a unit is buyable and a button that refuses to buy
+        # it are two answers to one question. They drifted apart once already:
+        # the rows moved to the between-missions rule when runs became
+        # endless and the buttons kept testing whether a run was active at
+        # all, so every row read "Available" beside a dead button. Both now
+        # call one helper, and this is what says so.
+        from randomizer.application.shop_controller import ShopController
+        from randomizer.application.shop_polish_controller import (
+            ShopPolishController,
+        )
+        permanent_gate_button_names = (
+            ShopPolishController.refresh_permanent_purchase_buttons
+            .__code__.co_names
+        )
+        permanent_purchase_gate_shared = (
+            'shop_permanent_purchase_block'
+            in ShopController._refresh_permanent_shop.__code__.co_names
+            and 'shop_permanent_purchase_block' in permanent_gate_button_names
+            # And the rule it replaced is gone rather than sitting beside it.
+            and 'RunStatus' not in permanent_gate_button_names
+        )
         eva_voice_profiles = validate_eva_voice_profiles(
             EVA_VOICE_TAGS,
             EVA_APPEARANCE_PROFILES,
@@ -1350,6 +1371,7 @@ def run_self_check():
             # Three ways this can be a clean bill that means nothing: it
             # found nothing, it read nothing, or it can no longer tell.
             'undefined_globals_scan_bites': scan_detects_missing_import(),
+            'permanent_purchase_gate_shared': permanent_purchase_gate_shared,
             'undefined_globals_valid': (
                 not undefined_global_names
                 and scanned_modules > 50
@@ -1371,6 +1393,7 @@ def run_self_check():
                 'static_configs_valid',
                 'shop_domain_valid',
                 'unit_costs_from_installed_rules',
+                'permanent_purchase_gate_shared',
                 'undefined_globals_valid',
                 'archipelago_client_contract_valid',
                 'randomizer_unit_roster_valid',

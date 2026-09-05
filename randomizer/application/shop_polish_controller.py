@@ -1367,19 +1367,22 @@ class ShopPolishController(ShopArchipelagoController):
     def refresh_permanent_purchase_buttons(self, _event=None):
         if not hasattr(self, 'shop_permanent_unit_button'):
             return
-        active = bool(
-            self.shop_run is not None
-            and self.shop_run.status is RunStatus.ACTIVE
-        )
+        # Ask the same question the rows ask. This used to test whether a run
+        # was active at all, which was the rule when permanent purchases were
+        # closed for a whole run -- that rule went when runs became endless,
+        # and the rows followed it while the buttons did not. The result was a
+        # row reading "Available", and a disabled button reading "Available"
+        # after it, because a disabled button shows the row's state text.
+        blocked = bool(self.shop_permanent_purchase_block())
         unit_selection = self.shop_permanent_unit_tree.selection()
         upgrade_selection = self.shop_upgrade_tree.selection()
         unit_allowed = bool(
-            not active
+            not blocked
             and unit_selection
             and self._shop_permanent_buyable.get(unit_selection[0], False)
         )
         upgrade_allowed = bool(
-            not active
+            not blocked
             and upgrade_selection
             and self._shop_upgrade_buyable.get(upgrade_selection[0], False)
         )
