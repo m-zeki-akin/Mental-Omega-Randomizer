@@ -21,9 +21,14 @@ Computer players are not ``[OtherN]`` sections -- those are for remote humans.
 They are rows in ``[HouseCountries]``, ``[HouseColors]``, ``[HouseHandicaps]``
 and ``[SpawnLocations]``, keyed ``MultiN``, numbered after the humans.
 
-    python tools/skirmish_spike.py --dry-run     # write the files, do not launch
+    python tools/skirmish_spike.py --dry-run     # show the files, write nothing
     python tools/skirmish_spike.py               # write and launch
     python tools/skirmish_spike.py --alliance-offset 11
+    python tools/skirmish_spike.py --game-root "D:/.../Red Alert II MO"
+
+The game folder is found on its own: the installed launcher records it in the
+install.txt beside its player data. Only pass --game-root for an installation
+it has never run against.
 
 The last flag is the one genuinely uncertain value. The client writes an ally
 id as ``id - 1`` for most games and ``id + 11`` for Red Alert, and which of
@@ -32,6 +37,7 @@ visible in the first ten seconds, because the ally shoots at you.
 """
 
 import argparse
+import os
 import shutil
 import subprocess
 import sys
@@ -41,7 +47,55 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from randomizer.core.paths import GAME_ROOT  # noqa: E402
+# Nothing under randomizer is imported at module level: core.paths reads the
+# game folder once, at import, and this script has to choose that folder
+# first. Every such import happens inside a function, after main() sets it.
+
+
+def is_installation(path):
+    return bool(path) and (Path(path) / 'MapsMO' / 'Standard').is_dir()
+
+
+def resolve_game_root(override=None):
+    """Return the installation to launch, without needing to be told.
+
+    Run from a source checkout, the launcher's own GAME_ROOT is the checkout's
+    parent: it only means the game folder when it is running inside one. The
+    installed launcher already records where its game is, in the install.txt
+    beside its player data, so ask that before asking a person.
+
+    An explicit ``--game-root`` is authoritative. A path that turns out to be
+    wrong is a mistake to report, not one to quietly route around.
+    """
+    if override:
+        if not is_installation(override):
+            raise SystemExit(f'--game-root has no MapsMO/Standard: {override}')
+        return Path(override)
+    candidates = []
+    configured = os.environ.get('MO_RANDOMIZER_GAME_ROOT', '').strip()
+    if configured:
+        candidates.append(Path(configured))
+    local = os.environ.get('LOCALAPPDATA', '')
+    if local:
+        for marker in sorted(
+            (Path(local) / 'MentalOmegaRandomizer').glob('*/install.txt')
+        ):
+            try:
+                recorded = marker.read_text(encoding='utf-8').strip()
+            except OSError:
+                continue
+            if recorded:
+                candidates.append(Path(recorded))
+    candidates.append(Path(__file__).resolve().parents[2])
+    for candidate in candidates:
+        if is_installation(candidate):
+            return candidate
+    looked = '\n'.join(f'  {candidate}' for candidate in candidates)
+    raise SystemExit(
+        'No Mental Omega installation with MapsMO/Standard found.\n'
+        f'Looked in:\n{looked}\n'
+        'Pass --game-root "<game folder>".'
+    )
 
 # [Countries] order in the installed rules, which is what HouseCountries
 # indexes. Read from the game at runtime rather than trusted from here; this
@@ -187,11 +241,16 @@ def main(argv=None):
     )
     parser.add_argument('--seed', type=int, default=12345)
     parser.add_argument('--map', type=Path, default=None)
+    parser.add_argument('--game-root', default=None)
     args = parser.parse_args(argv)
 
-    pool = GAME_ROOT / 'MapsMO' / 'Standard'
-    if not pool.is_dir():
-        raise SystemExit(f'Skirmish map pool not found: {pool}')
+    game_root = resolve_game_root(args.game_root)
+    print(f'game folder: {game_root}')
+    # randomizer.core.paths reads this once, and every rules lookup follows
+    # from it, so it has to be set before anything under randomizer is
+    # imported -- which is why installed_countries() imports lazily.
+    os.environ['MO_RANDOMIZER_GAME_ROOT'] = str(game_root)
+    pool = game_root / 'MapsMO' / 'Standard'
 
     countries = installed_countries()
     print(f'installed countries: {len(countries)}')
@@ -213,8 +272,8 @@ def main(argv=None):
     print(f'preview: {chosen["preview"].name if chosen["preview"] else "(none)"}')
 
     text = spawn_ini_text(chosen, args.alliance_offset, args.seed)
-    spawnmap = GAME_ROOT / 'spawnmap.ini'
-    spawn = GAME_ROOT / 'spawn.ini'
+    spawnmap = game_root / 'spawnmap.ini'
+    spawn = game_root / 'spawn.ini'
     if args.dry_run:
         print('\n--- spawn.ini (not written) ---')
         print(text)
@@ -231,10 +290,10 @@ def main(argv=None):
     print(f'wrote {spawnmap.name} from {chosen["path"].name}')
     print(f'wrote {spawn.name} ({len(text.splitlines())} lines)')
 
-    launcher = GAME_ROOT / 'Syringe.exe'
+    launcher = game_root / 'Syringe.exe'
     argv = [str(launcher), 'gamemd.exe', '-SPAWN', '-CD', '-SPEEDCONTROL', '-LOG']
     print('launching:', subprocess.list2cmdline(argv))
-    subprocess.Popen(argv, cwd=str(GAME_ROOT))
+    subprocess.Popen(argv, cwd=str(game_root))
     print()
     print('Watch for three things:')
     print('  1. the match opens at all')
