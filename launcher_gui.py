@@ -8,6 +8,11 @@ import sys
 import traceback
 
 from randomizer.ui.cameos import ensure_superweapon_cameos, ensure_unit_cameos
+from randomizer.core.authenticity import (
+    summary_line,
+    validate_authenticity_contract,
+    verify_installation,
+)
 from randomizer.core.diagnostics import event as log_event
 from randomizer.core.runtime_cleanup import sweep_stale_runtime_directories
 from randomizer.core.paths import (
@@ -1168,6 +1173,13 @@ def run_self_check():
             launch_contract = {
                 'passed': False, 'traceback': traceback.format_exc()
             }
+        # What differs from a pristine installation. Reported, never gated:
+        # a modded or patched game is a fact about the player's install, not a
+        # fault in the launcher, and this machine's own game is modded on
+        # purpose. Cached on file stamps, so it costs milliseconds after the
+        # first run.
+        game_files = verify_installation()
+        authenticity_contract = validate_authenticity_contract()
         undefined_global_names, scanned_modules = scan_undefined_globals()
         # A row that says a unit is buyable and a button that refuses to buy
         # it are two answers to one question. They drifted apart once already:
@@ -1195,6 +1207,12 @@ def run_self_check():
             EVA_APPEARANCE_PROFILES,
         )
         checks = {
+            'game_files': game_files,
+            'authenticity_contract': authenticity_contract,
+            'authenticity_contract_valid': all(
+                authenticity_contract.values()
+            ),
+            'game_files_summary': summary_line(game_files),
             'mission_launch_contract': launch_contract,
             'mission_launch_contract_valid': bool(
                 launch_contract.get('passed')
@@ -1411,6 +1429,7 @@ def run_self_check():
                 'shop_domain_valid',
                 'unit_costs_from_installed_rules',
                 'mission_launch_contract_valid',
+                'authenticity_contract_valid',
                 'permanent_purchase_gate_shared',
                 'undefined_globals_valid',
                 'archipelago_client_contract_valid',

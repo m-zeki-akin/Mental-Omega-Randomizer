@@ -40,8 +40,13 @@ from randomizer.core.mix import extract_mix_members, ordered_mix_paths  # noqa: 
 
 MANIFEST_VERSION = 1
 
-# Hashed on disk, by relative path. Directories are walked whole.
-FILE_TREES = ('INI', 'MapsMO', 'Resources')
+# Hashed on disk, by relative path. MapsMO/Standard is left out on purpose:
+# 1,440 files and 276 MB of skirmish maps that a campaign randomizer never
+# touches, and four fifths of the whole reference tree. The map pool the
+# launcher does care about lives in configs/maps and is covered below.
+FILE_TREES = (
+    'INI', 'Resources', 'MapsMO/Challenge', 'MapsMO/Cooperative',
+)
 FILE_NAMES = (
     'Ares.dll', 'Ares.dll.inj', 'MentalOmegaClient.exe', 'clientupdt.dat',
     'cncnet5.dll', 'cncnet5mo.dll', 'qres.dat', 'qres32.dll', 'version',
@@ -65,9 +70,33 @@ def canonical_digest(data, name):
 
 
 def campaign_member_names():
-    """Return the map members to check, from the launcher's own pool."""
+    """Return the map members to check, from the launcher's own pool.
+
+    Campaign maps are the ones that live inside the archives; challenge and
+    cooperative maps sit loose under MapsMO and are covered as files.
+    """
     folder = ROOT / 'configs' / 'maps' / 'campaign'
     return tuple(sorted(path.name.upper() for path in folder.glob('*.map')))
+
+
+def bundled_ini_digests():
+    """Return the four rules INIs from the copies kept beside the launcher.
+
+    configs/*-original.ini hold the same bytes as the archive members -- that
+    was checked against the pristine tree before this was written -- and they
+    are here rather than a gigabyte away, so a manifest can be rebuilt without
+    the reference tree at hand.
+    """
+    sources = {
+        'RULESMO.INI': ROOT / 'configs' / 'rulesmo-original.ini',
+        'AIMO.INI': ROOT / 'configs' / 'aimo-original.ini',
+        'ARTMO.INI': ROOT / 'configs' / 'artmo-original.ini',
+        'BATTLEMO.INI': ROOT / 'configs' / 'maps' / 'battlemo-original.ini',
+    }
+    return {
+        name: canonical_digest(path.read_bytes(), name)
+        for name, path in sources.items() if path.is_file()
+    }
 
 
 def hash_files(tree):
@@ -115,6 +144,15 @@ def build(tree, destination):
     files = hash_files(tree)
     names = MEMBER_INIS + campaign_member_names()
     members, missing, archives = hash_members(tree, names)
+    # The bundled copies are the same bytes; disagreeing would mean one of
+    # the two sources is not what it says it is, and that is worth stopping
+    # for rather than quietly preferring either.
+    for name, digest in bundled_ini_digests().items():
+        if name in members and members[name] != digest:
+            raise SystemExit(
+                f'{name}: configs copy disagrees with the archive member'
+            )
+        members.setdefault(name, digest)
     manifest = {
         'manifest_version': MANIFEST_VERSION,
         'source_tree': tree.name,
