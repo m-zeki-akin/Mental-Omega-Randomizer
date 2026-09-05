@@ -152,9 +152,12 @@ class ShopPriceScale:
     ``tier_prices`` and ``stolen_tech`` are (low, high) pairs: the tier
     decides the range and the unit's credit cost decides where inside it the
     unit lands. A scale that wants one flat number sets both ends to it.
-    ``excluded_target_multiplier`` is what a Reward Pool target costs on this
-    scale -- permanently owning a campaign unit should always be expensive,
-    while a single run's Ore price for one is not the place to punish it.
+    Two multipliers sit on top, and they are not the same rule.
+    ``premium_target_multiplier`` covers everything nobody can field two of --
+    hero units, one-off buildings, stolen tech, campaign units -- and prices
+    what fielding one for a run is worth. ``excluded_target_multiplier``
+    covers only what the Reward Pool groups name, and prices owning a campaign
+    unit forever. The sets differ, so the knobs stay separate.
     """
     name: str
     tier_prices: Mapping[str, tuple[int, int]]
@@ -166,6 +169,7 @@ class ShopPriceScale:
     buff_percent_of_access: int
     cost_window_trim_percent: int
     rounding_step: int
+    premium_target_multiplier: int
     excluded_target_multiplier: int
 
 

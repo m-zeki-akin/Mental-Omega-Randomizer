@@ -287,8 +287,12 @@ def excluded_target_surcharge(
     What they should not get is the ordinary price. Owning one of these
     outright, for every run from here on, is meant to be expensive whether or
     not the box happens to be ticked -- the surcharge is a property of the
-    unit, not of a setting. A single run's Ore price is not the place to
-    charge it, so the Ore scale sets its multiplier to 1.
+    unit, not of a setting.
+
+    This is not the same rule as the one-off premium in unit_pricing, which
+    asks what fielding something nobody else can field is worth for one run.
+    This one asks what owning a campaign unit forever is worth, over a smaller
+    set, and only the Gem scale charges it.
     """
     multiplier = max(1, int(scale.excluded_target_multiplier))
     if multiplier == 1:

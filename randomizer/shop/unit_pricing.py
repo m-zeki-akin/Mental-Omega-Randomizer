@@ -110,6 +110,35 @@ def _priced_by_band(traits, scale):
     return not (_unique_price(traits, scale) or traits.get('stolen_tech'))
 
 
+def premium_target(target_id, config: ShopModeConfig = SHOP_CONFIG):
+    """Return whether a unit is a one-off rather than something you field.
+
+    Three things land here: a unit nobody can build two of, whatever its
+    category; a unit that has to be stolen; and a unit the Reward Pool groups
+    name, which is to say one no skirmish game offers at all.
+
+    They are grouped because they distort the same two things. Their prices
+    are the reason a tier's ordinary units looked cheap -- a 5,000 credit
+    superunit dragged its tier's cost window up and pushed everything else
+    toward the bottom of the band -- so they are kept out of that window
+    entirely. And having one for a run is worth more than the band or the flat
+    price says, so the scale's premium multiplier applies on top.
+
+    The Reward Pool set is read through the economy, which already derives it
+    for the permanent surcharge; the import is deferred because economy reads
+    this module at load.
+    """
+    from .economy import _surcharged_target_ids
+
+    normalized = str(target_id).upper()
+    traits = unit_pricing_traits(normalized)
+    return bool(
+        traits.get('unique')
+        or traits.get('stolen_tech')
+        or normalized in _surcharged_target_ids(config)
+    )
+
+
 def _tier_cost_windows(scale, config: ShopModeConfig = SHOP_CONFIG):
     """Return the cost span each tier's band is stretched across.
 
@@ -132,9 +161,11 @@ def _tier_cost_windows(scale, config: ShopModeConfig = SHOP_CONFIG):
         if entry.reward_type is not ShopRewardType.UNIT_ACCESS:
             continue
         unit = traits.get(entry.target_id, {})
-        # Units priced on their own terms are not part of the band, so they
-        # must not stretch it either.
-        if not _priced_by_band(unit, scale):
+        # One-offs do not take the band, so they must not stretch it either.
+        # This is wider than "flat-priced": a Cloning Vat is band-priced and
+        # costs 3,000 credits, and leaving it in dragged every ordinary Tier 3
+        # unit toward the bottom of its range.
+        if premium_target(entry.target_id, config):
             continue
         cost = unit.get('cost') or 0
         if cost > 0:
@@ -198,16 +229,18 @@ def _access_value(target_id, scale, config):
         flat = max(flat, _in_range(
             scale.stolen_tech, target_id, scale, config
         ))
-    if flat:
-        return flat
-    return _in_range(
-        scale.tier_prices.get(
-            unit_access_tier(target_id), scale.tier_prices['tier_1']
-        ),
-        target_id,
-        scale,
-        config,
-    )
+    if not flat:
+        flat = _in_range(
+            scale.tier_prices.get(
+                unit_access_tier(target_id), scale.tier_prices['tier_1']
+            ),
+            target_id,
+            scale,
+            config,
+        )
+    if premium_target(target_id, config):
+        flat *= max(1, int(scale.premium_target_multiplier))
+    return flat
 
 
 def unit_access_price(target_id, scale, *, config: ShopModeConfig = SHOP_CONFIG):

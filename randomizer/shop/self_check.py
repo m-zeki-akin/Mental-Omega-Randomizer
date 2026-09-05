@@ -115,6 +115,7 @@ from .unit_pricing import (
     UNIQUE_INFANTRY_CATEGORIES,
     UNIQUE_UNIT_CATEGORIES,
     power_access_price,
+    premium_target,
     unit_access_price,
     unit_access_price_report,
     unit_buff_price,
@@ -1601,20 +1602,38 @@ def _gem_pricing_checks():
     # same treatment rather than a second copy of the reasoning.
     ore = SHOP_CONFIG.price_scales['run_ore']
     ore_report = unit_access_price_report(ore)
+    # One-offs are out of the band by design: hero units and stolen tech are
+    # flat-priced, and everything premium carries a multiplier on top that
+    # would put it above its tier's ceiling.
     ore_banded = {
         target: price for target, price in ore_report.items()
-        if not unit_pricing_traits(target).get('stolen_tech')
-        and not (
-            unit_pricing_traits(target).get('unique')
-            and unit_pricing_traits(target).get('category')
-            in UNIQUE_INFANTRY_CATEGORIES | UNIQUE_UNIT_CATEGORIES
-        )
+        if not premium_target(target)
     }
     ore_band_valid = bool(
         ore_banded
         and all(
             in_band(unit_access_tier(target), price, ore)
             for target, price in ore_banded.items()
+        )
+    )
+    # And the premium is exactly the multiplier over what the same unit would
+    # cost without it -- measured against the scale with the knob turned off,
+    # so this cannot pass by restating the code that computes it.
+    plain_ore = replace(ore, premium_target_multiplier=1)
+    ore_premium = sorted(target for target in ore_report if premium_target(target))
+    premium_valid = bool(
+        ore_premium
+        and ore.premium_target_multiplier > 1
+        and all(
+            unit_access_price(target, ore)
+            == unit_access_price(target, plain_ore)
+            * ore.premium_target_multiplier
+            for target in ore_premium
+        )
+        and all(
+            unit_access_price(target, ore)
+            == unit_access_price(target, plain_ore)
+            for target in ore_banded
         )
     )
     # Upgrades are a fixed fraction of what their target costs, on whichever
@@ -1660,6 +1679,7 @@ def _gem_pricing_checks():
     return {
         'gem_price_coverage_valid': coverage_valid,
         'ore_price_tier_band_valid': ore_band_valid,
+        'ore_price_premium_multiplier_valid': premium_valid,
         'price_buff_ratio_valid': buff_ratio_valid,
         'power_price_tier_valid': power_price_valid,
         'gem_price_tier_band_valid': band_valid,
@@ -1807,7 +1827,9 @@ def validate_shop_domain():
             ][1]
             for target_id in ('E1', 'AHMV', 'SPY')
         )
-        and run_unit_price('STARDUSTB') == 380
+        and run_unit_price('STARDUSTB') == unit_access_price(
+            'STARDUSTB', SHOP_CONFIG.price_scales['run_ore']
+        )
         and run_buff_price('SPY') >= SHOP_CONFIG.minimum_shop_price
         and run_buff_price('STARDUSTB') == unit_buff_price(
             'STARDUSTB', SHOP_CONFIG.price_scales['run_ore']

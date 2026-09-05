@@ -875,6 +875,15 @@ stolen tech takes the higher of the two. Unique *buildings* keep their range
 -- an Ore Purifier is limited for balance, not because it is a hero, and the
 raw BuildLimit flag does not make that distinction for you.
 
+Every one-off then costs **twice** that in Ore: hero units, one-off buildings,
+stolen tech, and the campaign units the Reward Pool groups name. The same set
+is kept out of the per-tier cost window, which is the half that fixes the
+complaint it came from -- a 3,000 credit Cloning Vat stretched Tier 3's window
+to 3,000 and left ordinary tanks bunched near the bottom of their range. With
+the one-offs out, Tier 3's window is 750-2,500 and its ordinary units spread
+across the whole 160-240 band instead of crowding 170-210. Gems charge no
+one-off premium; they have their own multiplier below.
+
 One upgrade stack costs 25% of what its target costs on the same scale. The
 cheapest Tier 1 unit lands exactly on `minimum_shop_price`, so nothing is
 clamped away, but there is no headroom left under the floor either.
@@ -902,9 +911,10 @@ Owning a Reward Pool target **permanently** costs the Gem scale's
 ticked. The premium belongs to the unit, not to a setting: the boxes exist to
 keep absurd units out of a run's random offers, not to forbid them outright,
 and a player who wants one particular story unit should be able to buy it and
-should find it expensive. The Ore scale charges no premium; a single run's
-price is not the place for it. The surcharge covers the access reward and
-every buff pointing at the same target.
+should find it expensive. This is a different rule from the Ore one-off
+premium above and deliberately so: that one asks what fielding a one-off for
+one run is worth, this one what owning a campaign unit forever is worth. The
+sets are different and so is the scale that charges each.
 
 Exclusion is by **target**, not reward id. An access entry and the dozen buff
 entries aimed at the same unit share a target, so hiding "Paradox Engine

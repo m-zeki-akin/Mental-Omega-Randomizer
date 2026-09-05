@@ -192,6 +192,7 @@ def load_shop_mode_config() -> ShopModeConfig:
                         'buff_percent_of_access',
                         'cost_window_trim_percent',
                         'rounding_step',
+                        'premium_target_multiplier',
                         'excluded_target_multiplier',
                     )
                 },

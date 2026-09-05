@@ -195,6 +195,14 @@ makes them worth having is that no one else can field one. **Unique buildings
 and defenses are not heroes** -- an Ore Purifier is limited for balance -- so
 they keep their tier range.
 
+`premium_target_multiplier` then applies to every one-off, which is a wider
+set than the flat prices cover: anything with `BuildLimit=1` whatever its
+category, anything gated behind stolen tech, and anything a Reward Pool group
+names. The same set is held out of the per-tier cost window, and that is the
+more important half. A Cloning Vat costs 3,000 credits and takes a tier band
+like any building, so leaving it in the window stretched Tier 3 to 3,000 and
+pushed every ordinary tank toward the bottom of its range.
+
 `power_tier_prices` and `flagged_power_price` price superweapons and aid
 powers, which have no credit cost to read, so their tier decides outright.
 "Flagged" means named by the superweapon or campaign-power Reward Pool group:
@@ -206,11 +214,13 @@ target costs on the same scale. It applies even where the unit itself has no
 access offer -- a Tier 1 starter is never for sale and its upgrades still need
 a number.
 
-`excluded_target_multiplier` is what a Reward Pool target costs on this scale.
-Owning a campaign-only unit outright is meant to be expensive whether or not
-its box happens to be ticked, so the premium belongs to the unit rather than to
-a setting; a single run's Ore price is not the place to charge it, so the Ore
-scale sets this to 1.
+`excluded_target_multiplier` is the second multiplier, and it is not the same
+rule. It covers only what the Reward Pool groups name, and it prices *owning*
+a campaign unit forever rather than fielding one for a run. Owning one is
+meant to be expensive whether or not its box happens to be ticked, so the
+premium belongs to the unit rather than to a setting. The two knobs stay
+separate because the sets differ and each scale wants a different one: Ore
+charges the one-off premium and no ownership premium, Gems the reverse.
 
 Cost, category, build limit, and stolen-tech status all come from the live
 roster, so a submod that reprices a unit reprices its Shop price with it.
