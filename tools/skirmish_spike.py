@@ -164,107 +164,35 @@ def pick_map(pool, wanted_players):
 
 
 def spawn_ini_text(chosen, seed):
-    """Return a complete skirmish spawn.ini, shaped like a real one.
+    """Return the spawn file for the line-up under test.
 
-    Modelled on a spawn.ini the Mental Omega client actually wrote for an
-    eight-player skirmish, rather than on inference. Three things in that file
-    settled questions this script had been guessing at:
-
-    The human player is ``Multi1`` and appears **only** in ``[Settings]`` --
-    its country and colour are the ``Side`` and ``Color`` there. The
-    ``HouseCountries``, ``HouseColors`` and ``HouseHandicaps`` tables start at
-    ``Multi2`` and describe the computer players alone.
-
-    An ally is written as the ally's house index minus one, so ``Multi1``
-    naming ``HouseAllyOne=1`` means "allied with Multi2". A house with no ally
-    simply has no section, which is how that file expressed one free-for-all
-    opponent beside two teams.
-
-    ``SpawnLocations`` is a 0-based waypoint index and is optional per house:
-    the sample gave positions to three of its five houses and let the engine
-    place the rest.
+    The file itself is written by randomizer.skirmish.spawn, which is where
+    what a working skirmish needs is recorded. This spike stays the
+    end-to-end test of it: it writes the file the launcher would write and
+    starts the game with it.
     """
-    houses = [
-        {'multi': 2, 'country': ALLY_COUNTRY, 'color': COLORS[1],
-         'handicap': AI_HANDICAP, 'team': 'friendly'},
-    ]
+    from randomizer.skirmish.spawn import (
+        AI_HANDICAP_HARD,
+        SkirmishHouse,
+        skirmish_spawn_ini_text,
+    )
+
+    houses = [SkirmishHouse(
+        country=ALLY_COUNTRY, color=COLORS[1],
+        friendly=True, handicap=AI_HANDICAP_HARD,
+    )]
     for index, country in enumerate(ENEMY_COUNTRIES):
-        houses.append({
-            'multi': 3 + index,
-            'country': country,
-            'color': COLORS[2 + index],
-            'handicap': AI_HANDICAP,
-            'team': 'hostile',
-        })
-    teams = {'friendly': [1], 'hostile': []}
-    for house in houses:
-        teams[house['team']].append(house['multi'])
-
-    lines = [
-        '[Settings]',
-        'Name=Commander',
-        'Scenario=spawnmap.ini',
-        'UIGameMode=Standard',
-        f'UIMapName={chosen["name"]}',
-        'PlayerCount=1',
-        f'Side={PLAYER_COUNTRY}',
-        'IsSpectator=False',
-        f'Color={COLORS[0]}',
-        # Named by the client in every skirmish it writes; the file lives
-        # inside a MIX rather than on disk. Copied from a working sample here,
-        # and something the real mode will have to choose per side.
-        'CustomLoadScreen=Resources/l600s21.pcx',
-        f'AIPlayers={len(houses)}',
-        f'Seed={seed}',
-        'ShortGame=True',
-        'NoGarrisons=False',
-        'MCVRedeploy=True',
-        'BuildOffAlly=True',
-        'Crates=False',
-        'NavalCombat=False',
-        'AlliesAllowed=True',
-        'StolenTech=True',
-        'MentalAI=False',
-        'LimitedMCV=False',
-        'ImmuneDerricks=False',
-        'FreeRadar=False',
-        'NoSpawnPreviews=False',
-        'ConYardStart=False',
-        'NerfEights=True',
-        'UnitCount=0',
-        'GameSpeed=1',
-        'Credits=10000',
-        'TechLevel=10',
-        'FogOfWar=No',
-        'MultiEngineer=Yes',
-    ]
-
-    def table(section, value_for):
-        lines.append('')
-        lines.append(f'[{section}]')
-        for house in houses:
-            lines.append(f'Multi{house["multi"]}={value_for(house)}')
-
-    table('HouseHandicaps', lambda house: house['handicap'])
-    table('HouseCountries', lambda house: house['country'])
-    table('HouseColors', lambda house: house['color'])
-
-    ordinals = ('One', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven', 'Eight')
-    for team in teams.values():
-        for multi in team:
-            allies = [other for other in team if other != multi]
-            if not allies:
-                continue
-            lines.append('')
-            lines.append(f'[Multi{multi}_Alliances]')
-            for index, ally in enumerate(allies):
-                lines.append(f'HouseAlly{ordinals[index]}={ally - 1}')
-
-    lines.append('')
-    lines.append('[SpawnLocations]')
-    for position, multi in enumerate([1] + [house['multi'] for house in houses]):
-        lines.append(f'Multi{multi}={position}')
-    return '\r\n'.join(lines) + '\r\n'
+        houses.append(SkirmishHouse(
+            country=country, color=COLORS[2 + index],
+            friendly=False, handicap=AI_HANDICAP_HARD,
+        ))
+    return skirmish_spawn_ini_text(
+        map_name=chosen['name'],
+        player_country=PLAYER_COUNTRY,
+        player_color=COLORS[0],
+        houses=houses,
+        seed=seed,
+    )
 
 
 def main(argv=None):

@@ -47,6 +47,7 @@ tools/build_rules_digest.py
 # land beside the launcher and neither means anything anywhere else.
 authenticity_cache.json
 self_check.json
+skirmish_maps_cache.json
 configs/Mix-Unprotect*.exe
 
 # Machine-specific build variant. The committed build_exe.ps1 pins the
