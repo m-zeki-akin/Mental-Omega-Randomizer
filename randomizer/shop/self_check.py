@@ -169,6 +169,7 @@ from .service import ShopProgressionService
 from .state import ShopStateError, normalize_shop_profile, normalize_shop_run
 from .summary import reward_breakdown_lines, run_summary_lines
 from .transitions import (
+    ShopTransitionError,
     abandon_run,
     apply_mission_difficulty_assist,
     apply_mission_failure,
@@ -782,6 +783,38 @@ def _phase_two_checks(mission_pool):
             == started.profile.lifetime_runs_started + 1
         )
 
+        # A new run no longer ends the one in progress. Both are kept, the
+        # new one is the one being played, and an id already stored is still
+        # refused however old the run wearing it is.
+        parallel = ShopProgressionService(repository).start_run(
+            run_id='shop-persistence-run-3',
+            seed='SHOP-PERSISTENCE-CHECK-3',
+            mission_offers=offers,
+        )
+        stored_runs, active_run_id = repository.list_runs()
+        try:
+            ShopProgressionService(repository).start_run(
+                run_id='shop-persistence-run',
+                seed='SHOP-PERSISTENCE-CHECK-4',
+                mission_offers=offers,
+            )
+            reused_id_refused = False
+        except ShopTransitionError:
+            reused_id_refused = True
+        parallel_runs_valid = bool(
+            active_run_id == parallel.run.run_id
+            and {run.run_id for run in stored_runs} == {
+                'shop-persistence-run',
+                'shop-persistence-run-2',
+                'shop-persistence-run-3',
+            }
+            and next(
+                run for run in stored_runs
+                if run.run_id == 'shop-persistence-run-2'
+            ) == restarted.run
+            and reused_id_refused
+        )
+
         service_reset_profile, service_reset_run = ShopProgressionService(
             repository
         ).reset_profile()
@@ -828,6 +861,7 @@ def _phase_two_checks(mission_pool):
             and replayed.profile == victory.profile
             and replayed.run == victory.run
             and restart_valid
+            and parallel_runs_valid
             and service_reset_valid
             and reset_recovery_valid
             and corrupt_state_rejected

@@ -115,6 +115,39 @@ def build_shop_tab(self, workspace_tabs):
         self.shop_header_labels.append(label)
     self.shop_status_label = self.shop_header_labels[1]
 
+    # Runs are kept side by side rather than one at a time, so which one the
+    # header is describing has to be visible and changeable from the same
+    # place.
+    run_picker = ttk.Frame(header)
+    self.shop_run_picker_frame = run_picker
+    run_picker.grid(row=1, column=0, columnspan=6, sticky='ew', pady=(8, 0))
+    self.shop_run_picker_label = ttk.Label(run_picker, text='Run:')
+    self.shop_run_picker_label.pack(side='left')
+    self.shop_run_picker_combo = ttk.Combobox(
+        run_picker,
+        textvariable=self.shop_run_picker_var,
+        state='readonly',
+        width=54,
+    )
+    self.shop_run_picker_combo.pack(side='left', padx=(5, 8))
+    claim_wheel(self.shop_run_picker_combo)
+    self.shop_run_picker_combo.bind(
+        '<<ComboboxSelected>>', self.on_shop_run_selected
+    )
+    self.shop_new_run_button = ttk.Button(
+        run_picker,
+        text='New Run',
+        command=self.start_shop_run,
+    )
+    self.shop_new_run_button.pack(side='left', padx=(0, 4))
+    self.shop_delete_run_button = ttk.Button(
+        run_picker,
+        text='Delete Run',
+        style='Danger.TButton',
+        command=self.delete_selected_shop_run,
+    )
+    self.shop_delete_run_button.pack(side='left')
+
     choices = ttk.LabelFrame(content, text='Mission Choices', padding=8)
     self.shop_choices_frame = choices
     choices.grid(row=1, column=0, sticky='ew')

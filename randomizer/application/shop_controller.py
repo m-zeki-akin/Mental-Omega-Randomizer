@@ -48,7 +48,10 @@ from randomizer.shop.config import (
     SHOP_CONFIG,
     run_shop_config,
 )
-from randomizer.shop.summary import shop_run_progress_text
+from randomizer.shop.summary import (
+    shop_run_picker_label,
+    shop_run_progress_text,
+)
 from randomizer.shop.economy import (
     permanent_target_surcharged,
     permanent_unit_price,
@@ -128,6 +131,10 @@ class ShopController(ShopPolishController):
         self.shop_rerolls_var = tk.StringVar(value='Rerolls: 0 / 0')
         self.shop_difficulty_var = tk.StringVar(value='Difficulty: +0')
         self.shop_message_var = tk.StringVar(value='')
+        self.shop_run_picker_var = tk.StringVar(value='No runs yet')
+        # Labels can repeat -- two runs on the same stage of the same seed
+        # read alike -- so the picker resolves its choice by position.
+        self.shop_run_picker_ids = ()
         self.shop_ap_purchase_status_var = tk.StringVar(value='')
         saved_faction_pool = self.config.get('shop_faction_pool')
         if saved_faction_pool not in SHOP_FACTION_POOLS:
@@ -881,6 +888,7 @@ class ShopController(ShopPolishController):
         capacity = self._shop_reroll_capacity()
         used = run.rerolls_used if run is not None else 0
         self.shop_rerolls_var.set(f'Rerolls: {used} / {capacity}')
+        self.refresh_shop_run_picker()
         self._schedule_shop_workspace_repaint()
         self.refresh_progress_view()
 
@@ -1097,6 +1105,102 @@ class ShopController(ShopPolishController):
             except tk.TclError:
                 self._shop_cameo_images[cache_key] = None
         return self._shop_cameo_images[cache_key]
+
+    def refresh_shop_run_picker(self):
+        """Show every stored run, with the one being played selected."""
+        if not hasattr(self, 'shop_run_picker_combo'):
+            return
+        runs, active_run_id = self.shop_repository.list_runs()
+        self.shop_run_picker_ids = tuple(run.run_id for run in runs)
+        labels = [
+            shop_run_picker_label(run, self.shop_profile) for run in runs
+        ]
+        self.shop_run_picker_combo.configure(values=labels)
+        if active_run_id in self.shop_run_picker_ids:
+            self.shop_run_picker_combo.current(
+                self.shop_run_picker_ids.index(active_run_id)
+            )
+        else:
+            self.shop_run_picker_var.set(
+                'Choose a run' if runs else 'No runs yet'
+            )
+        # A run switched under a mission that is already running would report
+        # its victory against whichever run was switched to, so the picker
+        # closes for as long as the game is up.
+        locked = self.shop_launch_active()
+        self.shop_run_picker_combo.configure(
+            state='disabled' if locked or not runs else 'readonly'
+        )
+        self.shop_new_run_button.configure(
+            state='disabled' if locked else 'normal'
+        )
+        self.shop_delete_run_button.configure(
+            state='normal' if runs and not locked else 'disabled'
+        )
+
+    def _picked_shop_run_id(self):
+        index = self.shop_run_picker_combo.current()
+        if index < 0 or index >= len(self.shop_run_picker_ids):
+            return ''
+        return self.shop_run_picker_ids[index]
+
+    def on_shop_run_selected(self, _event=None):
+        if self.shop_launch_active():
+            self._set_shop_message('Wait for current mission process to close.')
+            self.refresh_shop_run_picker()
+            return
+        run_id = self._picked_shop_run_id()
+        if not run_id:
+            return
+        try:
+            run = self.shop_repository.select_run(run_id)
+        except ShopPersistenceError as exc:
+            self._set_shop_message(exc, error=True)
+        else:
+            self._set_shop_message(
+                f'Resumed the run on seed {run.seed}.'
+            )
+        self.sync_shop_workspace()
+        self.refresh_shop_mode()
+
+    def delete_selected_shop_run(self):
+        if self.shop_launch_active():
+            self._set_shop_message('Wait for current mission process to close.')
+            return
+        run_id = self._picked_shop_run_id()
+        if not run_id:
+            self._set_shop_message('Choose a run to delete.')
+            return
+        runs, _active_run_id = self.shop_repository.list_runs()
+        run = next(
+            (stored for stored in runs if stored.run_id == run_id), None
+        )
+        if run is None:
+            self.refresh_shop_run_picker()
+            return
+        warning = (
+            'This run is still in progress.\n\n'
+            if run.status is RunStatus.ACTIVE else ''
+        )
+        if not messagebox.askyesno(
+            'Delete Shop Run?',
+            f'{warning}Delete {shop_run_picker_label(run, self.shop_profile)}?'
+            '\n\nRun Ore and run purchases are lost. Gems and permanent '
+            'unlocks are kept.',
+            parent=self,
+        ):
+            return
+        try:
+            self.shop_repository.delete_run(run_id)
+        except ShopPersistenceError as exc:
+            self._set_shop_message(exc, error=True)
+        else:
+            self._set_shop_message(
+                f'Deleted the run on seed {run.seed}. '
+                'Choose another run or start a new one.'
+            )
+        self.sync_shop_workspace()
+        self.refresh_shop_mode()
 
     def give_up_shop_run(self):
         run = self.shop_run
@@ -1646,12 +1750,16 @@ class ShopController(ShopPolishController):
             )
             return
         if self.shop_run is not None and self.shop_run.status is RunStatus.ACTIVE:
-            messagebox.showwarning(
-                'Shop Mode',
-                'The current Shop run must finish or fail before a new run.',
+            # Starting another run no longer ends this one, so the question
+            # is whether the player meant to leave it rather than a refusal.
+            if not messagebox.askyesno(
+                'Start Another Shop Run?',
+                'The run in progress stays saved and you can come back to '
+                'it from the run list above the mission choices.\n\n'
+                'Start a new run now?',
                 parent=self,
-            )
-            return
+            ):
+                return
         requested_seed = self.seed_var.get().strip()
         seed = requested_seed or uuid.uuid4().hex[:16].upper()
         salvaged_ore = self.shop_profile.salvaged_run_coins

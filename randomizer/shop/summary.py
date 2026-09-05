@@ -97,6 +97,22 @@ def shop_run_progress_text(run, profile=None, config=SHOP_CONFIG):
     )
 
 
+def shop_run_picker_label(run, profile=None, config=SHOP_CONFIG):
+    """Return one line naming a stored run in a list of them.
+
+    A player with several runs open tells them apart by where they are and
+    what they are worth, so progress and Ore lead. The seed closes the line
+    because two runs can otherwise read identically on the stage they were
+    both started on.
+    """
+    return ' — '.join((
+        shop_run_progress_text(run, profile, config),
+        f'{run.run_coins} Ore',
+        run.status.value.title(),
+        f'seed {run.seed}',
+    ))
+
+
 def _missions_won_line(run, config=SHOP_CONFIG):
     if not run.endless:
         return (

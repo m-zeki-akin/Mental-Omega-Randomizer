@@ -50,13 +50,15 @@ class ShopProgressionService:
         self.repository = repository or ShopRepository()
 
     def start_run(self, **run_options):
-        profile, current_run = self.repository.load()
-        if current_run is not None and current_run.status is RunStatus.ACTIVE:
-            raise ShopTransitionError(
-                'Cannot replace an active Shop run; fail or complete it first'
-            )
+        # A new run no longer replaces the one in progress: runs are stored
+        # side by side and the player returns to whichever they choose. The
+        # id is what keeps them apart -- two runs sharing one would share
+        # victory keys and merge each other's progress -- so it is checked
+        # against every stored run, not only the active one.
+        profile, _current_run = self.repository.load()
         requested_run_id = str(run_options.get('run_id') or '')
-        if current_run is not None and current_run.run_id == requested_run_id:
+        stored_runs, _active_run_id = self.repository.list_runs()
+        if any(run.run_id == requested_run_id for run in stored_runs):
             raise ShopTransitionError(
                 f'New Shop run must not reuse run_id {requested_run_id!r}'
             )
