@@ -180,16 +180,16 @@ source [file join $::tcl_library _mor_original_init.tcl]
 
 # Archipelago uses compressed ws/wss connections. Keep SSL, HTTP, and email
 # available for the bundled websockets handshake implementation.
+# No --runtime-tmpdir below: the bootloader uses the system temporary folder.
+# Naming one put a 33 MB extraction directory in the player's game folder,
+# which is neither theirs nor ours to leave there. tools/build_windows_exe.py
+# made this change first; both build paths must agree or the shipped exe
+# depends on which one the maintainer happened to run.
 try {
     python -m PyInstaller `
         --noconfirm `
         --clean `
         --onefile `
-        # No --runtime-tmpdir: the bootloader uses the system temporary
-        # folder. Naming one put a 33 MB extraction directory in the player's
-        # game folder, which is neither theirs nor ours to leave there.
-        # tools/build_windows_exe.py made this change first; both build paths
-        # must agree or the shipped exe depends on which one was used.
         --noupx `
         --optimize 1 `
         --windowed `
