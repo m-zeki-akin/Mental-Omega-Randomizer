@@ -51,14 +51,19 @@ def is_max_rewards_achieved_reward(reward):
     )
 
 
-def summarize_plan_supply(plan):
-    """Return what a finished plan actually contains, by weight group.
+def summarize_plan_supply(plan, configured_pool=None):
+    """Return what a finished plan contains, and what it had to choose from.
 
     Weights cannot create supply. Access rewards are spent once each and are
     a tenth of the pool; buffs restack and are the rest, so a seed whose
     access pool runs dry quietly fills the remaining slots with upgrades and
-    the settings look broken. This is the number that explains it: how many
-    slots there were, and how many of them access could reach.
+    the settings look broken. Two numbers explain that where no slider can:
+    how many slots there were against how many access rewards the
+    configuration made available at all.
+
+    ``available`` is worth reading before blaming the weights. Superweapon,
+    aid-power and power-buff rewards are all off by default, so a default
+    configuration has no power groups to draw from however they are weighted.
     """
     from randomizer.rewards.weights import main_reward_weight_type
 
@@ -78,12 +83,24 @@ def summarize_plan_supply(plan):
         counts.get(group, 0)
         for group in ('unit_unlocks', 'power_unlocks', 'special_unlocks')
     )
+    available = {}
+    pool = configured_pool() if callable(configured_pool) else configured_pool
+    for reward in pool or ():
+        if not isinstance(reward, dict) or reward.get('enemy_reward'):
+            continue
+        group = main_reward_weight_type(reward)
+        available[group] = available.get(group, 0) + 1
     return {
         'slots': total,
         'access': access,
         'access_percent': int(round(100 * access / total)) if total else 0,
         'exhausted': exhausted,
         'by_group': dict(sorted(counts.items())),
+        'available_by_group': dict(sorted(available.items())),
+        'available_access': sum(
+            available.get(group, 0)
+            for group in ('unit_unlocks', 'power_unlocks', 'special_unlocks')
+        ),
     }
 
 
@@ -99,6 +116,15 @@ def summarize_plan_supply_line(summary):
         f'Reward plan: {summary["slots"]} slot(s), '
         f'{summary["access"]} access ({summary["access_percent"]}%) -- {groups}'
     )
+    if summary.get('available_by_group'):
+        offered = ', '.join(
+            f'{group} {count}'
+            for group, count in summary['available_by_group'].items()
+        )
+        line += (
+            f'; configuration offered {summary["available_access"]} access '
+            f'reward(s) in total -- {offered}'
+        )
     if summary['exhausted']:
         line += f'; {summary["exhausted"]} slot(s) had nothing left to give'
     return line

@@ -1060,7 +1060,7 @@ class RewardController:
         # cannot create supply: access rewards are spent once each and are a
         # tenth of the pool, so a seed that runs out of them fills the rest
         # with upgrades and no slider explains why.
-        supply = summarize_plan_supply(plan)
+        supply = summarize_plan_supply(plan, self.configured_reward_pool)
         log_event('reward_plan_supply', **supply)
         self._last_reward_plan_supply = supply
         return plan
