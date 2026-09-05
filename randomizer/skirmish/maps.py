@@ -25,7 +25,7 @@ STANDARD_POOL_DIR = MAPS_DIR / 'Standard'
 CHALLENGE_POOL_DIR = MAPS_DIR / 'Challenge'
 COOPERATIVE_POOL_DIR = MAPS_DIR / 'Cooperative'
 MAP_CACHE_PATH = APP_DIR / 'skirmish_maps_cache.json'
-MAP_CACHE_VERSION = 1
+MAP_CACHE_VERSION = 2
 
 _NAME = re.compile(r'^Name=(.*)$', re.M)
 _MAX_PLAYER = re.compile(r'^MaxPlayer=(\d+)', re.M)
@@ -33,6 +33,21 @@ _MIN_PLAYER = re.compile(r'^MinPlayer=(\d+)', re.M)
 _GAME_MODE = re.compile(r'^GameMode=(.*)$', re.M)
 _WAYPOINT = re.compile(r'^Waypoint(\d+)=(\d+),(\d+)', re.M)
 _STARTING_POINTS = re.compile(r'^NumberStartingPoints=(\d+)', re.M)
+
+
+def _section(text, name):
+    """Return one INI section's body.
+
+    Read from the section rather than from the file: a challenge map carries
+    unit overrides with ``Name=`` keys of their own, and the first of those
+    is three thousand lines above the ``[Basic]`` the map is described in.
+    """
+    header = re.search(rf'^\[{name}\]\s*$', text, re.M)
+    if not header:
+        return ''
+    rest = text[header.end():]
+    following = re.search(r'^\[', rest, re.M)
+    return rest[:following.start()] if following else rest
 
 
 @dataclass(frozen=True)
@@ -67,7 +82,9 @@ class SkirmishMap:
 
 
 def _read_map(path):
-    text = path.read_text(encoding='utf-8', errors='ignore')
+    whole = path.read_text(encoding='utf-8', errors='ignore')
+    text = _section(whole, 'Basic')
+    header = _section(whole, 'Header') or whole
     name = _NAME.search(text)
     players = _MAX_PLAYER.search(text)
     minimum = _MIN_PLAYER.search(text)
@@ -75,15 +92,15 @@ def _read_map(path):
     # The header states how many starting points the map has. Where it does
     # not, its first eight waypoints are the starting positions -- listed
     # from one, and ``0,0`` for a slot the map does not use.
-    declared = _STARTING_POINTS.search(text)
+    declared = _STARTING_POINTS.search(header)
     starts = int(declared.group(1)) if declared else sum(
-        1 for index, x, y in _WAYPOINT.findall(text)
+        1 for index, x, y in _WAYPOINT.findall(header)
         if 1 <= int(index) <= 8 and (int(x) or int(y))
     )
     preview = path.with_suffix('.png')
     return SkirmishMap(
         path=path,
-        name=(name.group(1).strip() if name else path.stem),
+        name=((name.group(1).strip() if name else '') or path.stem),
         players=int(players.group(1)) if players else 0,
         minimum_players=int(minimum.group(1)) if minimum else 0,
         starts=starts,
@@ -215,3 +232,23 @@ def summarize_map_pools(*, cache=True):
             },
         }
     return summary
+
+
+def map_by_relative_path(relative, *, cache=True):
+    """Return the map a run stored, or ``None`` if it is not installed.
+
+    Runs store ``Standard/northsea.map`` rather than a full path, so a run
+    survives the game being moved. Nothing is raised for a map that has
+    since been deleted: the offer holding it simply cannot be played.
+    """
+    wanted = str(relative or '').strip().replace('\\', '/')
+    if not wanted:
+        return None
+    path = MAPS_DIR / wanted
+    for pool in (
+        skirmish_map_pool(cache=cache), challenge_map_pool(cache=cache)
+    ):
+        for entry in pool:
+            if entry.path == path:
+                return entry
+    return None

@@ -1,4 +1,4 @@
-"""Skirmish Shop Mode: choosing a line-up and starting the battle.
+"""Skirmish Shop Mode: the run, its battles, and starting one.
 
 A campaign mission is a scenario the game already has; a skirmish is a map
 copied into place beside a file describing who is in it. So this does not
@@ -8,18 +8,19 @@ sides, and it records a defeat for a mission code a skirmish does not have.
 What it does reuse is everything after that -- the Syringe command line, the
 process, the watcher that notices the game has closed.
 
-This is the mode's skeleton: a line-up, a map, a launch. The run that
-remembers what happened comes next, and it is waiting on one unknown --
-victory is detected from markers in the game's hook log, keyed on mission
-TeamType names that a skirmish has none of.
+A run picks its army once and is then offered battles: three to choose from,
+or one challenge every fifth. Winning moves it on, losing costs a life and
+leaves the battle standing. Runs are stored side by side and never touch
+each other.
 """
 
+from datetime import date
 from pathlib import Path
-import random
 import shutil
 import subprocess
 import sys
 import tkinter as tk
+import uuid
 from tkinter import messagebox
 
 from randomizer.core.diagnostics import event as log_event
@@ -30,59 +31,67 @@ from randomizer.core.paths import (
     GAME_ROOT,
     SPAWN_INI,
 )
-from randomizer.skirmish.factions import skirmish_countries
-from randomizer.skirmish.maps import maps_for_players, skirmish_map_pool
+from randomizer.shop.model import RunStatus
+from randomizer.skirmish.factions import country_by_index, skirmish_countries
+from randomizer.skirmish.maps import (
+    MAPS_DIR,
+    challenge_map_pool,
+    map_by_relative_path,
+    skirmish_map_pool,
+)
+from randomizer.skirmish.persistence import (
+    SkirmishPersistenceError,
+    SkirmishRepository,
+)
+from randomizer.skirmish.progression import describe_offer, offers_for
 from randomizer.skirmish.results import (
     last_game_result,
     read_debug_log_tail,
 )
 from randomizer.skirmish.spawn import (
-    AI_HANDICAP_EASY,
-    AI_HANDICAP_HARD,
-    AI_HANDICAP_NORMAL,
     SkirmishHouse,
     skirmish_spawn_ini_text,
     write_skirmish_spawn_ini,
 )
+from randomizer.skirmish.transitions import (
+    SkirmishTransitionError,
+    commit_offer,
+    give_up,
+    offer_battles,
+    record_defeat,
+    record_victory,
+    run_progress_text,
+    start_run,
+)
 
 
 SKIRMISH_MODE = 'Skirmish Shop'
-# The player's house is named in the spawn file and named again in the
-# score block the game writes at the end, which is how the launcher finds
-# its own result among the houses.
+# The player's house is named in the spawn file and named again in the score
+# block the game writes at the end, which is how the launcher finds its own
+# result among the houses.
 SKIRMISH_PLAYER_NAME = 'Commander'
 SPAWN_MAP_INI = GAME_ROOT / 'spawnmap.ini'
-NO_ALLY = 'No ally'
 # Colours are indexes into the client's own list. The player takes the first
 # and every other house takes the next, so no two houses share one.
 HOUSE_COLORS = (0, 2, 4, 6, 8, 10, 12, 14)
-AI_HANDICAPS = {
-    'Easy': AI_HANDICAP_EASY,
-    'Normal': AI_HANDICAP_NORMAL,
-    'Hard': AI_HANDICAP_HARD,
-}
-# What the preview is allowed to take up, in pixels. Previews are wider than
-# they are tall and vary in size, so the image is stepped down by whole
-# factors until it fits -- Tk subsamples by integers and nothing else.
-PREVIEW_BOX = (420, 300)
+# What a card's preview is allowed to take up, in pixels. Tk subsamples by
+# whole factors and nothing else, so the image steps down until it fits.
+PREVIEW_BOX = (300, 210)
 
 
 class SkirmishController:
     def initialize_skirmish_controller(self):
+        self.skirmish_repository = SkirmishRepository()
+        self.skirmish_run = None
         self.skirmish_country_var = tk.StringVar(value='')
-        self.skirmish_ally_var = tk.StringVar(value=NO_ALLY)
-        self.skirmish_enemy_count_var = tk.StringVar(
-            value=str(self.config.get('skirmish_enemy_count') or 2)
-        )
-        self.skirmish_handicap_var = tk.StringVar(
-            value=str(self.config.get('skirmish_enemy_skill') or 'Hard')
-        )
-        self.skirmish_search_var = tk.StringVar(value='')
-        self.skirmish_map_detail_var = tk.StringVar(value='')
+        self.skirmish_ally_var = tk.StringVar(value='')
+        self.skirmish_progress_var = tk.StringVar(value='No run')
+        self.skirmish_army_var = tk.StringVar(value='')
         self.skirmish_message_var = tk.StringVar(value='')
-        self._skirmish_maps_by_id = {}
-        self._skirmish_preview_image = None
+        self._skirmish_country_by_label = {}
+        self._skirmish_preview_images = {}
         self._skirmish_launch = None
+        self._skirmish_setup_open = False
 
     # -- the mode ---------------------------------------------------------
 
@@ -109,18 +118,20 @@ class SkirmishController:
     def on_new_seed(self):
         if not self.skirmish_mode_selected():
             return super().on_new_seed()
-        # There is no campaign run to seed here. The button that starts a
-        # game in this mode is the one beside the map.
+        # There is no campaign run to seed here. What starts a game in this
+        # mode is a battle card, and what starts a run is the setup panel.
         self.workspace_tabs.select(self.skirmish_tab)
-        self.skirmish_message_var.set(
-            'Choose a map below and launch the battle.'
-        )
+        if self.skirmish_run is None or (
+            self.skirmish_run.status is not RunStatus.ACTIVE
+        ):
+            self.open_skirmish_setup()
+        else:
+            self.skirmish_message_var.set('Choose a battle below.')
 
     def on_launch_selected(self):
-        if self.skirmish_mode_selected():
-            self.launch_skirmish()
-            return
-        return super().on_launch_selected()
+        if not self.skirmish_mode_selected():
+            return super().on_launch_selected()
+        self.launch_skirmish_offer(0)
 
     def on_progression_mode_changed(self, event=None):
         # After the other modes have arranged the workspace: the mode that is
@@ -146,13 +157,12 @@ class SkirmishController:
                     0, self.skirmish_tab, text='Skirmish'
                 )
             if hasattr(self, 'seed_action_button'):
-                self.seed_action_button.configure(text='Choose a Battle')
-            self.refresh_skirmish_countries()
-            self.refresh_skirmish_maps()
+                self.seed_action_button.configure(text='Skirmish Run')
+            self.refresh_skirmish_mode()
         elif skirmish_tab in tabs:
             self.workspace_tabs.forget(self.skirmish_tab)
 
-    # -- the line-up ------------------------------------------------------
+    # -- the army ---------------------------------------------------------
 
     def refresh_skirmish_countries(self):
         if not hasattr(self, 'skirmish_country_combo'):
@@ -163,108 +173,209 @@ class SkirmishController:
             country.display: country for country in countries
         }
         self.skirmish_country_combo.configure(values=labels)
-        self.skirmish_ally_combo.configure(values=[NO_ALLY, *labels])
-        saved = str(self.config.get('skirmish_country') or '')
-        if self.skirmish_country_var.get() not in labels:
-            self.skirmish_country_var.set(
-                saved if saved in labels else (labels[0] if labels else '')
-            )
-        saved_ally = str(self.config.get('skirmish_ally') or NO_ALLY)
-        if self.skirmish_ally_var.get() not in {NO_ALLY, *labels}:
-            self.skirmish_ally_var.set(
-                saved_ally if saved_ally in labels else NO_ALLY
+        self.skirmish_ally_combo.configure(values=labels)
+        for variable, key, fallback in (
+            (self.skirmish_country_var, 'skirmish_country', 0),
+            (self.skirmish_ally_var, 'skirmish_ally', 3),
+        ):
+            if variable.get() in labels:
+                continue
+            saved = str(self.config.get(key) or '')
+            variable.set(
+                saved if saved in labels
+                else (labels[fallback] if len(labels) > fallback else '')
             )
 
     def skirmish_country(self, variable):
-        by_label = getattr(self, '_skirmish_country_by_label', {})
-        return by_label.get(variable.get())
+        return self._skirmish_country_by_label.get(variable.get())
 
-    def skirmish_required_seats(self):
-        """How many houses the map has to place, the player included."""
-        allies = 0 if self.skirmish_ally_var.get() == NO_ALLY else 1
+    def skirmish_army_text(self, run):
+        player = country_by_index(run.player_country)
+        ally = country_by_index(run.ally_country)
+        return (
+            f'{player.display if player else run.player_country}'
+            f'   ally: {ally.display if ally else run.ally_country}'
+        )
+
+    # -- the run ----------------------------------------------------------
+
+    def open_skirmish_setup(self):
+        """Show the panel that starts a new run."""
+        self._skirmish_setup_open = True
+        self.refresh_skirmish_countries()
+        self.refresh_skirmish_mode()
+
+    def start_skirmish_run(self):
+        if self.skirmish_launch_blocked():
+            self.skirmish_message_var.set('Wait for the running game to close.')
+            return
+        player = self.skirmish_country(self.skirmish_country_var)
+        ally = self.skirmish_country(self.skirmish_ally_var)
+        if player is None or ally is None:
+            self.skirmish_message_var.set('Choose an army and an ally.')
+            return
         try:
-            enemies = int(self.skirmish_enemy_count_var.get())
-        except ValueError:
-            enemies = 1
-        return 1 + allies + max(1, enemies)
-
-    # -- the map ----------------------------------------------------------
-
-    def refresh_skirmish_maps(self, *_args):
-        if not hasattr(self, 'skirmish_map_tree'):
-            return
-        seats = self.skirmish_required_seats()
-        search = self.skirmish_search_var.get().strip().lower()
-        pool = maps_for_players(skirmish_map_pool(), seats)
-        if search:
-            pool = tuple(
-                entry for entry in pool
-                if search in entry.name.lower()
-                or search in entry.path.stem.lower()
+            run = start_run(
+                run_id=uuid.uuid4().hex,
+                seed=uuid.uuid4().hex[:12].upper(),
+                player_country=player.index,
+                ally_country=ally.index,
+                created=date.today().isoformat(),
             )
-        selected = self.selected_skirmish_map()
-        tree = self.skirmish_map_tree
-        tree.delete(*tree.get_children())
-        self._skirmish_maps_by_id = {}
-        for entry in sorted(pool, key=lambda item: item.name.lower()):
-            item_id = str(entry.path)
-            self._skirmish_maps_by_id[item_id] = entry
-            tree.insert('', 'end', iid=item_id, values=(
-                entry.name,
-                entry.seats,
-                ', '.join(entry.game_modes),
-            ))
-        if selected is not None and str(selected.path) in (
-            self._skirmish_maps_by_id
-        ):
-            tree.selection_set(str(selected.path))
-        self.skirmish_message_var.set(
-            f'{len(self._skirmish_maps_by_id)} maps seat {seats}.'
-            if self._skirmish_maps_by_id
-            else f'No installed map seats {seats}.'
-        )
-        self.on_skirmish_map_selected()
-
-    def selected_skirmish_map(self):
-        tree = getattr(self, 'skirmish_map_tree', None)
-        if tree is None:
-            return None
-        selection = tree.selection()
-        if not selection:
-            return None
-        return self._skirmish_maps_by_id.get(selection[0])
-
-    def on_skirmish_map_selected(self, _event=None):
-        entry = self.selected_skirmish_map()
-        self.skirmish_launch_button.configure(
-            state='normal'
-            if entry is not None and not self.skirmish_launch_blocked()
-            else 'disabled'
-        )
-        if entry is None:
-            self.skirmish_map_detail_var.set('')
-            self.skirmish_preview_label.configure(image='')
-            self._skirmish_preview_image = None
+            run = self.offer_skirmish_battles(run)
+        except SkirmishTransitionError as exc:
+            self.skirmish_message_var.set(str(exc))
             return
-        self.skirmish_map_detail_var.set(
-            f'{entry.name}\n{entry.seats} seats '
-            f'({entry.players} claimed, {entry.starts} starting points)\n'
-            f'{entry.path.name}'
+        self.config['skirmish_country'] = player.display
+        self.config['skirmish_ally'] = ally.display
+        self.save_current_launcher_config()
+        self.skirmish_run = self.skirmish_repository.save_run(run)
+        self._skirmish_setup_open = False
+        log_event(
+            'skirmish_run_started',
+            run_id=run.run_id,
+            seed=run.seed,
+            player_country=player.country_id,
+            ally_country=ally.country_id,
         )
-        self._show_skirmish_preview(entry.preview)
+        self.skirmish_message_var.set(
+            f'Run started as {player.display}, allied with {ally.display}.'
+        )
+        self.refresh_skirmish_mode()
 
-    def _show_skirmish_preview(self, path):
+    def offer_skirmish_battles(self, run):
+        """Put this battle's offers on the table, drawing them if needed."""
+        if run.offers:
+            return run
+        offers = offers_for(
+            run,
+            skirmish_map_pool(),
+            challenge_map_pool(),
+            MAPS_DIR,
+            skirmish_countries(),
+        )
+        if not offers:
+            raise SkirmishTransitionError(
+                'No installed map can seat this battle. Check that '
+                'MapsMO/Standard and MapsMO/Challenge are present.'
+            )
+        return offer_battles(run, offers)
+
+    def give_up_skirmish_run(self):
+        run = self.skirmish_run
+        if run is None or run.status is not RunStatus.ACTIVE:
+            return
+        if self.skirmish_launch_blocked():
+            self.skirmish_message_var.set('Wait for the running game to close.')
+            return
+        if not messagebox.askyesno(
+            'Give Up Skirmish Run?',
+            f'End this run at battle {run.battle}?\n\n'
+            'The run is kept in the list, but it cannot be played on.',
+            parent=self,
+        ):
+            return
+        self.skirmish_run = self.skirmish_repository.save_run(give_up(run))
+        self.skirmish_message_var.set(
+            f'Gave up at battle {run.battle}. Start a new run when ready.'
+        )
+        self.refresh_skirmish_mode()
+
+    # -- painting ---------------------------------------------------------
+
+    def refresh_skirmish_mode(self, *_args):
+        if not hasattr(self, 'skirmish_battle_cards'):
+            return
+        try:
+            self.skirmish_run = self.skirmish_repository.load_run()
+        except SkirmishPersistenceError as exc:
+            self.skirmish_message_var.set(str(exc))
+            self.skirmish_run = None
+        run = self.skirmish_run
+        playable = bool(run is not None and run.status is RunStatus.ACTIVE)
+        if self._skirmish_setup_open or not playable:
+            self.skirmish_setup_frame.grid(row=0, column=0, sticky='ew')
+            self.refresh_skirmish_countries()
+        else:
+            self.skirmish_setup_frame.grid_remove()
+        if run is None:
+            self.skirmish_progress_var.set('No run')
+            self.skirmish_army_var.set('')
+            self.skirmish_header_frame.grid_remove()
+            self.skirmish_cards_frame.grid_remove()
+            self.refresh_skirmish_run_window()
+            return
+        self.skirmish_header_frame.grid(
+            row=1, column=0, sticky='ew', pady=(8, 0)
+        )
+        status = (
+            '' if run.status is RunStatus.ACTIVE
+            else f' — {run.status.value}'
+        )
+        self.skirmish_progress_var.set(run_progress_text(run) + status)
+        self.skirmish_army_var.set(self.skirmish_army_text(run))
+        self.skirmish_give_up_button.configure(
+            state='normal' if playable else 'disabled'
+        )
+        if playable:
+            self.skirmish_cards_frame.grid(
+                row=2, column=0, sticky='nsew', pady=(8, 0)
+            )
+            self.refresh_skirmish_cards(run)
+        else:
+            self.skirmish_cards_frame.grid_remove()
+        self.refresh_skirmish_run_window()
+
+    def refresh_skirmish_cards(self, run):
+        blocked = self.skirmish_launch_blocked()
+        for index, card in enumerate(self.skirmish_battle_cards):
+            offer = run.offers[index] if index < len(run.offers) else None
+            if offer is None:
+                card['frame'].grid_remove()
+                continue
+            card['frame'].grid()
+            entry = map_by_relative_path(offer.map_path)
+            card['frame'].configure(
+                text='Challenge' if offer.challenge else f'Battle {index + 1}'
+            )
+            card['name'].set(offer.map_name or offer.map_path)
+            missing = entry is None
+            card['detail'].set(
+                'This map is not installed any more.' if missing
+                else describe_offer(offer)
+            )
+            card['tooltip'].text = (
+                f'{offer.map_name}\n{describe_offer(offer)}\n'
+                f'{offer.seats} seats'
+            )
+            self._show_skirmish_preview(
+                card, entry.preview if entry is not None else None
+            )
+            committed = run.committed_offer
+            card['launch_button'].configure(
+                text=(
+                    'Fight This Challenge' if offer.challenge
+                    else 'Fight This Battle'
+                ),
+                state=(
+                    'disabled'
+                    if missing or blocked
+                    or (committed is not None and committed != index)
+                    else 'normal'
+                ),
+            )
+
+    def _show_skirmish_preview(self, card, path):
+        label = card['preview_label']
         if not path or not Path(path).is_file():
-            self.skirmish_preview_label.configure(image='', text='No preview')
-            self._skirmish_preview_image = None
+            label.configure(image='', text='No preview')
+            self._skirmish_preview_images.pop(id(card), None)
             return
         try:
             image = tk.PhotoImage(master=self, file=str(path))
         except tk.TclError:
-            self.skirmish_preview_label.configure(
-                image='', text='Preview could not be read'
-            )
-            self._skirmish_preview_image = None
+            label.configure(image='', text='Preview could not be read')
+            self._skirmish_preview_images.pop(id(card), None)
             return
         width_box, height_box = PREVIEW_BOX
         factor = 1
@@ -275,53 +386,150 @@ class SkirmishController:
             factor += 1
         if factor > 1:
             image = image.subsample(factor)
-        # Held on the controller: Tk drops an image the moment nothing in
-        # Python refers to it, and the label then shows nothing.
-        self._skirmish_preview_image = image
-        self.skirmish_preview_label.configure(image=image, text='')
+        # Held here: Tk drops an image the moment nothing in Python refers to
+        # it, and the label then shows nothing.
+        self._skirmish_preview_images[id(card)] = image
+        label.configure(image=image, text='')
+
+    # -- the saved runs ---------------------------------------------------
+
+    def refresh_skirmish_run_window(self):
+        window = getattr(self, '_skirmish_run_window', None)
+        if window is None or not window.winfo_exists():
+            return
+        tree = self.skirmish_run_tree
+        selected = set(tree.selection())
+        tree.delete(*tree.get_children())
+        runs, active_run_id = self.skirmish_repository.list_runs()
+        for run in runs:
+            tree.insert('', 'end', iid=run.run_id, values=(
+                'Playing' if run.run_id == active_run_id else '',
+                run_progress_text(run),
+                self.skirmish_army_text(run),
+                run.won_battles,
+                run.status.value.title(),
+                run.seed,
+            ))
+        restored = [
+            run.run_id for run in runs if run.run_id in selected
+        ] or [run.run_id for run in runs if run.run_id == active_run_id]
+        if restored:
+            tree.selection_set(restored)
+        self.refresh_skirmish_run_buttons()
+
+    def refresh_skirmish_run_buttons(self, _event=None):
+        window = getattr(self, '_skirmish_run_window', None)
+        if window is None or not window.winfo_exists():
+            return
+        run_id = self._selected_skirmish_run_id()
+        _runs, active_run_id = self.skirmish_repository.list_runs()
+        blocked = self.skirmish_launch_blocked()
+        self.skirmish_resume_button.configure(
+            state=(
+                'normal'
+                if run_id and run_id != active_run_id and not blocked
+                else 'disabled'
+            )
+        )
+        self.skirmish_delete_button.configure(
+            state='normal' if run_id and not blocked else 'disabled'
+        )
+
+    def _selected_skirmish_run_id(self):
+        window = getattr(self, '_skirmish_run_window', None)
+        if window is None or not window.winfo_exists():
+            return ''
+        selection = self.skirmish_run_tree.selection()
+        return selection[0] if selection else ''
+
+    def resume_selected_skirmish_run(self):
+        if self.skirmish_launch_blocked():
+            self.skirmish_message_var.set('Wait for the running game to close.')
+            return
+        run_id = self._selected_skirmish_run_id()
+        if not run_id:
+            return
+        try:
+            run = self.skirmish_repository.select_run(run_id)
+        except SkirmishPersistenceError as exc:
+            self.skirmish_message_var.set(str(exc))
+        else:
+            self._skirmish_setup_open = False
+            self.skirmish_message_var.set(
+                f'Resumed the run on seed {run.seed}.'
+            )
+        self.refresh_skirmish_mode()
+
+    def delete_selected_skirmish_run(self):
+        if self.skirmish_launch_blocked():
+            self.skirmish_message_var.set('Wait for the running game to close.')
+            return
+        run_id = self._selected_skirmish_run_id()
+        runs, _active = self.skirmish_repository.list_runs()
+        run = next((stored for stored in runs if stored.run_id == run_id), None)
+        if run is None:
+            return
+        warning = (
+            'This run is still being played.\n\n'
+            if run.status is RunStatus.ACTIVE else ''
+        )
+        if not messagebox.askyesno(
+            'Delete Skirmish Run?',
+            f'{warning}Delete the run on seed {run.seed}, at '
+            f'battle {run.battle}?',
+            parent=self,
+        ):
+            return
+        try:
+            self.skirmish_repository.delete_run(run_id)
+        except SkirmishPersistenceError as exc:
+            self.skirmish_message_var.set(str(exc))
+        else:
+            self.skirmish_message_var.set(
+                f'Deleted the run on seed {run.seed}.'
+            )
+        self.refresh_skirmish_mode()
 
     # -- the battle -------------------------------------------------------
 
-    def skirmish_houses(self):
+    def skirmish_houses(self, run, offer):
         """Return the computer players, ally first, in seating order."""
-        handicap = AI_HANDICAPS.get(self.skirmish_handicap_var.get(),
-                                    AI_HANDICAP_HARD)
-        countries = skirmish_countries()
         houses = []
-        ally = self.skirmish_country(self.skirmish_ally_var)
-        if ally is not None:
+        if offer.ally:
             houses.append(SkirmishHouse(
-                country=ally.index,
-                color=HOUSE_COLORS[len(houses) + 1],
+                country=run.ally_country,
+                color=HOUSE_COLORS[1],
                 friendly=True,
-                handicap=handicap,
+                handicap=offer.handicap,
             ))
-        enemies = self.skirmish_required_seats() - len(houses) - 1
-        for _index in range(enemies):
-            # The opposition is drawn rather than chosen: which armies turn
-            # up is the run's business, not a setting.
-            country = random.choice(countries)
+        for country in offer.enemy_countries:
             houses.append(SkirmishHouse(
-                country=country.index,
+                country=country,
                 color=HOUSE_COLORS[len(houses) + 1],
                 friendly=False,
-                handicap=handicap,
+                handicap=offer.handicap,
             ))
         return tuple(houses)
 
-    def launch_skirmish(self):
+    def launch_skirmish_offer(self, index):
         if self.skirmish_launch_blocked():
-            self.skirmish_message_var.set(
-                'Wait for the running game to close.'
-            )
+            self.skirmish_message_var.set('Wait for the running game to close.')
             return
-        entry = self.selected_skirmish_map()
+        run = self.skirmish_run
+        if run is None or run.status is not RunStatus.ACTIVE:
+            self.skirmish_message_var.set('Start a run first.')
+            return
+        try:
+            run = commit_offer(run, index)
+        except SkirmishTransitionError as exc:
+            self.skirmish_message_var.set(str(exc))
+            return
+        offer = run.committed()
+        entry = map_by_relative_path(offer.map_path)
         if entry is None:
-            self.skirmish_message_var.set('Choose a map first.')
-            return
-        player = self.skirmish_country(self.skirmish_country_var)
-        if player is None:
-            self.skirmish_message_var.set('Choose the country you play.')
+            self.skirmish_message_var.set(
+                f'{offer.map_name} is not installed any more.'
+            )
             return
         missing = [
             path for path in (GAME_LAUNCHER_EXE, GAME_EXE)
@@ -335,25 +543,29 @@ class SkirmishController:
                 parent=self,
             )
             return
-        houses = self.skirmish_houses()
+        player = country_by_index(run.player_country)
+        if player is None:
+            self.skirmish_message_var.set(
+                'This run plays a country the installed rules no longer have.'
+            )
+            return
+        self.skirmish_run = self.skirmish_repository.save_run(run)
         battle = {
+            'run_id': run.run_id,
+            'battle': run.battle,
+            'offer': offer,
             'map': entry,
             'player': player,
-            'houses': houses,
-            'seed': random.randrange(1, 2 ** 31),
+            'houses': self.skirmish_houses(run, offer),
+            'seed': offer.seed,
             'player_name': SKIRMISH_PLAYER_NAME,
             # Read here rather than in the worker: these come off Tk
             # variables, and Tk is not safe to touch from another thread.
             'difficulty': self.get_selected_difficulty_value(),
             'game_speed': self.get_selected_game_speed_value(),
         }
-        self.config['skirmish_country'] = player.display
-        self.config['skirmish_ally'] = self.skirmish_ally_var.get()
-        self.config['skirmish_enemy_count'] = self.skirmish_enemy_count_var.get()
-        self.config['skirmish_enemy_skill'] = self.skirmish_handicap_var.get()
-        self.save_current_launcher_config()
         self.run_in_background(
-            'Starting skirmish, please wait…',
+            'Starting battle, please wait…',
             'Copying the map and writing the battle setup.',
             lambda: self.prepare_skirmish_launch_files(battle),
             lambda _result: self.start_skirmish_process(battle),
@@ -396,10 +608,10 @@ class SkirmishController:
         )
         messagebox.showerror(
             'Launch Failed',
-            'Failed to write the skirmish files. See log for details.',
+            'Failed to write the battle files. See log for details.',
             parent=self,
         )
-        self.on_skirmish_map_selected()
+        self.refresh_skirmish_mode()
 
     def start_skirmish_process(self, battle):
         from .launch_controller import windows_syringe_command_line
@@ -438,20 +650,22 @@ class SkirmishController:
         self.active_mission_attempt = None
         entry = battle['map']
         self.append_log(
-            f'Launched skirmish on {entry.name} '
+            f'Launched battle {battle["battle"]} on {entry.name} '
             f'({len(battle["houses"])} computer players) PID={process.pid}.'
         )
         log_event(
             'skirmish_process_started',
             pid=process.pid,
+            run_id=battle['run_id'],
+            battle=battle['battle'],
             map=entry.path.name,
-            seats=entry.seats,
-            player_country=battle['player'].country_id,
+            challenge=battle['offer'].challenge,
             houses=[house.country for house in battle['houses']],
             seed=battle['seed'],
+            command=command_text,
         )
-        self.skirmish_message_var.set(f'Playing {entry.name}.')
-        self.on_skirmish_map_selected()
+        self.skirmish_message_var.set(f'Fighting on {entry.name}.')
+        self.refresh_skirmish_mode()
         self.poll_hook_log()
 
     def skirmish_result(self, battle):
@@ -468,28 +682,55 @@ class SkirmishController:
         self._skirmish_launch = None
         entry = battle['map']
         result = self.skirmish_result(battle)
-        if result is None:
-            # No score block: the game was closed before it finished, which
-            # is neither a win nor a loss and must not be recorded as one.
-            message = f'Left {entry.name} without finishing.'
-        elif result.won:
-            message = (
-                f'Victory on {entry.name} — {result.kills} kills, '
-                f'{result.lost} lost, score {result.score:,}.'
-            )
-        else:
-            message = (
-                f'Defeat on {entry.name} — {result.kills} kills, '
-                f'{result.lost} lost.'
-            )
+        message = self.apply_skirmish_result(battle, result)
         self.append_log(message)
         log_event(
             'skirmish_finished',
+            run_id=battle['run_id'],
+            battle=battle['battle'],
             map=entry.path.name,
             finished=result is not None,
             won=bool(result and result.won),
             result=result.to_dict() if result else None,
         )
-        if hasattr(self, 'skirmish_map_tree'):
+        if hasattr(self, 'skirmish_battle_cards'):
             self.skirmish_message_var.set(message)
-            self.on_skirmish_map_selected()
+            self.refresh_skirmish_mode()
+
+    def apply_skirmish_result(self, battle, result):
+        """Record the outcome against the run that fought it."""
+        entry = battle['map']
+        run = self.skirmish_repository.load_run()
+        if run is None or run.run_id != battle['run_id']:
+            # The player switched runs while the game was up, or deleted the
+            # one that was playing. The battle stands for nothing.
+            return f'{entry.name} finished, but its run is no longer open.'
+        if result is None:
+            # No score block: the game was closed before it finished, which
+            # is neither a win nor a loss and must not cost a life.
+            return f'Left {entry.name} without finishing. The battle stands.'
+        try:
+            if result.won:
+                run = self.offer_skirmish_battles(record_victory(run))
+                message = (
+                    f'Victory on {entry.name} — {result.kills} kills, '
+                    f'{result.lost} lost, score {result.score:,}. '
+                    f'Battle {run.battle} is ready.'
+                )
+            else:
+                run = record_defeat(run)
+                if run.status is RunStatus.ACTIVE:
+                    message = (
+                        f'Defeat on {entry.name}. {run.lives_left} '
+                        f'{"life" if run.lives_left == 1 else "lives"} left; '
+                        'the same battle stands.'
+                    )
+                else:
+                    message = (
+                        f'Defeat on {entry.name}. The run ends at battle '
+                        f'{run.battle}, {run.won_battles} won.'
+                    )
+        except SkirmishTransitionError as exc:
+            return str(exc)
+        self.skirmish_run = self.skirmish_repository.save_run(run)
+        return message

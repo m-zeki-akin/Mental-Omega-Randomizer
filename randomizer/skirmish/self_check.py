@@ -42,6 +42,13 @@ CAMPAIGN_ONLY_KEYS = (
 
 MAP_FIXTURE = """; a map, as FinalAlert writes one
 
+[DUMMYDUMMY]
+Name=
+UIName=Name:DUMMYDUMMY
+
+[LIONH]
+Name=Lionheart Bomber
+
 [Header]
 Width=100
 Height=100
@@ -278,6 +285,9 @@ def _map_reader_checks():
         )
         read_valid = bool(
             len(pool) == 2
+            # Read from [Basic], not from the first Name= in the file: a
+            # challenge map carries unit overrides with Name= keys of their
+            # own, thousands of lines above the section describing the map.
             and valley.name == '(3) Self Check Valley'
             and valley.players == 4
             and valley.minimum_players == 2
