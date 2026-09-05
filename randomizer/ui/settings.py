@@ -19,6 +19,7 @@ from ._builder_dependencies import (
     PLAYER_COLORS,
     POWER_BUFF_TYPES,
     POWER_BUFF_WEIGHT_TYPES,
+    SUB_WEIGHT_SECTION_BY_ID,
     REWARD_POOL,
     STARTING_REWARD_TYPE_DEFINITIONS,
     UNIT_BUFF_WEIGHT_TYPES,
@@ -29,6 +30,54 @@ from ._builder_dependencies import (
     tk,
     ttk,
 )
+
+
+def open_sub_weight_window(self, section):
+    """Open one group's sub-weights in a window of their own."""
+    existing = getattr(self, '_sub_weight_windows', None)
+    if existing is None:
+        existing = self._sub_weight_windows = {}
+    window = existing.get(section['id'])
+    if window is not None and window.winfo_exists():
+        window.lift()
+        window.focus_set()
+        return window
+    window = tk.Toplevel(self.root)
+    window.title(section['title'])
+    window.transient(self.root)
+    frame = ttk.Frame(window, padding=12)
+    frame.grid(row=0, column=0, sticky='nsew')
+    window.columnconfigure(0, weight=1)
+    window.rowconfigure(0, weight=1)
+    frame.columnconfigure(0, minsize=190)
+    frame.columnconfigure(1, weight=1)
+    ttk.Label(
+        frame,
+        text=(
+            'Relative within this group only. These never change how often '
+            f'the group itself is chosen. 0 means never selected; '
+            f'range 0-{MAX_REWARD_WEIGHT}.'
+        ),
+        style='Muted.TLabel',
+        wraplength=420,
+        justify='left',
+    ).grid(row=0, column=0, columnspan=2, sticky='ew', pady=(0, 8))
+    variables = self.sub_reward_weight_vars[section['id']]
+    sliders = self.sub_reward_weight_sliders.setdefault(section['id'], {})
+    for index, (weight_id, label) in enumerate(section['types']):
+        sliders[weight_id] = _weight_slider(
+            self,
+            frame,
+            label,
+            variables[weight_id],
+            index + 1,
+            f'{label} selection chance within this group only.',
+        )
+    ttk.Button(frame, text='Close', command=window.destroy).grid(
+        row=len(section['types']) + 1, column=1, sticky='e', pady=(8, 0)
+    )
+    existing[section['id']] = window
+    return window
 
 
 def _weight_slider(self, parent, label, variable, row, tooltip):
@@ -1330,6 +1379,8 @@ def _build_gameplay_settings(self, settings_frame):
     reward_weight_frame.grid(row=1, column=0, sticky='ew')
     reward_weight_frame.columnconfigure(0, minsize=190)
     reward_weight_frame.columnconfigure(1, weight=1)
+    reward_weight_frame.columnconfigure(2, minsize=90)
+    self.sub_weight_buttons = []
     self.main_reward_weight_sliders = {}
     for row, definition in enumerate(MAIN_REWARD_WEIGHT_TYPES):
         weight_id = definition['id']
@@ -1344,51 +1395,30 @@ def _build_gameplay_settings(self, settings_frame):
                 f'range 0-{MAX_REWARD_WEIGHT}.'
             ),
         )
-
-    unit_weight_frame = ttk.LabelFrame(
-        weight_settings_frame,
-        text='Unit buff weights',
-        padding=(8, 8, 8, 8),
-    )
-    self.unit_weight_frame = unit_weight_frame
-    unit_weight_frame.grid(row=2, column=0, sticky='ew', pady=(8, 0))
-    unit_weight_frame.columnconfigure(0, minsize=190)
-    unit_weight_frame.columnconfigure(1, weight=1)
-    self.unit_buff_weight_sliders = {}
-    for row, (weight_id, label) in enumerate(UNIT_BUFF_WEIGHT_TYPES):
-        self.unit_buff_weight_sliders[weight_id] = _weight_slider(
-            self,
-            unit_weight_frame,
-            label,
-            self.unit_buff_weight_vars[weight_id],
-            row,
-            (
-                f'{label} reward selection chance only; '
-                f'range 0-{MAX_REWARD_WEIGHT}.'
+        # A group's internal split lives behind its own row rather than as
+        # another wall of sliders under this one. Two of the six used to be
+        # spelled out here and the other four had no split at all, which read
+        # as though only buffs could be steered.
+        section = SUB_WEIGHT_SECTION_BY_ID.get(weight_id)
+        if not section:
+            continue
+        button = ttk.Button(
+            reward_weight_frame,
+            text='Details...',
+            width=10,
+            command=(
+                lambda section=section: open_sub_weight_window(self, section)
             ),
         )
-
-    power_weight_frame = ttk.LabelFrame(
-        weight_settings_frame,
-        text='Superweapon buff weights',
-        padding=(8, 8, 8, 8),
-    )
-    self.power_weight_frame = power_weight_frame
-    power_weight_frame.grid(row=3, column=0, sticky='ew', pady=(8, 0))
-    power_weight_frame.columnconfigure(0, minsize=190)
-    power_weight_frame.columnconfigure(1, weight=1)
-    self.power_buff_weight_sliders = {}
-    for row, (weight_id, label) in enumerate(POWER_BUFF_WEIGHT_TYPES):
-        self.power_buff_weight_sliders[weight_id] = _weight_slider(
-            self,
-            power_weight_frame,
-            label,
-            self.power_buff_weight_vars[weight_id],
-            row,
-            (
-                f'{label} reward selection chance only; '
-                f'range 0-{MAX_REWARD_WEIGHT}.'
-            ),
+        button.grid(row=row, column=2, sticky='e', padx=(8, 0), pady=(0, 4))
+        # Not in reward_weight_slider_controls: that list is walked on every
+        # theme change to call refresh_theme, which a ttk.Button does not have.
+        self.sub_weight_buttons.append(button)
+        WidgetTooltip(
+            button,
+            f'Split the {definition["label"]} weight between its own kinds. '
+            'These do not change how often the group is chosen, only which '
+            'of its rewards is taken once it is.',
         )
 
     build_general_settings(self, settings_frame)

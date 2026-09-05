@@ -47,6 +47,8 @@ from randomizer.rewards.arsenal import (
 )
 from randomizer.rewards.weights import (
     DEFAULT_REWARD_WEIGHT,
+    DEFAULT_REWARD_WEIGHTS,
+    SUB_WEIGHT_SECTIONS,
     MAIN_REWARD_WEIGHT_TYPES,
     POWER_BUFF_WEIGHT_TYPES,
     UNIT_BUFF_WEIGHT_TYPES,

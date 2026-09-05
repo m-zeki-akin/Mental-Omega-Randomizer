@@ -138,6 +138,36 @@ that overlap only with full reward-plan and 97-map parity coverage.
   the category already allowed, sized above what Mental Omega itself
   authors (drive tops out at 10, hover 14, fly 26, jumpjet 34).
 
+## Reward weights
+
+Weights decide which kind of reward a slot gets, and they are the only thing
+that decides it. They used to switch on only when a player moved a slider off
+its default, so leaving the panel alone ran a hardcoded cadence no setting
+could reach.
+
+Six main groups: unit unlocks, power unlocks, special unlocks, unit buffs,
+superweapon buffs, economy. Defaults are 100 / 55 / 35 / 45 / 20 / 15 rather
+than a flat 100, because the pool is not flat: 3,402 unit buffs against 225
+unit unlocks, and a buff restacks where an unlock is spent once. Equal weights
+mean buffs.
+
+Each group with an internal split carries its own sub-weight table, opened
+from the `Details...` button on its row: unlocks by what they unlock
+(infantry, vehicles, aircraft, defenses, special buildings), powers by kind
+(offensive, secondary, aid), economy by what it pays for, and the two buff
+groups by stat. Special unlocks have none -- 69 of the 70 share one category,
+so a table would be sliders that all did the same thing. Sub-weights never
+change how often a group is chosen, only which of its rewards is taken once
+it is.
+
+A group that runs out of eligible rewards hands its share to its **family**
+-- unlocks to unlocks, upgrades to upgrades -- and not to the whole table.
+Without that, the two small access groups emptying (70 special and 79 power
+unlocks, against unit buffs that never empty) turned access from three votes
+against three into one against three, and a measured Grid run fell from 61%
+access to 35% while 144 access rewards sat unused and eligible. Weights are
+meant to hold a ratio until the thing they name is actually spent.
+
 ## Shop Mode balance
 
 `shop_mode.json` is the only static source for Shop Mode economy and run-size

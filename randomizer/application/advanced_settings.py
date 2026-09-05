@@ -7,6 +7,8 @@ from ._dependencies import (
     BUFF_TYPES,
     CAMPAIGN_FILTERS,
     DEFAULT_REWARD_WEIGHT,
+    DEFAULT_REWARD_WEIGHTS,
+    SUB_WEIGHT_SECTIONS,
     FACTION_TILE_COLORS,
     GAME_ROOT,
     MAIN_REWARD_WEIGHT_TYPES,
@@ -1153,13 +1155,20 @@ class AdvancedSettingsController:
     def reset_reward_weights(self):
         if self.gameplay_settings_locked():
             return
+        # The shipped defaults, not a flat 100. Every weight was 100 once and
+        # this button wrote that back, so "Default" quietly meant "make every
+        # group equally likely" -- which in a pool of 3,402 upgrades against
+        # 225 unlocks is not neutral, it is upgrades.
         for definition in MAIN_REWARD_WEIGHT_TYPES:
             weight_id = definition['id']
-            self.main_reward_weight_vars[weight_id].set(DEFAULT_REWARD_WEIGHT)
-        for weight_id, _label in UNIT_BUFF_WEIGHT_TYPES:
-            self.unit_buff_weight_vars[weight_id].set(DEFAULT_REWARD_WEIGHT)
-        for weight_id, _label in POWER_BUFF_WEIGHT_TYPES:
-            self.power_buff_weight_vars[weight_id].set(DEFAULT_REWARD_WEIGHT)
+            self.main_reward_weight_vars[weight_id].set(
+                DEFAULT_REWARD_WEIGHTS['main'][weight_id]
+            )
+        for section in SUB_WEIGHT_SECTIONS:
+            for weight_id, _label in section['types']:
+                self.sub_reward_weight_vars[section['id']][weight_id].set(
+                    DEFAULT_REWARD_WEIGHTS[section['id']][weight_id]
+                )
         self.save_current_launcher_config()
 
     def on_unlimited_hero_units_changed(self):

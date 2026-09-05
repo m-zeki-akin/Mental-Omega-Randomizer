@@ -52,6 +52,33 @@ ECONOMY_BUFF_TYPES = frozenset({
     'starting_credits', 'cost', 'production', 'income', 'storage',
 })
 
+# Sub-weights for the access groups. A player who wants tanks and not
+# infantry could say so about upgrades but not about the unlocks themselves,
+# which is the half of the catalogue they actually care about.
+ACCESS_WEIGHT_TYPES = (
+    ('infantry', 'Infantry'),
+    ('units', 'Vehicles / naval'),
+    ('aircraft', 'Aircraft'),
+    ('defense', 'Defenses'),
+    ('special_building', 'Special buildings'),
+    ('other', 'Other unlocks'),
+)
+
+POWER_ACCESS_WEIGHT_TYPES = (
+    ('offensive', 'Offensive superweapons'),
+    ('secondary', 'Secondary superweapons'),
+    ('aid', 'Aid powers'),
+    ('other', 'Other powers'),
+)
+
+ECONOMY_WEIGHT_TYPES = (
+    ('cost', 'Unit cost'),
+    ('production', 'Build time'),
+    ('income', 'Refinery income'),
+    ('storage', 'Harvester capacity'),
+    ('starting_credits', 'Starting credits'),
+)
+
 UNIT_BUFF_WEIGHT_TYPES = (
     ('speed', 'Movement'),
     ('health', 'Health'),
@@ -59,12 +86,9 @@ UNIT_BUFF_WEIGHT_TYPES = (
     ('range', 'Range'),
     ('reload', 'Fire rate'),
     ('armor', 'Armor'),
-    ('cost', 'Cost'),
-    ('production', 'Production time'),
     ('self_healing', 'Healing'),
     ('sight', 'Vision'),
     ('ammo', 'Ammo'),
-    ('storage', 'Harvester storage'),
     ('passenger_capacity', 'Passenger capacity'),
     ('open_topped', 'Passenger firing'),
     ('cloak', 'Cloaking'),
@@ -72,8 +96,6 @@ UNIT_BUFF_WEIGHT_TYPES = (
     ('veteran', 'Veterancy'),
     ('build_limit', 'Unique / hero unit limit'),
     ('building_limit', 'Special building limit'),
-    ('income', 'Special building income'),
-    ('starting_credits', 'Starting credits'),
     ('other', 'Other existing buffs'),
 )
 
@@ -88,9 +110,49 @@ POWER_BUFF_WEIGHT_TYPES = (
     ('other', 'Other existing buffs'),
 )
 
+# Every main group that has sub-weights, and the table behind each. The UI,
+# the saved settings and the planner all walk this rather than naming the
+# sections one at a time, so adding a group is one edit here.
+SUB_WEIGHT_SECTIONS = (
+    {
+        'id': 'unit_unlocks',
+        'title': 'Unit unlock weights',
+        'types': ACCESS_WEIGHT_TYPES,
+    },
+    {
+        'id': 'power_unlocks',
+        'title': 'Power unlock weights',
+        'types': POWER_ACCESS_WEIGHT_TYPES,
+    },
+    {
+        'id': 'economy',
+        'title': 'Economy weights',
+        'types': ECONOMY_WEIGHT_TYPES,
+    },
+    {
+        'id': 'unit_buffs',
+        'title': 'Unit buff weights',
+        'types': UNIT_BUFF_WEIGHT_TYPES,
+    },
+    {
+        'id': 'power_buffs',
+        'title': 'Superweapon buff weights',
+        'types': POWER_BUFF_WEIGHT_TYPES,
+    },
+)
+# Special unlocks deliberately have none: 69 of the 70 share one category, so
+# a table would be five sliders that all do the same thing.
+SUB_WEIGHT_SECTION_BY_ID = {
+    section['id']: section for section in SUB_WEIGHT_SECTIONS
+}
+
 _MAIN_IDS = tuple(item['id'] for item in MAIN_REWARD_WEIGHT_TYPES)
-_UNIT_BUFF_IDS = tuple(item[0] for item in UNIT_BUFF_WEIGHT_TYPES)
-_POWER_BUFF_IDS = tuple(item[0] for item in POWER_BUFF_WEIGHT_TYPES)
+_SECTION_IDS = {
+    section['id']: tuple(item[0] for item in section['types'])
+    for section in SUB_WEIGHT_SECTIONS
+}
+_UNIT_BUFF_IDS = _SECTION_IDS['unit_buffs']
+_POWER_BUFF_IDS = _SECTION_IDS['power_buffs']
 
 # Not uniform, because the pool is not uniform and never was. There are 3,402
 # unit buffs against 225 unit unlocks, and a buff restacks where an unlock is
@@ -112,16 +174,18 @@ DEFAULT_MAIN_WEIGHTS = {
 # times on one mission.
 DEFAULT_UNIT_BUFF_WEIGHTS = {'starting_credits': 25}
 
+DEFAULT_SECTION_WEIGHTS = {'economy': DEFAULT_UNIT_BUFF_WEIGHTS}
+
 DEFAULT_REWARD_WEIGHTS = {
     'main': dict(DEFAULT_MAIN_WEIGHTS),
-    'unit_buffs': {
-        item_id: DEFAULT_UNIT_BUFF_WEIGHTS.get(
-            item_id, DEFAULT_REWARD_WEIGHT
-        )
-        for item_id in _UNIT_BUFF_IDS
-    },
-    'power_buffs': {
-        item_id: DEFAULT_REWARD_WEIGHT for item_id in _POWER_BUFF_IDS
+    **{
+        section: {
+            item_id: DEFAULT_SECTION_WEIGHTS.get(section, {}).get(
+                item_id, DEFAULT_REWARD_WEIGHT
+            )
+            for item_id in item_ids
+        }
+        for section, item_ids in _SECTION_IDS.items()
     },
 }
 
@@ -140,18 +204,30 @@ def normalize_reward_weights(value):
     """Return complete safe weights; absent legacy settings use defaults."""
     source = value if isinstance(value, dict) else {}
     normalized = {}
-    for section, item_ids in (
-        ('main', _MAIN_IDS),
-        ('unit_buffs', _UNIT_BUFF_IDS),
-        ('power_buffs', _POWER_BUFF_IDS),
-    ):
+    legacy_unit_buffs = source.get('unit_buffs')
+    legacy_unit_buffs = (
+        legacy_unit_buffs if isinstance(legacy_unit_buffs, dict) else {}
+    )
+    for section, item_ids in (('main', _MAIN_IDS), *_SECTION_IDS.items()):
         section_source = source.get(section)
         if not isinstance(section_source, dict):
             section_source = {}
-        fallbacks = {
-            'main': DEFAULT_MAIN_WEIGHTS,
-            'unit_buffs': DEFAULT_UNIT_BUFF_WEIGHTS,
-        }.get(section, {})
+        if section == 'economy':
+            # These five used to be unit-buff sub-weights before Economy
+            # became a group of its own. Inherit whatever the player set
+            # there rather than resetting their tuning to the default.
+            section_source = {
+                item_id: section_source.get(
+                    item_id, legacy_unit_buffs.get(item_id)
+                )
+                for item_id in item_ids
+                if section_source.get(item_id) is not None
+                or legacy_unit_buffs.get(item_id) is not None
+            }
+        fallbacks = (
+            DEFAULT_MAIN_WEIGHTS if section == 'main'
+            else DEFAULT_SECTION_WEIGHTS.get(section, {})
+        )
         normalized[section] = {
             item_id: clamp_reward_weight(
                 section_source.get(
@@ -177,6 +253,38 @@ def reward_weights_are_default(value):
 def unit_buff_weight_type(buff_type):
     buff_type = str(buff_type or '')
     return buff_type if buff_type in _UNIT_BUFF_IDS else 'other'
+
+
+def economy_weight_type(buff_type):
+    buff_type = str(buff_type or '')
+    return buff_type if buff_type in _SECTION_IDS['economy'] else 'cost'
+
+
+def unit_unlock_weight_type(reward):
+    """Return which kind of thing an access reward unlocks."""
+    category = str(reward.get('access_category') or '')
+    return category if category in _SECTION_IDS['unit_unlocks'] else 'other'
+
+
+def power_unlock_weight_type(reward):
+    """Return which kind of power an unlock reward grants."""
+    category = str(reward.get('power_category') or '')
+    return category if category in _SECTION_IDS['power_unlocks'] else 'other'
+
+
+def sub_weight_type(main_type, reward):
+    """Return the sub-weight id one reward uses, or ``None``."""
+    if main_type == 'unit_buffs':
+        return unit_buff_weight_type(reward.get('buff_type'))
+    if main_type == 'power_buffs':
+        return power_buff_weight_type(reward.get('power_buff_type'))
+    if main_type == 'economy':
+        return economy_weight_type(reward.get('buff_type'))
+    if main_type == 'unit_unlocks':
+        return unit_unlock_weight_type(reward)
+    if main_type == 'power_unlocks':
+        return power_unlock_weight_type(reward)
+    return None
 
 
 def power_buff_weight_type(buff_type):
@@ -215,13 +323,9 @@ def reward_selection_weight(reward, weights):
         weight = weights['main'][main_type]
         unit_weights = weights['unit_buffs']
         power_weights = weights['power_buffs']
-    if main_type in {'unit_buffs', 'economy'}:
-        # Economy shares the unit-buff sub-weights: they are the same buff
-        # types, only grouped by what they do rather than where they apply,
-        # so a player who turned Cost down keeps it down.
-        sub_type = unit_buff_weight_type(reward.get('buff_type'))
-        weight *= unit_weights[sub_type]
-    elif main_type == 'power_buffs':
-        sub_type = power_buff_weight_type(reward.get('power_buff_type'))
-        weight *= power_weights[sub_type]
+    del unit_weights, power_weights
+    sub_type = sub_weight_type(main_type, reward)
+    if sub_type is not None:
+        section = weights.get(main_type) or {}
+        weight *= section.get(sub_type, DEFAULT_REWARD_WEIGHT)
     return weight

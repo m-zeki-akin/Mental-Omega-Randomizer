@@ -18,10 +18,11 @@ from randomizer.rewards.power_buff_definitions import (
 from randomizer.config.tuning import REWARD_PLANNING
 from randomizer.rewards.weights import (
     main_reward_weight_type,
+    DEFAULT_REWARD_WEIGHT,
+    SUB_WEIGHT_SECTION_BY_ID,
     normalize_reward_weights,
-    power_buff_weight_type,
+    sub_weight_type,
     reward_selection_weight,
-    unit_buff_weight_type,
 )
 
 
@@ -433,15 +434,7 @@ def plan_seed_rewards(
                         if reward.get('power_buff_type') and power_id
                         else ('unit', unit)
                     ),
-                    'sub_type': (
-                        unit_buff_weight_type(reward.get('buff_type'))
-                        if main_type in {'unit_buffs', 'economy'}
-                        else power_buff_weight_type(
-                            reward.get('power_buff_type')
-                        )
-                        if main_type == 'power_buffs'
-                        else None
-                    ),
+                    'sub_type': sub_weight_type(main_type, reward),
                 }
                 track_buff_target_access(unit)
                 for required_unit_id in metadata['required_any']:
@@ -1013,33 +1006,20 @@ def plan_seed_rewards(
             return None
         candidates = groups[main_type]
 
-        if main_type in {'unit_buffs', 'economy'}:
-            candidates = weighted_round_candidates(
-                buff_pool_id_by_code[code], main_type, candidates
-            )
+        if main_type in SUB_WEIGHT_SECTION_BY_ID:
+            if main_type in {'unit_buffs', 'power_buffs', 'economy'}:
+                candidates = weighted_round_candidates(
+                    buff_pool_id_by_code[code], main_type, candidates
+                )
             subgroups = {}
             for candidate in candidates:
                 subgroups.setdefault(
                     reward_metadata[id(candidate)]['sub_type'], []
                 ).append(candidate)
+            section = reward_weights.get(main_type) or {}
             sub_type = weighted_choice(
                 list(subgroups),
-                lambda item: reward_weights['unit_buffs'][item],
-            )
-            candidates = subgroups.get(sub_type, [])
-        elif main_type == 'power_buffs':
-            candidates = weighted_round_candidates(
-                buff_pool_id_by_code[code], main_type, candidates
-            )
-            subgroups = {}
-            for candidate in candidates:
-                subgroups.setdefault(
-                    reward_metadata[id(candidate)]['sub_type'],
-                    [],
-                ).append(candidate)
-            sub_type = weighted_choice(
-                list(subgroups),
-                lambda item: reward_weights['power_buffs'][item],
+                lambda item: section.get(item, DEFAULT_REWARD_WEIGHT),
             )
             candidates = subgroups.get(sub_type, [])
 

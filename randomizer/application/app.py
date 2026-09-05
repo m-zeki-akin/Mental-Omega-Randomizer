@@ -27,6 +27,7 @@ from ._dependencies import (
     PROGRESSION_MODES,
     REWARD_MODES,
     STARTING_REWARD_TYPE_DEFINITIONS,
+    SUB_WEIGHT_SECTIONS,
     UNIT_BUFF_WEIGHT_TYPES,
     WINDOW_ICON_PATH,
     clamp_int,
@@ -481,18 +482,21 @@ class LauncherApp(
             )
             for definition in MAIN_REWARD_WEIGHT_TYPES
         }
-        self.unit_buff_weight_vars = {
-            weight_id: tk.IntVar(
-                value=reward_weights['unit_buffs'][weight_id]
-            )
-            for weight_id, _label in UNIT_BUFF_WEIGHT_TYPES
+        # One dict per sub-weight section, walked from the shared table so a
+        # new group needs no wiring here.
+        self.sub_reward_weight_vars = {
+            section['id']: {
+                weight_id: tk.IntVar(
+                    value=reward_weights[section['id']][weight_id]
+                )
+                for weight_id, _label in section['types']
+            }
+            for section in SUB_WEIGHT_SECTIONS
         }
-        self.power_buff_weight_vars = {
-            weight_id: tk.IntVar(
-                value=reward_weights['power_buffs'][weight_id]
-            )
-            for weight_id, _label in POWER_BUFF_WEIGHT_TYPES
-        }
+        self.unit_buff_weight_vars = self.sub_reward_weight_vars['unit_buffs']
+        # Built lazily, one dict per section, when its window is opened.
+        self.sub_reward_weight_sliders = {}
+        self.power_buff_weight_vars = self.sub_reward_weight_vars['power_buffs']
         if self.unlimited_hero_units_var.get():
             self.buff_type_vars['build_limit'].set(False)
         self.log_visible_var = tk.BooleanVar(value=False)

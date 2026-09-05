@@ -69,6 +69,7 @@ from ._dependencies import (
     tier_one_defense_ids,
     tier_one_unit_ids,
     traceback,
+    SUB_WEIGHT_SECTIONS,
     UNIT_BUFF_WEIGHT_TYPES,
     valid_choice,
     write_portable_settings,
@@ -520,17 +521,16 @@ class StateController:
                 )
                 for definition in MAIN_REWARD_WEIGHT_TYPES
             },
-            'unit_buffs': {
-                weight_id: clamp_reward_weight(
-                    self.unit_buff_weight_vars[weight_id].get()
-                )
-                for weight_id, _label in UNIT_BUFF_WEIGHT_TYPES
-            },
-            'power_buffs': {
-                weight_id: clamp_reward_weight(
-                    self.power_buff_weight_vars[weight_id].get()
-                )
-                for weight_id, _label in POWER_BUFF_WEIGHT_TYPES
+            **{
+                section['id']: {
+                    weight_id: clamp_reward_weight(
+                        self.sub_reward_weight_vars[section['id']][
+                            weight_id
+                        ].get()
+                    )
+                    for weight_id, _label in section['types']
+                }
+                for section in SUB_WEIGHT_SECTIONS
             },
         })
         try:
@@ -1384,14 +1384,11 @@ class StateController:
             self.main_reward_weight_vars[weight_id].set(
                 weights['main'][weight_id]
             )
-        for weight_id, _label in UNIT_BUFF_WEIGHT_TYPES:
-            self.unit_buff_weight_vars[weight_id].set(
-                weights['unit_buffs'][weight_id]
-            )
-        for weight_id, _label in POWER_BUFF_WEIGHT_TYPES:
-            self.power_buff_weight_vars[weight_id].set(
-                weights['power_buffs'][weight_id]
-            )
+        for section in SUB_WEIGHT_SECTIONS:
+            for weight_id, _label in section['types']:
+                self.sub_reward_weight_vars[section['id']][weight_id].set(
+                    weights[section['id']][weight_id]
+                )
 
         save_config(self.config)
         self.apply_color_mode()

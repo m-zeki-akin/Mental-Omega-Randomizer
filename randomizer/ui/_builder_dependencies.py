@@ -19,6 +19,7 @@ from randomizer.rewards.weights import (
     MAIN_REWARD_WEIGHT_TYPES,
     MAX_REWARD_WEIGHT,
     POWER_BUFF_WEIGHT_TYPES,
+    SUB_WEIGHT_SECTION_BY_ID,
     UNIT_BUFF_WEIGHT_TYPES,
 )
 from randomizer.rewards.starting import (
