@@ -7,9 +7,12 @@ players at all. A skirmish needs a player, an ally and several computer
 opponents, each with a country, a colour, a start position and an alliance.
 
 So this is that and nothing else -- no mode, no economy, no interface. One
-fixed map, one fixed line-up, launched the way the launcher launches. If the
-match opens with the ally fighting beside you and the enemies against you, the
-rest of the mode is engineering. If it does not, there is no mode.
+fixed map, one fixed line-up, launched the way the launcher launches.
+
+**It works.** The match opens, the ally fights beside the player and the two
+opponents fight both of them, which means the rest of the mode is engineering
+rather than a question. This file stays as the smallest thing that proves it,
+and as somewhere to reproduce the launch when the real mode misbehaves.
 
 The format comes from the CnCNet client's own spawn writer, and the game
 folder corroborates it: the 320 KB spawnmap.ini sitting there is
