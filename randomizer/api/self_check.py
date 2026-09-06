@@ -98,6 +98,49 @@ def _touched():
     )
 
 
+def _arguments_arrive_valid():
+    """An action's own argument names reach it, whatever they are called.
+
+    Several actions take an argument called ``name`` -- a mode's, a
+    theme's, an interface's. Dispatch used to take that word too, so every
+    one of those calls arrived as two values for one parameter and failed
+    before the action saw them. Nothing in the reply said so: it read as
+    the action refusing.
+
+    Checked across the bridge rather than at the registry, because the
+    bridge is the caller that cannot pass anything positionally.
+    """
+    from randomizer.shell.host import Bridge
+
+    bridge = Bridge()
+    # A value nothing could mistake for a real one, so an action that
+    # quotes it back proves it received what was sent.
+    sent = 'nowhere-in-particular'
+
+    def asked(action, arguments):
+        # A collision raises rather than replying, and a row that raises
+        # takes every other row with it.
+        try:
+            return bridge.call(action, arguments)
+        except Exception as exc:  # noqa: BLE001 - that is the failure
+            return {'ok': False, 'error': repr(exc), 'kind': 'raised'}
+
+    echoes = [
+        asked('launcher.use_mode', {'name': sent}),
+        asked('launcher.use_theme', {'name': sent}),
+    ]
+    # And one whose argument is not called name, so the row says something
+    # about arguments rather than about one word.
+    other = asked('skirmish.buy', {'key': sent})
+    return bool(
+        all(reply.get('ok') is False for reply in echoes)
+        and all(sent in reply.get('error', '') for reply in echoes)
+        # The action's own refusal, not a dispatch error wearing its name.
+        and all(reply.get('kind') == 'ApiError' for reply in echoes)
+        and other.get('kind') == 'ApiError'
+    )
+
+
 def _refuse_to_start(*_args, **_kwargs):
     raise ApiError('The self-check does not start games')
 
@@ -242,6 +285,7 @@ def validate_api_contract():
         # The point of the boundary: the launcher's rules never learn what
         # is drawing them, and this side never learns either.
         'api_toolkit_free_valid': toolkit_free,
+        'api_arguments_arrive_valid': _arguments_arrive_valid(),
         # Asking the launcher what it can do is not playing it. Every
         # command was called above; the runs, the board, the battle files
         # and the game itself are all where they were.
@@ -249,6 +293,7 @@ def validate_api_contract():
         'api_contract_valid': bool(
             json_safe
             and toolkit_free
+            and _arguments_arrive_valid()
             and before == after
             and unknown.get('ok') is False
             and described

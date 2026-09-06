@@ -69,6 +69,42 @@ p { margin: 0; }
   font-weight: var(--weight-bold);
 }
 
+/* The mode decides what the rest of the window is, so it sits in the one
+ * band that never changes rather than among one mode's own settings. */
+.titlebar__mode {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.titlebar__mode-label {
+  color: var(--text-faint);
+  font-size: var(--size-xs);
+  font-weight: var(--weight-bold);
+  letter-spacing: 0.8px;
+  text-transform: uppercase;
+}
+
+.titlebar__mode select {
+  font: inherit;
+  font-weight: var(--weight-medium);
+  color: var(--text);
+  background: var(--surface-raised);
+  border: var(--border) solid var(--line-strong);
+  border-radius: var(--radius-sm);
+  padding: var(--space-1) var(--space-2);
+}
+
+.titlebar__mode select:focus {
+  outline: 2px solid var(--accent);
+  outline-offset: -1px;
+}
+
+.titlebar__mode select:disabled {
+  color: var(--text-faint);
+  cursor: not-allowed;
+}
+
 .titlebar__spacer { flex: 1; }
 
 .titlebar__status {
@@ -106,7 +142,14 @@ p { margin: 0; }
   border-bottom-color: var(--accent);
 }
 
-/* --- the screen ------------------------------------------------------- */
+/* --- the screens ------------------------------------------------------
+ * One band, one panel showing. The band is the scrolling one so a screen
+ * never has to know how tall the window is. */
+.screens {
+  min-height: 0;
+  display: grid;
+}
+
 .screen {
   min-height: 0;
   overflow-y: auto;

@@ -164,10 +164,28 @@ def validate_shell_contract():
         for path in components
     )
 
-    # Every screen the shell offers a tab for is a screen that exists.
-    tabs = set(re.findall(r'data-view="([a-z]+)"', index))
+    # Every screen a mode can be drawn as is a screen that exists and is
+    # loaded. The page names no screen any more -- it draws what the mode
+    # says it has -- so what used to be a check on three lists of tabs is
+    # now a check that the table, the files and the page agree.
+    from .screens import view_names
+
+    named = set(view_names())
     views = {path.stem for path in (root / 'views').glob('*.js')}
-    panels = set(re.findall(r'id="view-([a-z]+)"', index))
+    loaded = set(re.findall(r'src="views/([a-z]+)\.js"', index))
+    # A view nobody registers cannot be shown, and app.js is the only
+    # thing that shows one.
+    registered = set()
+    for path in (root / 'views').glob('*.js'):
+        registered.update(re.findall(r"register\('([a-z]+)'", _read(path)))
+    screens_valid = bool(
+        named
+        and named <= views
+        and named <= loaded
+        and named <= registered
+        # And nothing loaded that no mode can reach.
+        and loaded == named
+    )
 
     return {
         'shell_pages_present_valid': present,
@@ -178,9 +196,7 @@ def validate_shell_contract():
         'shell_both_themes_complete_valid': bool(themed and themed <= light),
         'shell_no_markup_parsing_valid': markup_free,
         'shell_components_are_pure_valid': bool(components and components_pure),
-        'shell_every_tab_has_a_screen_valid': bool(
-            tabs and tabs == views and tabs == panels
-        ),
+        'shell_every_screen_a_mode_names_exists_valid': screens_valid,
         'shell_contract_valid': bool(
             present
             and _choice_valid()
@@ -189,7 +205,6 @@ def validate_shell_contract():
             and not stray_sizes
             and markup_free
             and components_pure
-            and tabs
-            and tabs == views == panels
+            and screens_valid
         ),
     }

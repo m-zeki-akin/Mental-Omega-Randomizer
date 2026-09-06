@@ -117,9 +117,15 @@ export function notice(text, { error } = {}) {
   });
 }
 
+/* One counter for every field ever built, so a label used twice on one
+ * screen does not point both of them at the same control. */
+let fields = 0;
+
 /** A labelled control. `control` is the thing being labelled. */
 export function field(label, control) {
-  const id = `field-${(label || '').toLowerCase().replace(/[^a-z]+/g, '-')}`;
+  fields += 1;
+  const named = (label || '').toLowerCase().replace(/[^a-z]+/g, '-');
+  const id = `field-${named || 'control'}-${fields}`;
   control.setAttribute('id', id);
   return el('div', { class: 'field' }, [
     el('label', { class: 'field__label', text: label, for: id }),

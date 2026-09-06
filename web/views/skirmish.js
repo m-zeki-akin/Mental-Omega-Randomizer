@@ -188,5 +188,4 @@ async function render(root) {
   root.replaceChildren(...parts);
 }
 
-const root = document.getElementById('view-skirmish');
-register('skirmish', { root, render: () => render(root) });
+register('skirmish', render);

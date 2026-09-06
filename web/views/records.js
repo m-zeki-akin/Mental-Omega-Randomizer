@@ -45,5 +45,4 @@ async function render(root) {
   );
 }
 
-const root = document.getElementById('view-records');
-register('records', { root, render: () => render(root) });
+register('records', render);

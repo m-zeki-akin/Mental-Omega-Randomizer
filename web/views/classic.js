@@ -1,0 +1,54 @@
+/* A mode this interface does not draw yet.
+ *
+ * The mode control offers all five, because which mode the launcher is in
+ * is one decision and hiding half of it would make the control lie. What
+ * an unported mode gets is this: what it is, where it is played, and one
+ * press to make the launcher open there next time. An empty panel would
+ * be worse than the classic window; so would a mode that cannot be
+ * selected at all. */
+
+import { act, call, register } from '../app.js';
+import { button, el, notice, panel, section } from '../components/index.js';
+
+const ABOUT = {
+  'Classic': 'Follows the installed campaign order, opening one mission '
+    + 'at a time.',
+  'Mission List': 'A randomized linear order through the campaign.',
+  'Grid Mode': 'Randomized missions on a board where what you finish '
+    + 'opens its neighbours.',
+  'Shop Mode': 'The campaign roguelike: a run, a loadout, and a shop '
+    + 'between missions.',
+};
+
+function modePanel(mode, seed) {
+  return panel(mode, [
+    el('div', { class: 'card__body', text: ABOUT[mode] || '' }),
+    el('div', { class: 'card__body muted', text:
+      'This interface does not draw it yet. The classic window does, with '
+      + 'every setting it has.' }),
+    seed && seed.seed && seed.mode === mode
+      ? el('div', { class: 'card__body', text:
+        `A seed is standing for it: ${seed.seed}.` })
+      : null,
+    el('div', { class: 'card__footer' }, [
+      el('span', { class: 'muted', text: 'Takes effect at the next start.' }),
+      button('Open the classic window at start', {
+        variant: 'primary',
+        onClick: () => act('launcher.use_interface', { name: 'classic' }),
+      }),
+    ]),
+  ]);
+}
+
+async function render(root) {
+  const modes = await call('launcher.modes');
+  root.replaceChildren(
+    section('Mode', modePanel(modes.current, modes.campaign_seed)),
+    section('Meanwhile', notice(
+      'The Skirmish Shop mode is drawn here. Switch to it above to play '
+      + 'without leaving this interface.',
+    )),
+  );
+}
+
+register('classic', render);

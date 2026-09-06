@@ -79,12 +79,18 @@ def describe_actions():
     )
 
 
-def call(name, **arguments):
+def call(name, /, **arguments):
     """Run one action and return the reply a screen reads.
 
     A failure is a reply, not an exception: the caller is on the other side
     of a bridge that cannot carry one, and a screen that gets nothing back
     has no way to say what happened.
+
+    Which action to run is positional and can only be positional. An
+    action is free to take an argument called ``name``, and several do --
+    a mode's name, a theme's, an interface's -- and while this took that
+    word too, every one of those calls arrived as two values for one
+    parameter and failed before the action ever saw them.
     """
     entry = actions().get(str(name))
     if entry is None:

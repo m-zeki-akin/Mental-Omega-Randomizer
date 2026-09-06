@@ -1,4 +1,8 @@
-/* Starting a run, and choosing between the ones already started. */
+/* Starting a Skirmish Shop run, and choosing between the ones started.
+ *
+ * One mode's screen: everything on it is about a run of this mode. What
+ * the launcher itself is set to -- the interface, the theme -- is not,
+ * and lives on the Launcher screen instead. */
 
 import { act, call, register, show } from '../app.js';
 import {
@@ -15,27 +19,42 @@ const COLUMNS = [
   { key: 'forget', label: '' },
 ];
 
-/* What the two dropdowns stand at. Kept while the screen is open so a
- * redraw -- a run started, a run deleted -- does not throw the choice
- * away. The first drawing takes them from the run being played, which is
- * the nearest thing to what this player last chose. */
-let army = null;
-let ally = null;
+/* What the two dropdowns stand at. Kept between redraws -- a run started,
+ * a run forgotten -- so a choice half made is not thrown away, and dropped
+ * whenever it stops naming installed countries. A stale index would
+ * otherwise sit in the control selecting nothing at all. */
+let picked = null;
+
+function armies(countries) {
+  const indexes = countries.map((country) => country.index);
+  const installed = (value) => indexes.includes(value);
+  if (picked && installed(picked.army) && installed(picked.ally)) {
+    return picked;
+  }
+  picked = {
+    army: indexes[0],
+    // Somebody else's side to begin with: the fourth installed country,
+    // which is what the classic window opens on too.
+    ally: indexes[Math.min(3, indexes.length - 1)],
+  };
+  return picked;
+}
 
 function chooser(countries) {
   const options = countries.map((country) => ({
     value: country.index,
     label: country.display,
   }));
+  const standing = armies(countries);
   return panel('New run', [
     el('div', { class: 'row' }, [
       field('Army', select(options, {
-        value: army,
-        onChange: (value) => { army = Number(value); },
+        value: standing.army,
+        onChange: (value) => { standing.army = Number(value); },
       })),
       field('Ally', select(options, {
-        value: ally,
-        onChange: (value) => { ally = Number(value); },
+        value: standing.ally,
+        onChange: (value) => { standing.ally = Number(value); },
       })),
     ]),
     el('div', { class: 'card__body', text:
@@ -46,7 +65,9 @@ function chooser(countries) {
       button('Start run', {
         variant: 'primary',
         onClick: async () => {
-          const started = await act('skirmish.start', { player: army, ally });
+          const started = await act('skirmish.start', {
+            player: standing.army, ally: standing.ally,
+          });
           // Straight to the battle it just dealt. Starting a run and then
           // having to find it is a step nobody wants twice.
           if (started) show('skirmish');
@@ -105,7 +126,7 @@ function runList(runs, active) {
     return notice('No run has been started yet.');
   }
   const rows = runRows(runs, active);
-  const chosen = rows.find((row) => row.run_id === active) || null;
+  const playing = rows.some((row) => row.run_id === active);
   return [
     table(COLUMNS, rows, {
       selected: rows.findIndex((row) => row.run_id === active),
@@ -125,54 +146,20 @@ function runList(runs, active) {
     }),
     el('div', { class: 'row' }, [
       el('span', { class: 'muted', text:
-        chosen
+        playing
           ? 'Selecting another run resumes it.'
           : 'Select a run to resume it.' }),
     ]),
   ];
 }
 
-/* The rest of the launcher is still the old window: the campaign, the
- * Campaign Shop, Archipelago and the settings. Until they are here too,
- * going back has to be one press rather than a command line. */
-function interfacePanel(chosen) {
-  return panel('Interface', [
-    el('div', { class: 'card__body', text:
-      'This interface draws the Skirmish Shop mode. The campaign, the '
-      + 'Campaign Shop, Archipelago and the settings are still in the '
-      + 'classic window.' }),
-    el('div', { class: 'card__footer' }, [
-      el('span', { class: 'muted', text:
-        chosen.new
-          ? 'This interface opens at start.'
-          : 'The classic window opens at start.' }),
-      button(chosen.new ? 'Open the classic window at start' : 'Open this one at start', {
-        variant: 'quiet',
-        onClick: () => act('launcher.use_interface', {
-          name: chosen.new ? 'classic' : 'new',
-        }),
-      }),
-    ]),
-  ]);
-}
-
 async function render(root) {
   const countries = await call('skirmish.countries');
   const { runs, active } = await call('skirmish.runs');
-  const chosen = await call('launcher.interface');
-  if (army === null) {
-    const playing = runs.find((run) => run.run_id === active);
-    army = playing ? playing.player.index : (countries[0] || {}).index;
-    ally = playing
-      ? playing.ally.index
-      : (countries[Math.min(3, countries.length - 1)] || {}).index;
-  }
   root.replaceChildren(
     section('Start', chooser(countries)),
     section('Runs', runList(runs, active)),
-    section(null, interfacePanel(chosen)),
   );
 }
 
-const root = document.getElementById('view-setup');
-register('setup', { root, render: () => render(root) });
+register('setup', render);

@@ -44,8 +44,14 @@ class Bridge:
     until this file is the interface.
     """
 
-    def call(self, name, args=None):
-        return api_call(str(name), **(args or {}))
+    def call(self, action, args=None):
+        """Run one action for the page.
+
+        ``action`` rather than ``name`` for the same reason the registry
+        takes its own positionally: an action may well have an argument
+        called name, and one method's parameter must not be able to eat it.
+        """
+        return api_call(str(action), **(args or {}))
 
     def actions(self):
         return {'ok': True, 'result': list(describe_actions())}
