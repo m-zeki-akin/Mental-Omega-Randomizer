@@ -215,6 +215,17 @@ def load_shop_mode_config() -> ShopModeConfig:
 
 SHOP_CONFIG = load_shop_mode_config()
 
+# What each pacing control is called. Beside the table rather than in one
+# window's layout, because two windows draw these now and a setting that
+# reads differently in each is a setting a player cannot ask about.
+PACING_LABELS = {
+    'shop_stage_income_percent': 'Ore income per stage (%)',
+    'shop_enemy_buffs_per_challenge': 'Enemy buffs for first Challenge',
+    'shop_stage_length': 'Missions per stage',
+    'shop_enemy_adaptive_draft_percent': 'Enemy answers your arsenal (%)',
+    'shop_enemy_hate_draft_count': 'Enemy takes what you leave',
+}
+
 # Player-adjustable run pacing. Each entry is the reward_settings key, the
 # ShopModeConfig field it overrides, and the inclusive range the launcher
 # offers. The configured value is the baseline every run is measured against.
@@ -254,6 +265,69 @@ def run_pacing_overrides(reward_settings, config: ShopModeConfig = SHOP_CONFIG):
         if value != baseline:
             overrides[field] = value
     return overrides
+
+
+# Where the launcher keeps what was picked for the *next* run. Two keys in
+# the player's own settings, and neither holds a baseline: a setting that
+# is not there means the value in shop_mode.json, so rebalancing that file
+# still reaches every player who never moved the control.
+#
+# A run is untouched by any of this once it starts. Its pacing is
+# snapshotted into its own reward_settings, which is what run_shop_config
+# above reads.
+PACING_SETTING_KEY = 'shop_pacing'
+MODIFIER_SETTING_KEY = 'shop_modifiers'
+
+
+def configured_pacing(settings, config: ShopModeConfig = SHOP_CONFIG):
+    """Return the pacing values last chosen, one per pacing key.
+
+    Anything the settings cannot answer for is the baseline: missing, the
+    wrong shape, a key that is not a pacing key, a value out of its range.
+    The player's settings are a text file somebody can edit, and every
+    caller here wants a number it can put in a box.
+    """
+    stored = (settings or {}).get(PACING_SETTING_KEY)
+    if not isinstance(stored, dict):
+        stored = {}
+    return {
+        key: _bounded_setting(
+            stored.get(key), minimum, maximum, getattr(config, field)
+        )
+        for key, (field, minimum, maximum) in RUN_PACING_SETTINGS.items()
+    }
+
+
+def configured_modifiers(settings, config: ShopModeConfig = SHOP_CONFIG):
+    """Return the optional modifiers last turned on, in a stable order."""
+    stored = (settings or {}).get(MODIFIER_SETTING_KEY)
+    if not isinstance(stored, (list, tuple)):
+        return ()
+    wanted = {str(item) for item in stored}
+    # The config's own order, so two launchers list them the same way and
+    # an id the catalogue no longer has simply drops out.
+    return tuple(
+        modifier_id for modifier_id in config.modifiers if modifier_id in wanted
+    )
+
+
+def pacing_to_store(values, config: ShopModeConfig = SHOP_CONFIG):
+    """Return the part of a pacing choice worth writing down.
+
+    Only what differs from the baseline. A control moved and moved back
+    would otherwise pin today's number into the player's settings, where a
+    later rebalance could never reach it.
+    """
+    settings = values or {}
+    stored = {}
+    for key, (field, minimum, maximum) in RUN_PACING_SETTINGS.items():
+        if key not in settings:
+            continue
+        baseline = getattr(config, field)
+        value = _bounded_setting(settings.get(key), minimum, maximum, baseline)
+        if value != baseline:
+            stored[key] = value
+    return stored
 
 
 def run_shop_config(run, config: ShopModeConfig = SHOP_CONFIG):

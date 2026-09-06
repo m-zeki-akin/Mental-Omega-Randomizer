@@ -1,6 +1,6 @@
 """Main window shell, side panel, and information tabs."""
 
-from randomizer.shop.config import RUN_PACING_SETTINGS
+from randomizer.shop.config import PACING_LABELS, RUN_PACING_SETTINGS
 
 from ._builder_dependencies import (
     APP_VERSION,
@@ -782,13 +782,6 @@ def _build_right_panel(self, main_frame):
     )
     for column in range(4):
         pacing_frame.columnconfigure(column, weight=1)
-    pacing_labels = {
-        'shop_stage_income_percent': 'Ore income per stage (%)',
-        'shop_enemy_buffs_per_challenge': 'Enemy buffs for first Challenge',
-        'shop_stage_length': 'Missions per stage',
-        'shop_enemy_adaptive_draft_percent': 'Enemy answers your arsenal (%)',
-        'shop_enemy_hate_draft_count': 'Enemy takes what you leave',
-    }
     for index, (key, (_field, low, high)) in enumerate(
         RUN_PACING_SETTINGS.items()
     ):
@@ -801,7 +794,7 @@ def _build_right_panel(self, main_frame):
             pady=(0, 4),
         )
         ttk.Label(
-            cell, text=pacing_labels.get(key, key),
+            cell, text=PACING_LABELS.get(key, key),
             style='Shop.Help.TLabel',
         ).pack(anchor='w')
         step = 10 if key.endswith('_percent') else 1
@@ -813,6 +806,7 @@ def _build_right_panel(self, main_frame):
             width=6,
             textvariable=self.shop_pacing_vars[key],
             state='readonly',
+            command=self.on_shop_setup_changed,
         ).pack(anchor='w', pady=(2, 0))
 
     modifier_frame = ttk.LabelFrame(
@@ -846,6 +840,7 @@ def _build_right_panel(self, main_frame):
             modifier_card,
             text=f'Enable {definition.display_name}',
             variable=variable,
+            command=self.on_shop_setup_changed,
         )
         checkbutton.grid(row=0, column=0, sticky='w')
         ttk.Label(

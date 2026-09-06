@@ -26,6 +26,7 @@ where they were.
 
 import json
 from contextlib import contextmanager
+from copy import deepcopy
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
@@ -359,6 +360,16 @@ def _store_of_its_own():
     # and clearing the AI file is taken away for the length of the sweep.
     ticket_path = session.SKIRMISH_LAUNCH_PATH
     staged = ai.remove_staged_ai_file
+    # And the player's own settings. A command that takes no arguments --
+    # putting a mode's setup back to its defaults, say -- cannot be made
+    # to refuse the way one that needs a name does, so the sweep is given
+    # settings of its own to write over. The two functions are patched
+    # rather than the path they use: loading also migrates a settings file
+    # from where an older launcher kept it, and a path that does not exist
+    # yet is exactly what makes it move one.
+    from randomizer.config import player as settings_file
+
+    reading, writing = settings_file.load_config, settings_file.save_config
     with TemporaryDirectory(prefix='mo-api-check-') as folder:
         paths = SkirmishPersistencePaths(
             runs=Path(folder) / 'runs.dat',
@@ -370,6 +381,9 @@ def _store_of_its_own():
         session.start = _refuse_to_start
         launch.prepare_battle = _refuse_to_start
         ai.remove_staged_ai_file = lambda *_a, **_k: None
+        held = reading()
+        settings_file.load_config = lambda: deepcopy(held)
+        settings_file.save_config = lambda config: None
         try:
             yield
         finally:
@@ -379,6 +393,8 @@ def _store_of_its_own():
             session.start = starter
             launch.prepare_battle = preparer
             ai.remove_staged_ai_file = staged
+            settings_file.load_config = reading
+            settings_file.save_config = writing
 
 
 def validate_api_contract():

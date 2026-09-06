@@ -25,13 +25,22 @@ const ABOUT = {
     + 'between missions.',
 };
 
-function modePanel(mode, seed) {
+function modePanel(mode, seed, screens) {
   const standing = seed && seed.seed && seed.mode === mode;
+  // A mode with a screen of its own here has had part of it drawn, and
+  // saying the classic window has everything would be false the moment
+  // the player looked at the tab beside this one.
+  const elsewhere = (screens || []).some(
+    (screen) => screen.name !== 'classic' && screen.name !== 'launcher',
+  );
   return panel(mode, {
     body: [
       ABOUT[mode] || '',
-      'This interface does not draw it yet. The classic window does, with '
-      + 'every setting it has.',
+      elsewhere
+        ? 'Its setup is on the tab beside this one; the run itself is '
+          + 'played in the classic window, which draws the rest.'
+        : 'This interface does not draw it yet. The classic window does, '
+          + 'with every setting it has.',
       standing ? `A seed is standing for it: ${seed.seed}.` : '',
     ],
     footer: [
@@ -47,7 +56,9 @@ function modePanel(mode, seed) {
 async function render(root) {
   const modes = await call('launcher.modes');
   root.replaceChildren(
-    section('Mode', modePanel(modes.current, modes.campaign_seed)),
+    section('Mode', modePanel(
+      modes.current, modes.campaign_seed, modes.screens,
+    )),
     section('Meanwhile', notice(
       'The Skirmish Shop mode is drawn here. Switch to it above to play '
       + 'without leaving this interface.',

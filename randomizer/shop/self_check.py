@@ -56,7 +56,15 @@ from .archipelago_purchases import (
     archipelago_purchase_placement_text,
     archipelago_purchase_records,
 )
-from .config import SHOP_CONFIG
+from .config import (
+    MODIFIER_SETTING_KEY,
+    PACING_SETTING_KEY,
+    RUN_PACING_SETTINGS,
+    SHOP_CONFIG,
+    configured_modifiers,
+    configured_pacing,
+    pacing_to_store,
+)
 from .economy import (
     discounted_shop_price,
     mission_reward,
@@ -2143,6 +2151,61 @@ def _gem_pricing_checks():
     }
 
 
+def _run_setup_checks():
+    """What is kept of the next run's setup, and what deliberately is not.
+
+    Two windows read these settings and two windows write them, so the
+    round trip is what matters: a choice comes back as it was made, a
+    value at the baseline is never written down -- a rebalance of
+    shop_mode.json has to reach a player who never moved that control --
+    and a settings file somebody has edited by hand still leaves every
+    control on a number the launcher would offer.
+
+    A run is not part of this. Its pacing is snapshotted when it starts.
+    """
+    baseline = {
+        key: getattr(SHOP_CONFIG, field)
+        for key, (field, _low, _high) in RUN_PACING_SETTINGS.items()
+    }
+    modifier_ids = list(SHOP_CONFIG.modifiers)
+    first = modifier_ids[0] if modifier_ids else ''
+    kept = {
+        PACING_SETTING_KEY: pacing_to_store(
+            {**baseline, 'shop_stage_length': 4}
+        ),
+        MODIFIER_SETTING_KEY: [first],
+    }
+    read_back = configured_pacing(kept)
+    _field, _low, highest = RUN_PACING_SETTINGS['shop_stage_length']
+    edited = {
+        PACING_SETTING_KEY: {'shop_stage_length': 99, 'not_a_setting': 1},
+        MODIFIER_SETTING_KEY: ['not_a_modifier', first],
+    }
+    return {
+        'shop_run_setup_round_trip_valid': bool(
+            modifier_ids
+            and kept[PACING_SETTING_KEY] == {'shop_stage_length': 4}
+            and read_back['shop_stage_length'] == 4
+            and read_back['shop_stage_income_percent']
+            == baseline['shop_stage_income_percent']
+            and configured_modifiers(kept) == (first,)
+        ),
+        'shop_run_setup_keeps_no_baseline_valid': bool(
+            pacing_to_store(baseline) == {}
+            and configured_pacing({}) == baseline
+            and configured_pacing({PACING_SETTING_KEY: {}}) == baseline
+        ),
+        'shop_run_setup_survives_an_edited_file_valid': bool(
+            configured_pacing(None) == baseline
+            and configured_pacing({PACING_SETTING_KEY: 'nonsense'}) == baseline
+            and configured_pacing(edited)['shop_stage_length'] == highest
+            and configured_modifiers(edited) == (first,)
+            and configured_modifiers({MODIFIER_SETTING_KEY: 'nope'}) == ()
+            and configured_modifiers(None) == ()
+        ),
+    }
+
+
 def validate_shop_domain():
     malformed_config = load_static_config('shop_mode.json')
     malformed_config['settings']['run_length'] = 0
@@ -2973,6 +3036,7 @@ def validate_shop_domain():
     details.update(_requested_upgrade_modifier_checks())
     details.update(_upgrade_reward_checks())
     details.update(_gem_pricing_checks())
+    details.update(_run_setup_checks())
     details['valid'] = all(
         value for key, value in details.items()
         if key.endswith('_valid')

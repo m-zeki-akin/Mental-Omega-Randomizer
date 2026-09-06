@@ -29,19 +29,24 @@ BY_MODE = {
     'Classic': (('classic', 'Campaign'),),
     'Mission List': (('classic', 'Campaign'),),
     'Grid Mode': (('classic', 'Campaign'),),
-    'Shop Mode': (('classic', 'Shop'),),
+    # Its setup is here and its run is not: what a run is started with
+    # outlives the run, and both windows read it from one place. The
+    # mode's own panel says where the run itself is played.
+    'Shop Mode': (
+        ('shop', 'Setup'),
+        ('classic', 'Mode'),
+    ),
     'Skirmish Shop': (
         ('skirmish', 'Battle'),
         ('setup', 'Setup'),
         ('records', 'Records'),
     ),
 }
-# The modes drawn here rather than in the classic window. Read from the
-# table rather than listed again: a mode is ported when its screens are.
-PORTED = frozenset(
-    mode for mode, screens in BY_MODE.items()
-    if not all(name == 'classic' for name, _label in screens)
-)
+# The modes that are *played* here, which is not the same as the modes
+# that have a screen here. Shop Mode's setup is drawn and its run is not,
+# and a mode control that called that ported would be telling a player
+# they can play it in this window.
+PORTED = frozenset({'Skirmish Shop'})
 
 
 def known(mode):

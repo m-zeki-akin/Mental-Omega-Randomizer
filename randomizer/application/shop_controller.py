@@ -44,8 +44,13 @@ from randomizer.shop.catalogue import (
 )
 from randomizer.core.diagnostics import event as log_event
 from randomizer.shop.config import (
+    MODIFIER_SETTING_KEY,
+    PACING_SETTING_KEY,
     RUN_PACING_SETTINGS,
     SHOP_CONFIG,
+    configured_modifiers,
+    configured_pacing,
+    pacing_to_store,
     run_shop_config,
 )
 from randomizer.shop.summary import (
@@ -152,16 +157,23 @@ class ShopController(ShopPolishController):
         self.shop_permanent_search_var = tk.StringVar(value='')
         self.shop_sort_var = tk.StringVar(value='Shelf')
         self.shop_summary_var = tk.StringVar(value='No Shop run exists.')
+        # Both halves of the setup are the player's, and both are kept: a
+        # run's own rules are frozen when it starts, but what to start the
+        # next one with used to be forgotten the moment the window closed.
+        saved_modifiers = configured_modifiers(self.config, self.shop_config)
+        saved_pacing = configured_pacing(self.config, self.shop_config)
         self.shop_modifier_vars = {
-            modifier_id: tk.BooleanVar(value=False)
+            modifier_id: tk.BooleanVar(value=modifier_id in saved_modifiers)
             for modifier_id in self.shop_config.modifiers
         }
         for variable in self.shop_modifier_vars.values():
             variable.trace_add('write', self._refresh_shop_modifier_difficulty)
-        # Run pacing the player picks before starting. Defaults are the
-        # configured baseline, which scores zero difficulty.
+        # Run pacing the player picks before starting. Anything never
+        # chosen is the configured baseline, which scores zero difficulty.
         self.shop_pacing_vars = {
-            key: tk.IntVar(value=getattr(self.shop_config, field))
+            key: tk.IntVar(value=saved_pacing.get(key, getattr(
+                self.shop_config, field
+            )))
             for key, (field, _low, _high) in RUN_PACING_SETTINGS.items()
         }
         for variable in self.shop_pacing_vars.values():
@@ -238,9 +250,40 @@ class ShopController(ShopPolishController):
         self.save_current_launcher_config()
         self.refresh_shop_mode()
 
+    def on_shop_setup_changed(self, *_args):
+        """Keep a pacing or modifier choice, and redraw what it changes.
+
+        The difficulty readout follows both, and the choice itself outlives
+        the window now, so the two happen together. This hangs off the
+        widgets rather than off the variables: a variable is also written
+        when the setup is reset or a portable settings file is applied,
+        and neither of those wants a save per control.
+        """
+        self._refresh_shop_modifier_difficulty()
+        self.save_current_launcher_config()
+
     def save_current_launcher_config(self):
         self.config['shop_faction_pool'] = self.shop_faction_pool_var.get()
+        # Only what differs from the configured baseline is written down,
+        # so a control moved and moved back leaves nothing behind to
+        # outlive the next rebalance of shop_mode.json.
+        self.config[PACING_SETTING_KEY] = pacing_to_store(
+            self.shop_pacing_settings(), self.shop_config
+        )
+        self.config[MODIFIER_SETTING_KEY] = list(
+            self.selected_shop_modifier_ids()
+        )
         return super().save_current_launcher_config()
+
+    def selected_shop_modifier_ids(self):
+        """Return the optional modifiers turned on for the next run."""
+        return tuple(
+            modifier_id
+            for modifier_id, variable in getattr(
+                self, 'shop_modifier_vars', {}
+            ).items()
+            if variable.get()
+        )
 
     def apply_portable_settings(self, config):
         result = super().apply_portable_settings(config)
@@ -248,6 +291,14 @@ class ShopController(ShopPolishController):
         self.shop_faction_pool_var.set(
             saved if saved in SHOP_FACTION_POOLS else SHOP_FACTION_POOLS[0]
         )
+        # A settings file carries the next run's setup as well, so the
+        # boxes have to follow it rather than keep what was on screen.
+        saved_pacing = configured_pacing(self.config, self.shop_config)
+        for key, variable in self.shop_pacing_vars.items():
+            variable.set(saved_pacing[key])
+        saved_modifiers = configured_modifiers(self.config, self.shop_config)
+        for modifier_id, variable in self.shop_modifier_vars.items():
+            variable.set(modifier_id in saved_modifiers)
         return result
 
     def sync_shop_workspace(self):
@@ -1765,6 +1816,8 @@ class ShopController(ShopPolishController):
         for variable in self.shop_modifier_vars.values():
             variable.set(False)
         self._refresh_shop_modifier_difficulty()
+        # One save for the whole reset, not one per control.
+        self.save_current_launcher_config()
         self._set_shop_message('Shop setup reset to defaults.')
 
     def shop_pacing_settings(self):
@@ -1816,10 +1869,7 @@ class ShopController(ShopPolishController):
         if not requested_seed:
             self.seed_var.set('')
         settings = self.shop_reward_settings_for_new_run()
-        modifiers = tuple(
-            modifier_id for modifier_id, variable in self.shop_modifier_vars.items()
-            if variable.get()
-        )
+        modifiers = self.selected_shop_modifier_ids()
         effects = modifier_effects(modifiers)
         faction_filter = self.shop_campaign_filter()
         settings['shop_faction_filter'] = faction_filter

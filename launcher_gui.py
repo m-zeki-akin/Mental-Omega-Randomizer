@@ -1232,6 +1232,23 @@ def run_self_check():
             ShopPolishController.refresh_permanent_purchase_buttons
             .__code__.co_names
         )
+        # Two windows now draw one mode's setup, and a setting drawn twice
+        # is a setting that can be read from two places. The classic
+        # window's controls used to start at the configured baseline every
+        # time it opened; both windows go through the same two readers
+        # now, and this is what keeps it that way -- a window that reads
+        # its own variables instead would show one thing while the other
+        # showed another, and nothing would say so.
+        shop_setup_read_once = (
+            'configured_pacing'
+            in ShopController.initialize_shop_controller.__code__.co_names
+            and 'configured_modifiers'
+            in ShopController.initialize_shop_controller.__code__.co_names
+            and 'pacing_to_store'
+            in ShopController.save_current_launcher_config.__code__.co_names
+            and 'configured_pacing'
+            in ShopController.apply_portable_settings.__code__.co_names
+        )
         permanent_purchase_gate_shared = (
             'shop_permanent_purchase_block'
             in ShopController._refresh_permanent_shop.__code__.co_names
@@ -1467,6 +1484,7 @@ def run_self_check():
             # found nothing, it read nothing, or it can no longer tell.
             'undefined_globals_scan_bites': scan_detects_missing_import(),
             'permanent_purchase_gate_shared': permanent_purchase_gate_shared,
+            'shop_setup_read_once_valid': shop_setup_read_once,
             'undefined_globals_valid': (
                 not undefined_global_names
                 and scanned_modules > 50
@@ -1497,6 +1515,7 @@ def run_self_check():
                 'shell_contract_valid',
                 'player_data_contract_valid',
                 'permanent_purchase_gate_shared',
+                'shop_setup_read_once_valid',
                 'undefined_globals_valid',
                 'archipelago_client_contract_valid',
                 'randomizer_unit_roster_valid',

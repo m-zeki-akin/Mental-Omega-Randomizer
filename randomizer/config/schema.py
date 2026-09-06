@@ -233,6 +233,39 @@ def _validate_default_player_config(sections, path):
                 f'Default access_limits.{key} must be a positive integer',
                 path,
             )
+    _validate_shop_setup_defaults(sections['defaults'], path)
+
+
+def _validate_shop_setup_defaults(defaults, path):
+    """What the launcher keeps of a Shop run's setup between runs.
+
+    Both ship empty and are meant to: an unset pacing key means the
+    baseline in shop_mode.json, so a rebalance there still reaches a
+    player who never moved the control. What is checked is that they are
+    the right shape and that a pacing key is one the launcher has.
+    """
+    from randomizer.shop.config import (
+        MODIFIER_SETTING_KEY,
+        PACING_SETTING_KEY,
+        RUN_PACING_SETTINGS,
+    )
+
+    pacing = defaults.get(PACING_SETTING_KEY)
+    if not isinstance(pacing, dict):
+        _invalid(f"Default {PACING_SETTING_KEY!r} must be an object", path)
+    for key, value in pacing.items():
+        if key not in RUN_PACING_SETTINGS:
+            _invalid(f'Unknown run pacing setting {key!r}', path)
+        if not isinstance(value, int) or isinstance(value, bool):
+            _invalid(f'Run pacing {key!r} must be a whole number', path)
+    modifiers = defaults.get(MODIFIER_SETTING_KEY)
+    if not isinstance(modifiers, list) or not all(
+        _is_nonempty_string(item) for item in modifiers
+    ):
+        _invalid(
+            f"Default {MODIFIER_SETTING_KEY!r} must be a list of modifier ids",
+            path,
+        )
 
 
 def _validate_missions(sections, path):

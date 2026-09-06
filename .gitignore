@@ -12,6 +12,7 @@ shop_run.json
 shop_transaction.json
 skirmish_runs.dat
 skirmish_leaderboard.dat
+launcher.lock
 self_check.json
 RandomizerLauncherData/
 logs/
