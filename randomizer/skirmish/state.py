@@ -190,6 +190,7 @@ def normalize_skirmish_run(document):
         shelf=_shelf(document.get('shelf')),
         committed_offer=committed,
         won_battles=_int(document.get('won_battles'), 'won_battles'),
+        nightmare=_int(document.get('nightmare'), 'nightmare'),
         used_challenge_maps=tuple(
             dict.fromkeys(
                 _string(path, 'used_challenge_maps[]', required=True)

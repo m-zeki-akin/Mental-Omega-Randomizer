@@ -14,7 +14,13 @@ from dataclasses import replace
 
 from randomizer.shop.model import RunStatus
 
-from .model import DEFAULT_LIVES, WARMUP_BATTLE, SkirmishRun
+from .model import (
+    BATTLES_PER_TIER,
+    DEFAULT_LIVES,
+    TIER_COUNT,
+    WARMUP_BATTLE,
+    SkirmishRun,
+)
 from .progression import is_challenge_battle, is_warmup
 from .shop import (
     ally_shopping,
@@ -118,7 +124,7 @@ def record_victory(run, *, ally_country=None):
         (run.ally_purchases, run.ally_coins + reward) if not ally_country
         else ally_shopping(run, ally_country, run.ally_coins + reward)
     )
-    return replace(
+    won = replace(
         run,
         battle=run.battle + 1,
         won_battles=run.won_battles + 1,
@@ -130,6 +136,40 @@ def record_victory(run, *, ally_country=None):
         committed_offer=None,
         used_challenge_maps=used,
     )
+    if won.battle <= TIER_COUNT * BATTLES_PER_TIER:
+        return won
+    return enter_nightmare(won, ally_country=ally_country)
+
+
+def enter_nightmare(run, *, ally_country=None):
+    """Start the nine tiers again, with both your armies stripped.
+
+    What the enemies have they keep -- their tiers do not reset, they
+    begin again from the top with everything the last walk taught them.
+    What you have goes: the Ore, the upgrades, and the ally's too. A
+    Nightmare run is the same nine tiers fought by an army that has to be
+    built again.
+    """
+    stripped = replace(
+        run,
+        battle=WARMUP_BATTLE + 1,
+        nightmare=run.nightmare + 1,
+        coins=STARTING_ORE,
+        purchases=(),
+        ally_coins=STARTING_ORE,
+        ally_purchases=(),
+        offers=(),
+        shelf=(),
+        committed_offer=None,
+    )
+    if not ally_country:
+        return stripped
+    # The ally is equipped again before the first shot, the way it was at
+    # the start of the run.
+    purchases, left = ally_shopping(
+        stripped, ally_country, stripped.ally_coins
+    )
+    return replace(stripped, ally_purchases=purchases, ally_coins=left)
 
 
 def buy_upgrade(run, upgrade):
@@ -203,10 +243,14 @@ def give_up(run):
 def run_progress_text(run):
     """The headline: where the run is and what it has left."""
     lives = run.lives_left
+    round_name = f'Nightmare {run.nightmare} — ' if run.nightmare else ''
     if is_warmup(run.battle):
-        return f'Warmup — {lives} {"life" if lives == 1 else "lives"} in hand'
+        return (
+            f'{round_name}Warmup — '
+            f'{lives} {"life" if lives == 1 else "lives"} in hand'
+        )
     challenge = ' — challenge' if is_challenge_battle(run.battle) else ''
     return (
-        f'Battle {run.battle} — tier {run.tier}{challenge} — '
+        f'{round_name}Battle {run.battle} — tier {run.tier}{challenge} — '
         f'{lives} {"life" if lives == 1 else "lives"}'
     )

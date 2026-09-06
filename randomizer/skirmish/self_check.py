@@ -1099,7 +1099,12 @@ def _shop_checks():
         purchase_stacks,
         shelf_for,
     )
-    from .transitions import buy_upgrade, record_defeat, start_run
+    from .transitions import (
+        buy_upgrade,
+        record_defeat,
+        run_progress_text,
+        start_run,
+    )
 
     # Fixed by the tier the battle was fought in, and doubled for a
     # challenge. Never by score: a score can be farmed by dragging a won
@@ -1168,6 +1173,40 @@ def _shop_checks():
         > battle_reward(1, bonus_percent=0)
         and battle_reward(5, challenge=True, bonus_percent=0)
         == BATTLE_REWARD * 2
+    )
+
+    # The ninth tier does not end the run: it starts it again, harder.
+    from .model import BATTLES_PER_TIER as _per_tier, TIER_COUNT
+    from .transitions import enter_nightmare
+
+    last = replace(
+        start_run(
+            run_id='nightmare-check', seed='NIGHTMARE', player_country=0,
+            ally_country=3,
+        ),
+        battle=TIER_COUNT * _per_tier,
+        coins=900,
+        purchases=(UpgradePurchase('GGI', 'speed', 1),),
+        used_challenge_maps=('a.map', 'b.map'),
+        won_battles=40,
+    )
+    again = enter_nightmare(last, ally_country='USSR')
+    nightmare_valid = bool(
+        again.nightmare == 1
+        and again.battle == 1
+        # Both your armies start again with nothing bought and the opening
+        # Ore, and the ally is equipped before the first shot.
+        and again.coins == STARTING_ORE
+        and not again.purchases
+        and again.ally_purchases
+        and again.ally_coins < STARTING_ORE
+        # What the run has been through is not forgotten.
+        and again.won_battles == last.won_battles
+        and again.used_challenge_maps == last.used_challenge_maps
+        and again.lives_left == last.lives_left
+        # And it says which time round it is.
+        and 'Nightmare 1' in run_progress_text(again)
+        and enter_nightmare(again).nightmare == 2
     )
 
     reward_valid = bool(
@@ -1485,6 +1524,7 @@ def _shop_checks():
     return {
         'skirmish_warmup_valid': warmup_valid,
         'skirmish_offer_bonuses_valid': bonus_valid,
+        'skirmish_nightmare_valid': nightmare_valid,
         'skirmish_battle_reward_valid': reward_valid,
         'skirmish_purchase_valid': purchase_valid,
         'skirmish_ally_shops_alone_valid': ally_valid,

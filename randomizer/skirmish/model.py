@@ -23,6 +23,9 @@ SKIRMISH_RUN_COLLECTION_SCHEMA_VERSION = 1
 # is fought on a challenge map. The two are the same number on purpose: the
 # challenge is what closes a tier.
 BATTLES_PER_TIER = 5
+# How many tiers one walk through the run is. The tenth tier does not
+# exist: finishing the ninth starts the walk again, harder.
+TIER_COUNT = 9
 # The battle number a run opens on. Everything counted from one is a tier
 # battle; zero is the warmup, which is none of them.
 WARMUP_BATTLE = 0
@@ -129,10 +132,19 @@ class SkirmishRun:
     shelf: tuple[str, ...] = ()
     committed_offer: int | None = None
     won_battles: int = 0
+    # How many times the nine tiers have been walked. Zero is the first
+    # run through; one and up are Nightmare, where the enemies keep
+    # everything they have and both your armies start again with nothing.
+    nightmare: int = 0
     # Relative paths, so a challenge is not offered twice until the pool has
     # been through once.
     used_challenge_maps: tuple[str, ...] = ()
     schema_version: int = SKIRMISH_RUN_SCHEMA_VERSION
+
+    @property
+    def cycle_battles(self):
+        """How many battles one walk through the tiers is."""
+        return TIER_COUNT * BATTLES_PER_TIER
 
     @property
     def warmup(self):
@@ -185,6 +197,7 @@ class SkirmishRun:
             'shelf': list(self.shelf),
             'committed_offer': self.committed_offer,
             'won_battles': self.won_battles,
+            'nightmare': self.nightmare,
             'used_challenge_maps': list(self.used_challenge_maps),
         }
 
