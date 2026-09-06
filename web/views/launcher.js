@@ -8,17 +8,18 @@ import { act, applyTheme, call, register } from '../app.js';
 import { button, el, notice, panel, pill, section } from '../components/index.js';
 
 function interfacePanel(appearance) {
-  return panel('Interface', [
-    el('div', { class: 'card__body', text:
-      'Two interfaces read the same runs and the same settings. This one '
-      + 'draws the Skirmish Shop mode; the classic window draws every '
-      + 'mode, and is what a start opens unless you say otherwise.' }),
-    el('div', { class: 'card__footer' }, [
+  return panel('Interface', {
+    body: 'Two interfaces read the same runs and the same settings. This '
+      + 'one draws the Skirmish Shop mode; the classic window draws every '
+      + 'mode, and is what a start opens unless you say otherwise.',
+    footer: [
       el('span', { class: 'muted', text: appearance.new
         ? 'This interface opens at start.'
         : 'The classic window opens at start.' }),
       button(
-        appearance.new ? 'Open the classic window at start' : 'Open this one at start',
+        appearance.new
+          ? 'Open the classic window at start'
+          : 'Open this one at start',
         {
           variant: 'quiet',
           onClick: () => act('launcher.use_interface', {
@@ -26,16 +27,15 @@ function interfacePanel(appearance) {
           }),
         },
       ),
-    ]),
-  ]);
+    ],
+  });
 }
 
 function themePanel(appearance) {
-  return panel('Theme', [
-    el('div', { class: 'card__body', text:
-      'One setting for both interfaces: the classic window calls it dark '
-      + 'mode.' }),
-    el('div', { class: 'card__footer' }, [
+  return panel('Theme', {
+    body: 'One setting for both interfaces: the classic window calls it '
+      + 'dark mode.',
+    footer: [
       el('span', { class: 'muted' }, [
         'Drawn ', pill(appearance.theme, 'accent'), ' now.',
       ]),
@@ -48,8 +48,8 @@ function themePanel(appearance) {
           }
         },
       }),
-    ]),
-  ]);
+    ],
+  });
 }
 
 function classicSeed(seed) {

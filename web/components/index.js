@@ -70,12 +70,38 @@ export function figure(source, alt) {
   ]);
 }
 
-/** A titled box for what is not a list. */
-export function panel(title, children) {
+/**
+ * A titled box for what is not a list.
+ *
+ * `body` is what it says, as one string or several; `footer` is the row
+ * along the bottom, where what a panel costs sits opposite what you do
+ * about it. Both are slots because the callers were writing the card's
+ * own class names to get them, which made every screen a place the card
+ * could break.
+ */
+export function panel(title, { body, footer, children } = {}) {
+  const lines = [].concat(body || []).filter(Boolean);
   return el('section', { class: 'panel' }, [
     title && el('div', { class: 'panel__title', text: title }),
-    ...[].concat(children).filter(Boolean),
+    ...lines.map((line) => (
+      line instanceof Node ? line : el('p', { class: 'panel__body', text: line })
+    )),
+    ...[].concat(children || []).filter(Boolean),
+    footer && footer.length
+      ? el('div', { class: 'panel__footer' }, footer)
+      : null,
   ]);
+}
+
+/**
+ * A row of things, side by side.
+ *
+ * `spread` pushes the last child to the far end -- what a screen wants
+ * whenever a sentence sits opposite a button. Screens used to reach for
+ * the title bar's own spacer to get it.
+ */
+export function row(children, { spread } = {}) {
+  return el('div', { class: spread ? 'row row--spread' : 'row' }, children);
 }
 
 /** A band of one screen, with a name above it. */

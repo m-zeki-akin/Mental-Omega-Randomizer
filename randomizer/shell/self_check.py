@@ -26,6 +26,11 @@ RAW_PIXELS = re.compile(r':\s*-?\d+px')
 PIXEL_EXCEPTIONS = re.compile(r':\s*-?(0|1|2|3|10)px')
 # Writing markup, rather than mentioning it.
 MARKUP_WRITE = re.compile(r'\.(inner|outer)HTML\s*=')
+# A class belonging to something else. A screen that writes the card's
+# own class names is a screen the card cannot be changed without, and one
+# that writes the title bar's is a screen reaching outside itself. The
+# components own their insides; the shell owns its bands.
+BORROWED = re.compile(r"class:\s*'[^']*(card__|titlebar__|panel__)")
 
 
 def _read(path):
@@ -33,6 +38,40 @@ def _read(path):
         return path.read_text(encoding='utf-8', errors='ignore')
     except OSError:
         return ''
+
+
+def _views_keep_to_themselves(root):
+    """Return the views reaching for something another thing owns.
+
+    Two ways of reaching, both of which were there before this looked:
+    writing a component's own class names to get at its insides, and
+    naming the shell's bands from inside a screen. A view that does either
+    breaks when the thing it borrowed from changes, and nothing says so.
+    """
+    borrowing = []
+    for path in sorted((root / 'views').glob('*.js')):
+        text = _read(path)
+        for match in BORROWED.finditer(text):
+            borrowing.append(f'{path.name}: {match.group(1)}')
+        # And the container it draws into is given to it, never found.
+        if 'getElementById' in text or 'document.querySelector' in text:
+            borrowing.append(f'{path.name}: reaches into the page')
+    return borrowing
+
+
+def _views_register_their_own_name(root):
+    """Return the views registering under a name that is not their file's.
+
+    A screen is named once -- by its file, by the table, and by the panel
+    it is drawn into. A view registering something else is a tab pointing
+    at nothing, or two views quietly sharing one name.
+    """
+    wrong = []
+    for path in sorted((root / 'views').glob('*.js')):
+        names = re.findall(r"register\('([a-z]+)'", _read(path))
+        if names != [path.stem]:
+            wrong.append(f'{path.name}: {names or "registers nothing"}')
+    return wrong
 
 
 def _choice_valid():
@@ -187,8 +226,13 @@ def validate_shell_contract():
         and loaded == named
     )
 
+    borrowing = _views_keep_to_themselves(root)
+    misnamed = _views_register_their_own_name(root)
+
     return {
         'shell_pages_present_valid': present,
+        'shell_views_keep_to_themselves_valid': not borrowing,
+        'shell_views_are_named_once_valid': not misnamed,
         'shell_interface_choice_valid': _choice_valid(),
         'shell_falls_back_to_the_old_window_valid': _fallback_valid(),
         'shell_tokens_are_the_only_palette_valid': not stray_colours,
@@ -206,5 +250,7 @@ def validate_shell_contract():
             and markup_free
             and components_pure
             and screens_valid
+            and not borrowing
+            and not misnamed
         ),
     }

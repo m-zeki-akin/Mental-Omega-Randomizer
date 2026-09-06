@@ -26,23 +26,22 @@ const ABOUT = {
 };
 
 function modePanel(mode, seed) {
-  return panel(mode, [
-    el('div', { class: 'card__body', text: ABOUT[mode] || '' }),
-    el('div', { class: 'card__body muted', text:
+  const standing = seed && seed.seed && seed.mode === mode;
+  return panel(mode, {
+    body: [
+      ABOUT[mode] || '',
       'This interface does not draw it yet. The classic window does, with '
-      + 'every setting it has.' }),
-    seed && seed.seed && seed.mode === mode
-      ? el('div', { class: 'card__body', text:
-        `A seed is standing for it: ${seed.seed}.` })
-      : null,
-    el('div', { class: 'card__footer' }, [
+      + 'every setting it has.',
+      standing ? `A seed is standing for it: ${seed.seed}.` : '',
+    ],
+    footer: [
       el('span', { class: 'muted', text: 'Takes effect at the next start.' }),
       button('Open the classic window at start', {
         variant: 'primary',
         onClick: () => act('launcher.use_interface', { name: 'classic' }),
       }),
-    ]),
-  ]);
+    ],
+  });
 }
 
 async function render(root) {

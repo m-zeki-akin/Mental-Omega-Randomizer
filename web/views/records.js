@@ -1,6 +1,6 @@
 /* Runs that have ended, furthest first. */
 
-import { call, register } from '../app.js';
+import { call, refresh, register } from '../app.js';
 import { notice, section, stats, table } from '../components/index.js';
 
 const COLUMNS = [
@@ -14,6 +14,10 @@ const COLUMNS = [
   { key: 'ended', label: 'Ended' },
 ];
 
+/* Which run is being looked at, by its own id rather than by where it sat
+ * in the list. The board is kept furthest first, so one run ending moves
+ * every row below it -- and a remembered position would then be pointing
+ * at somebody else's run. */
 let selected = null;
 
 async function render(root) {
@@ -23,19 +27,20 @@ async function render(root) {
     return;
   }
   const rows = entries.map((entry) => {
-    const row = {};
+    const row = { run_id: entry.run_id };
     COLUMNS.forEach((column, index) => {
       row[column.key] = entry.row[index];
     });
     return row;
   });
-  const chosen = entries[selected] || null;
+  const at = rows.findIndex((row) => row.run_id === selected);
+  const chosen = at < 0 ? null : entries[at];
   root.replaceChildren(
     section('Records', table(COLUMNS, rows, {
-      selected,
-      onSelect: (_row, index) => {
-        selected = index;
-        render(root);
+      selected: at < 0 ? null : at,
+      onSelect: (row) => {
+        selected = row.run_id;
+        refresh();
       },
     })),
     chosen

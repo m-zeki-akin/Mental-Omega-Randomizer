@@ -192,6 +192,9 @@ p { margin: 0; }
   flex-wrap: wrap;
 }
 
+/* A sentence on one side, what you do about it on the other. */
+.row--spread { justify-content: space-between; }
+
 .muted { color: var(--text-muted); }
 .faint { color: var(--text-faint); }
 .ore { color: var(--ore); font-weight: var(--weight-bold); }

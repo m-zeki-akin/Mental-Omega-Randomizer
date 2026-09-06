@@ -6,7 +6,7 @@
 
 import { act, call, register, show } from '../app.js';
 import {
-  button, el, field, notice, panel, pill, section, select, table,
+  button, el, field, notice, panel, pill, row, section, select, table,
 } from '../components/index.js';
 
 const COLUMNS = [
@@ -46,8 +46,8 @@ function chooser(countries) {
     label: country.display,
   }));
   const standing = armies(countries);
-  return panel('New run', [
-    el('div', { class: 'row' }, [
+  return panel('New run', {
+    children: row([
       field('Army', select(options, {
         value: standing.army,
         onChange: (value) => { standing.army = Number(value); },
@@ -57,10 +57,9 @@ function chooser(countries) {
         onChange: (value) => { standing.ally = Number(value); },
       })),
     ]),
-    el('div', { class: 'card__body', text:
-      'A run begins with a warmup you may skip. The ally shops with you, '
-      + 'out of what your victories pay.' }),
-    el('div', { class: 'card__footer' }, [
+    body: 'A run begins with a warmup you may skip. The ally shops with '
+      + 'you, out of what your victories pay.',
+    footer: [
       el('span', { class: 'muted', text: 'The seed is drawn for you.' }),
       button('Start run', {
         variant: 'primary',
@@ -73,8 +72,8 @@ function chooser(countries) {
           if (started) show('skirmish');
         },
       }),
-    ]),
-  ]);
+    ],
+  });
 }
 
 function runRows(runs, active) {
@@ -89,10 +88,10 @@ function runRows(runs, active) {
   }));
 }
 
-function stateCell(row, active) {
-  if (row.run_id === active) return pill('playing', 'accent');
-  if (row.state === 'active') return pill('open');
-  return pill(row.state, 'danger');
+function stateCell(entry, active) {
+  if (entry.run_id === active) return pill('playing', 'accent');
+  if (entry.state === 'active') return pill('open');
+  return pill(entry.state, 'danger');
 }
 
 /**
@@ -126,25 +125,25 @@ function runList(runs, active) {
     return notice('No run has been started yet.');
   }
   const rows = runRows(runs, active);
-  const playing = rows.some((row) => row.run_id === active);
+  const playing = rows.some((entry) => entry.run_id === active);
   return [
     table(COLUMNS, rows, {
-      selected: rows.findIndex((row) => row.run_id === active),
-      cell: (row, key) => {
-        if (key === 'state') return stateCell(row, active);
+      selected: rows.findIndex((entry) => entry.run_id === active),
+      cell: (entry, key) => {
+        if (key === 'state') return stateCell(entry, active);
         if (key === 'forget') {
           return forgetButton(() => act('skirmish.delete', {
-            run_id: row.run_id,
+            run_id: entry.run_id,
           }));
         }
-        return row[key];
+        return entry[key];
       },
-      onSelect: async (row) => {
-        if (row.run_id === active) return;
-        await act('skirmish.resume', { run_id: row.run_id });
+      onSelect: async (entry) => {
+        if (entry.run_id === active) return;
+        await act('skirmish.resume', { run_id: entry.run_id });
       },
     }),
-    el('div', { class: 'row' }, [
+    row([
       el('span', { class: 'muted', text:
         playing
           ? 'Selecting another run resumes it.'

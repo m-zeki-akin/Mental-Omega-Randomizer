@@ -224,6 +224,19 @@
   font-size: var(--size-base);
 }
 
+.panel__body {
+  color: var(--text-muted);
+  font-size: var(--size-sm);
+}
+
+.panel__footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  margin-top: var(--space-1);
+}
+
 /* --- field ------------------------------------------------------------ */
 .field {
   display: grid;

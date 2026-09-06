@@ -2,7 +2,8 @@
 
 import { act, call, refresh, register, status } from '../app.js';
 import {
-  button, card, count, el, figure, grid, notice, pill, section, stats,
+  button, card, count, el, figure, grid, notice, pill, row, section,
+  stats,
 } from '../components/index.js';
 
 const SKILL_VARIANT = {
@@ -28,8 +29,21 @@ function offerPills(offer) {
 
 /* One picture per map, fetched once. They run to a hundred kilobytes and
  * they do not change, so asking for them again on every redraw would be
- * the most expensive thing this screen does. */
+ * the most expensive thing this screen does.
+ *
+ * Kept to the last few, because there are seven hundred maps installed
+ * and a launcher left open through a long run would otherwise hold every
+ * one it had ever been offered. Insertion order is eviction order, which
+ * is what a Map already gives. */
 const previews = new Map();
+const KEEP_PREVIEWS = 24;
+
+function keepPreview(path, uri) {
+  previews.set(path, uri);
+  while (previews.size > KEEP_PREVIEWS) {
+    previews.delete(previews.keys().next().value);
+  }
+}
 
 async function loadPreviews(offers) {
   await Promise.all(offers
@@ -39,9 +53,9 @@ async function loadPreviews(offers) {
         const answer = await call('skirmish.preview', {
           map_path: offer.map_path,
         });
-        previews.set(offer.map_path, answer.uri || '');
+        keepPreview(offer.map_path, answer.uri || '');
       } catch {
-        previews.set(offer.map_path, '');
+        keepPreview(offer.map_path, '');
       }
     }));
 }
@@ -92,23 +106,46 @@ function upgradeCard(upgrade, run) {
   });
 }
 
+/**
+ * A button that asks once.
+ *
+ * Ending a run cannot be undone and there are no dialogs on these
+ * screens, so the button becomes the question and the second press is the
+ * answer -- the same bargain the run list makes before forgetting one.
+ */
+function giveUpButton(run) {
+  let asked = false;
+  const node = button('Give up run', {
+    variant: 'danger',
+    disabled: !run.active,
+    onClick: async () => {
+      if (!asked) {
+        asked = true;
+        node.textContent = 'End this run?';
+        return;
+      }
+      await act('skirmish.give_up');
+    },
+  });
+  return node;
+}
+
 function header(run) {
-  return el('div', { class: 'row' }, [
-    el('strong', { text: run.progress }),
-    pill(`${run.player.display}`, 'accent'),
-    pill(`ally: ${run.ally.display}`),
-    el('span', { class: 'ore', text: `${count(run.coins)} Ore` }),
-    el('span', { class: 'titlebar__spacer' }),
-    run.warmup && button('Skip warmup', {
-      variant: 'quiet',
-      onClick: () => act('skirmish.skip_warmup'),
-    }),
-    button('Give up run', {
-      variant: 'danger',
-      disabled: !run.active,
-      onClick: () => act('skirmish.give_up'),
-    }),
-  ]);
+  return row([
+    el('div', { class: 'row' }, [
+      el('strong', { text: run.progress }),
+      pill(`${run.player.display}`, 'accent'),
+      pill(`ally: ${run.ally.display}`),
+      el('span', { class: 'ore', text: `${count(run.coins)} Ore` }),
+    ]),
+    el('div', { class: 'row' }, [
+      run.warmup && button('Skip warmup', {
+        variant: 'quiet',
+        onClick: () => act('skirmish.skip_warmup'),
+      }),
+      giveUpButton(run),
+    ]),
+  ], { spread: true });
 }
 
 /* While a battle is up there is nothing to decide, so the screen says so
@@ -167,6 +204,14 @@ async function render(root) {
   }
   await loadPreviews(run.offers);
   const parts = [section(null, header(run))];
+  if (!run.active) {
+    // A run that is over keeps its table on screen with everything on it
+    // refused, which reads as a launcher that has stopped working rather
+    // than as a run that has stopped.
+    parts.push(section(null, notice(
+      `This run is over — ${run.status}. Start another on the Setup tab.`,
+    )));
+  }
   if (run.offers.length) {
     parts.push(section(
       run.warmup ? 'Warmup' : `Battle ${run.battle}`,
