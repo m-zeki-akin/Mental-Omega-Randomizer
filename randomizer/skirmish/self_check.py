@@ -214,6 +214,20 @@ def _spawn_checks():
     spawn = _parsed(text)
     settings = spawn['Settings']
 
+    # Every key the spawner reads that this mode has an answer for. A key
+    # left out is not defaulted to the sensible thing: it is read as off,
+    # which is how a whole run was played with no superweapons in it.
+    spawner_keys_valid = bool(
+        settings['Superweapons'] == 'True'
+        and settings['Bases'] == 'True'
+        and settings['MultipleFactory'] == 'True'
+        and settings['BridgeDestroy'] == 'True'
+        and settings['HarvesterTruce'] == 'False'
+        # The match-wide AI difficulty, on the same scale as the per-house
+        # handicaps: 0 is Hard.
+        and settings['AIDifficulty'] == '0'
+    )
+
     # The launch that failed: the campaign writer's keys have no place here.
     no_campaign_keys = not any(
         key.lower() in CAMPAIGN_ONLY_KEYS
@@ -271,6 +285,7 @@ def _spawn_checks():
     )
     return {
         'skirmish_spawn_no_campaign_keys_valid': no_campaign_keys,
+        'skirmish_spawn_spawner_keys_valid': spawner_keys_valid,
         'skirmish_spawn_human_is_settings_only_valid': human_in_settings_only,
         'skirmish_spawn_ai_tables_valid': ai_tables_valid,
         'skirmish_spawn_alliances_valid': alliances_valid,

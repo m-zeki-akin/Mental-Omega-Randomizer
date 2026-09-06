@@ -47,7 +47,24 @@ DEFAULT_LOAD_SCREEN = 'Resources/l600s21.pcx'
 
 # The match rules a battle is played under. Kept together so a run can change
 # one of them without the caller restating the rest.
+# The spawner's own [Settings] keys, read out of cncnet5.dll: UnitCount,
+# Scenario, GameSpeed, Seed, TechLevel, AIPlayers, AIDifficulty,
+# BuildOffAlly, Superweapons, HarvesterTruce, GameMode, BridgeDestroy,
+# FogOfWar, Crates, ShortGame, Bases, MCVRedeploy, Credits, Name, Side,
+# Color, MultiEngineer, Firestorm, AlliesAllowed, IsSpectator, MultiN.
+# A key that is not written is not defaulted to the sensible thing -- it is
+# read as off. That is how a whole run was played with no superweapons in
+# it: nobody had written Superweapons at all.
 DEFAULT_MATCH_OPTIONS = {
+    'Superweapons': 'True',
+    # Whether a house may build a base rather than fight with what it
+    # starts with. Off would be a different game entirely.
+    'Bases': 'True',
+    # The multiple-factory build bonus, and the two rules a skirmish is
+    # normally played with. All three are the client's own defaults.
+    'MultipleFactory': 'True',
+    'HarvesterTruce': 'False',
+    'BridgeDestroy': 'True',
     'ShortGame': 'True',
     'NoGarrisons': 'False',
     'MCVRedeploy': 'True',
@@ -102,6 +119,7 @@ def skirmish_spawn_ini_text(
     player_color,
     houses,
     seed,
+    difficulty=None,
     player_name='Commander',
     game_mode='Standard',
     spawn_locations=True,
@@ -126,6 +144,13 @@ def skirmish_spawn_ini_text(
     hostile = [multi for multi, house in numbered if not house.friendly]
 
     settings = match_settings(options)
+    # The spawner keeps a match-wide AI difficulty beside the per-house
+    # handicaps, on the same scale: 0 is Hard. Left unwritten it is read as
+    # 0 like everything else, which is not the same as being told.
+    if difficulty is None and houses:
+        difficulty = min(house.handicap for house in houses)
+    if difficulty is not None:
+        settings.setdefault('AIDifficulty', str(int(difficulty)))
     lines = [
         '[Settings]',
         f'Name={player_name}',

@@ -5,6 +5,14 @@ belongs in the code's own comments, not here.
 
 ## Skirmish Shop
 
+- **Locking the game speed inside a match.** A run is played at the speed
+  `locked_game_speed` names, written into both `spawn.ini` and the in-game
+  options, and the player can still move the slider mid-match. Dropping
+  `-SPEEDCONTROL` from the command line was tried and changed nothing, so
+  the flag is back to matching the client. The spawner's own `[Settings]`
+  keys, read out of `cncnet5.dll`, hold nothing about speed control either.
+  Whatever the lever is, it has not been found.
+
 - **Game speed as a difficulty dial.** A run is locked to the speed named by
   `locked_game_speed` in `configs/ui.json`, which is `1` — the value Mental
   Omega's own client calls "5 Faster" and its skirmish default. A slower

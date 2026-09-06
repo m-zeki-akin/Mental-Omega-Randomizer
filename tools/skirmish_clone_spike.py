@@ -450,7 +450,7 @@ def main(argv=None):
 
     command = windows_syringe_command_line([
         str(game_root / 'Syringe.exe'),
-        'gamemd.exe', '-SPAWN', '-CD', '-LOG',
+        'gamemd.exe', '-SPAWN', '-CD', '-SPEEDCONTROL', '-LOG',
     ])
     print('launching:', command)
     subprocess.Popen(command, cwd=str(game_root))
