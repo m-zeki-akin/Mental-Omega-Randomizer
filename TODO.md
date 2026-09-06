@@ -5,13 +5,15 @@ belongs in the code's own comments, not here.
 
 ## Skirmish Shop
 
-- **Locking the game speed inside a match.** A run is played at the speed
-  `locked_game_speed` names, written into both `spawn.ini` and the in-game
-  options, and the player can still move the slider mid-match. Dropping
-  `-SPEEDCONTROL` from the command line was tried and changed nothing, so
-  the flag is back to matching the client. The spawner's own `[Settings]`
-  keys, read out of `cncnet5.dll`, hold nothing about speed control either.
-  Whatever the lever is, it has not been found.
+- **Confirm the speed slider is inert.** The slider cannot be removed --
+  it lives in the game executable -- so every one of its positions is given
+  the locked speed's delay through Phobos's `[GlobalControls] CustomGS`
+  table, written as map code. Moving it should now change nothing. Not yet
+  watched in a battle. If `DefaultDelay` turns out not to be the step's
+  frame delay, the other two keys Phobos reads for each step
+  (`ChangeInterval`, `ChangeDelay`) are where to look next. Dropping
+  `-SPEEDCONTROL` was tried first and changed nothing; the spawner's own
+  `[Settings]` keys, read out of `cncnet5.dll`, hold nothing about speed.
 
 - **Game speed as a difficulty dial.** A run is locked to the speed named by
   `locked_game_speed` in `configs/ui.json`, which is `1` — the value Mental

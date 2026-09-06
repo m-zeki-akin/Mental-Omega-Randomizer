@@ -59,6 +59,7 @@ from randomizer.skirmish.ai import (
 )
 from randomizer.skirmish.clones import apply_house_clones
 from randomizer.skirmish.seats import apply_seat, pick_seat
+from randomizer.skirmish.speed import apply_locked_speed
 from randomizer.skirmish.shop import (
     draw_shelf,
     owned_stacks,
@@ -865,6 +866,10 @@ class SkirmishController:
         # settings are read after a challenge has forced its own, so the
         # flag and the file can never disagree.
         merge_game_options(SPAWN_MAP_INI, match_settings(options))
+        # The slider in the in-game menu is not ours to remove, but what
+        # its positions mean is: every step is given the locked speed's
+        # delay, so moving it changes nothing.
+        apply_locked_speed(SPAWN_MAP_INI, battle['game_speed'])
         if described is not None:
             code = map_code_path(game_mode)
             if code is not None:

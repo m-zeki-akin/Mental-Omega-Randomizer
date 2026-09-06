@@ -761,9 +761,25 @@ def _option_checks():
         # And an option this mode leaves off brings nothing with it.
         and 'naval combat.ini' not in names
     )
+    # The in-game speed slider cannot be taken away, so every one of its
+    # positions is given the same delay as the speed the run is locked to.
+    from .speed import GLOBAL_CONTROLS, SPEED_STEPS, locked_speed_code
+
+    controls = locked_speed_code(1).get(GLOBAL_CONTROLS) or {}
+    speed_valid = bool(
+        controls.get('CustomGS') == 'yes'
+        and len(controls) == SPEED_STEPS + 1
+        and {
+            value for key, value in controls.items() if key != 'CustomGS'
+        } == {'1'}
+        and locked_speed_code(4)[GLOBAL_CONTROLS]['CustomGS0.DefaultDelay']
+        == '4'
+        and not locked_speed_code(None)
+    )
     return {
         'skirmish_game_options_known': known_valid,
         'skirmish_game_options_merged': merged_valid,
+        'skirmish_speed_slider_inert': speed_valid,
     }
 
 
