@@ -134,3 +134,30 @@ is whether the game does what they ask. Each names what to look at.
   because the flag comes from the client's resources by country index rather
   than from the rules the map rewrites. Cosmetic, and it needs a client-side
   mapping to fix.
+
+## The new interface
+
+The mode control offers all five modes and the screens follow it, but only
+Skirmish Shop is drawn here. The other four get one panel saying what the
+mode is and one press to open the classic window at the next start, which
+is honest and is not the end of it.
+
+- **Where the other four modes' settings go.** A mode's settings belong on
+  that mode's screens, and today the four unported ones carry none. Shop
+  Mode is the one to do first and it splits in two: the settings that live
+  in the player config (faction pool, mission pool, the exclusion lists,
+  the seed) can be drawn here as they are, and the run pacing and run
+  modifiers cannot -- they exist only as Tk variables in the classic
+  window and are not written down anywhere. Porting those faithfully means
+  deciding to persist them, which is new config keys the classic window
+  would have to read as well. **That decision is not made.** Drawing only
+  the persisted half would give the mode a settings screen that silently
+  forgets the other half.
+
+- **The screens for the four modes themselves.** A mode drawn here needs
+  what Skirmish Shop has: the play loop, not only the settings. Until a
+  mode has both, the panel pointing at the classic window is the truthful
+  thing to show.
+
+- **`randomizer/ui` goes when the two interfaces are at parity**, and not
+  before: it is what the fallback falls back to.
