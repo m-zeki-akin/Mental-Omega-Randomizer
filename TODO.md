@@ -31,13 +31,6 @@ belongs in the code's own comments, not here.
   the units in the catalogue appear in a task force; an upgrade on one of
   the others is Ore the ally will never see the benefit of.
 
-- **Stolen-tech units are still on the shelf.** The country gate reads
-  ownership and prerequisites, not `Prerequisite.StolenTechs`, so the
-  Quickshifter and the other secret-lab units are sold to a player who can
-  only field them by infiltrating somebody. The game option file rather than
-  the rules carries their real country list, which is also why the
-  catalogue's faction tag is still needed as a floor.
-
 - **Enemies that grow with the tier.** The channel now exists: a tier's
   enemy strength is a purchase list generated for the enemy houses and put
   through the same copies the ally's purchases go through. Until then the

@@ -23,6 +23,7 @@ module is only correct when that has been done.
 from randomizer.core.diagnostics import event as log_event
 
 from .mapfile import merge_into_map
+from .model import UpgradePurchase
 
 
 # Ares refuses a type ID longer than this, and the launcher's campaign path
@@ -204,6 +205,7 @@ def unit_clone(unit, purchases, country, *, prefix, installed, targets, taken):
 
 def house_clone_code(
     purchases, country, *, prefix, forbid_source=True, existing=None,
+    roster=None,
 ):
     """Return the map code that gives one house its own upgraded units.
 
@@ -214,6 +216,11 @@ def house_clone_code(
     battle, and a key written without reading it back is a key the second
     house takes from the first: one type-list slot, one ``ForbiddenHouses``,
     and the player's own copy quietly stops being theirs.
+
+    ``roster`` is the country whose army a shelf row stands for, when that
+    is not the country the copies are gated to. A player is seated on a
+    spare country and that seat can fall on another side, so a row standing
+    for a set of units has to be opened against the army they chose.
     """
     from randomizer.rewards.catalogue import BUFF_TARGETS
     from randomizer.rewards.roster import _installed_sections
@@ -222,9 +229,19 @@ def house_clone_code(
     existing = existing or {}
     if not installed or not purchases:
         return {}, {}
+    # A shelf row can stand for more than one unit. The stolen-tech row
+    # raises a stat on everything an infiltration might bring, because a run
+    # cannot choose which of those it gets, so one purchase becomes one copy
+    # per unit here.
+    from .ownership import expand_group
+
     by_unit = {}
     for purchase in purchases:
-        by_unit.setdefault(purchase.unit, []).append(purchase)
+        for unit in expand_group(purchase.unit, roster or country):
+            by_unit.setdefault(unit, []).append(
+                purchase if unit == purchase.unit
+                else UpgradePurchase(unit, purchase.buff_type, purchase.stacks)
+            )
 
     taken = {str(name).lower() for name in installed}
     taken.update(str(name).lower() for name in existing)
@@ -279,7 +296,7 @@ def _section(sections, name):
 
 
 def apply_house_clones(
-    map_path, purchases, country, *, prefix, forbid_source=True,
+    map_path, purchases, country, *, prefix, forbid_source=True, roster=None,
 ):
     """Write one house's private copies into the map, and say what was made.
 
@@ -294,6 +311,7 @@ def apply_house_clones(
         prefix=prefix,
         forbid_source=forbid_source,
         existing=read_ini_sections(map_path),
+        roster=roster,
     )
     if not sections:
         return {}

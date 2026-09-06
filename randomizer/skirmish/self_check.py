@@ -1100,9 +1100,20 @@ def _shop_checks():
     # build is Ore spent on nothing.
     from .ownership import buildable_units, country_builds
 
-    united = {upgrade.unit for upgrade in country_upgrades('UnitedStates')}
-    pacific = {upgrade.unit for upgrade in country_upgrades('Pacific')}
-    soviet_units = {upgrade.unit for upgrade in country_upgrades('USSR')}
+    def sold_units(country):
+        # A shelf row can stand for several units; what is compared here is
+        # the units, so a group is opened first.
+        from .ownership import expand_group
+
+        return {
+            unit
+            for upgrade in country_upgrades(country)
+            for unit in expand_group(upgrade.unit, country)
+        }
+
+    united = sold_units('UnitedStates')
+    pacific = sold_units('Pacific')
+    soviet_units = sold_units('USSR')
     country_valid = bool(
         united and pacific
         # Ownership: the Stormchild is the United States', the tier two
@@ -1117,8 +1128,59 @@ def _shop_checks():
         and not country_builds('HOWI', 'UnitedStates')
         and 'HOWI' in pacific and 'HOWI' not in united
         # And the sides do not bleed into one another.
-        and not (united & soviet_units)
+        # The stolen-tech Cyborg Commando is everybody's, and it is the
+        # only unit both sides can field.
+        and (united & soviet_units) == {'CYCOM'}
         and 'GGI' in united and 'GGI' in pacific
+    )
+
+    # What an infiltration might bring is bought as one row, not as one row
+    # per unit: a run cannot decide to build these and cannot choose which
+    # of them it gets, so five separate price tags would be five lottery
+    # tickets. One purchase becomes one copy per member.
+    from .clones import house_clone_code
+    from .model import UpgradePurchase
+    from .ownership import STOLEN_TECH_GROUP, expand_group, stolen_tech_units
+
+    members = stolen_tech_units('UnitedStates')
+    bundles = [
+        upgrade for upgrade in country_upgrades('UnitedStates')
+        if upgrade.unit == STOLEN_TECH_GROUP
+    ]
+    stolen_valid = bool(
+        # Read from the game option file, because that is where these units
+        # are described at all -- the rules do not carry them.
+        len(members) >= 2
+        and 'CYCOM' in members
+        and bundles
+        # None of them is on the shelf in its own right.
+        and not any(
+            upgrade.unit in members
+            for upgrade in country_upgrades('UnitedStates')
+        )
+        # A bundle costs more than any one member's own upgrade would.
+        and all(
+            upgrade.price
+            > max(
+                (
+                    item.price for item in country_upgrades('UnitedStates')
+                    if item.unit != STOLEN_TECH_GROUP
+                    and item.buff_type == upgrade.buff_type
+                ),
+                default=0,
+            ) / 2
+            for upgrade in bundles
+        )
+        # And one purchase reaches every member.
+        and set(expand_group(STOLEN_TECH_GROUP, 'UnitedStates')) == set(members)
+        and set(
+            house_clone_code(
+                (UpgradePurchase(STOLEN_TECH_GROUP, 'range', 2),),
+                'UnitedStates', prefix='MOP',
+            )[1]
+        ) == set(members)
+        # A country's stolen tech is its own side's.
+        and not (set(members) & set(stolen_tech_units('USSR')) - {'CYCOM'})
     )
 
     # A price tag is no use without what it buys, so every upgrade says
@@ -1143,22 +1205,28 @@ def _shop_checks():
     from randomizer.rewards.roster import _installed_sections
 
     sections = _installed_sections()
+    from .ownership import expand_group as _expand
+
+    # A row that stands for several units keeps its promise when any of
+    # them takes the stat: one of the stolen-tech units carries nobody, and
+    # a passenger upgrade that reaches the other four is still an upgrade.
     sold = [
-        upgrade
+        (_expand(upgrade.unit, country), upgrade.buff_type)
         for country in ('UnitedStates', 'USSR', 'PsiCorps', 'Guild1')
         for upgrade in country_upgrades(country)
     ]
     delivers_valid = bool(
         sold
         and not any(
-            upgrade.buff_type in {'veteran', 'build_limit', 'building_limit'}
-            for upgrade in sold
+            buff_type in {'veteran', 'build_limit', 'building_limit'}
+            for _units, buff_type in sold
         )
         and all(
-            unit_rules(
-                upgrade.unit, upgrade.buff_type, 1, sections, BUFF_TARGETS
+            any(
+                unit_rules(unit, buff_type, 1, sections, BUFF_TARGETS)
+                for unit in units
             )
-            for upgrade in sold
+            for units, buff_type in sold
         )
     )
 
@@ -1191,6 +1259,7 @@ def _shop_checks():
         'skirmish_ally_shops_alone_valid': ally_valid,
         'skirmish_shelf_valid': shelf_valid,
         'skirmish_shelf_is_one_country': country_valid,
+        'skirmish_stolen_tech_is_one_row': stolen_valid,
         'skirmish_upgrade_effect_valid': effect_valid,
         'skirmish_upgrade_delivers_valid': delivers_valid,
         'skirmish_upgrade_rules_valid': rules_valid,

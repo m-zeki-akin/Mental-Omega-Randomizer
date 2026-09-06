@@ -33,6 +33,11 @@ STARTING_ORE = 200
 # How many upgrades stand on the shelf between battles. The shelf is drawn
 # from the run's seed, so it is the same shelf every time the run is opened.
 SHELF_SIZE = 6
+# What a stolen-tech row costs on top of the dearest unit it improves, per
+# extra unit it reaches. A row that raises a stat on five units is worth
+# more than one that raises it on one, and some stats reach only one of
+# them -- a unit with no weapon has no fire rate. Reach is what is paid for.
+STOLEN_TECH_PRICE_PER_UNIT = 0.5
 
 
 @dataclass(frozen=True)
@@ -66,6 +71,10 @@ def country_upgrades(country):
     put on the field: ownership and the prerequisite chain both, so a unit
     gated by another country's tier two building never reaches the shelf.
 
+    The stolen-tech units are the exception: they are sold as one row per
+    stat rather than one row per unit, because a run cannot decide to build
+    them and cannot choose which one an infiltration brings.
+
     An upgrade the installation would not notice -- a speed buff on a unit a
     submod already has at the ceiling -- is not offered either, which is the
     same clamp the campaign shop applies at its own offer time.
@@ -94,13 +103,20 @@ def country_upgrades(country):
     from randomizer.shop.economy import run_buff_price
 
     from .clones import clonable
-    from .ownership import buildable_units, country_faction
+    from .ownership import (
+        STOLEN_TECH_GROUP,
+        buildable_units,
+        country_faction,
+        stolen_tech_units,
+    )
     from .rules import unit_rules
 
     installed = _installed_sections()
     fielded = buildable_units(str(country or ''))
     faction = str(country_faction(country) or '').lower()
+    stolen = set(stolen_tech_units(country))
     upgrades = []
+    bundles = {}
     for reward in UNIT_BUFF_REWARDS:
         unit = str(reward.get('unit') or '').upper()
         if unit not in fielded:
@@ -130,7 +146,7 @@ def country_upgrades(country):
         effect = buff_effect_lines(
             reward, 1, include_label=False, include_stack=False
         )
-        upgrades.append(Upgrade(
+        made = Upgrade(
             unit=unit,
             buff_type=buff_type,
             name=str(reward.get('name') or f'{unit} {buff_type}'),
@@ -138,8 +154,67 @@ def country_upgrades(country):
             price=int(run_buff_price(unit)),
             limit=int(limit),
             effect=effect[0] if effect else buff_type.replace('_', ' '),
-        ))
+        )
+        if unit in stolen:
+            # Not a row of its own. Everything gated behind an infiltration
+            # is bought together or not at all.
+            bundles.setdefault(buff_type, []).append(made)
+            continue
+        upgrades.append(made)
+    upgrades.extend(_stolen_tech_bundles(bundles, stolen))
     return tuple(sorted(upgrades, key=lambda item: (item.price, item.name)))
+
+
+def _stolen_tech_bundles(by_buff_type, members):
+    """Return one row per buff type, standing for every stolen-tech unit.
+
+    A run does not choose which of these it fields, or whether it fields any
+    -- an infiltration decides that -- so buying them one at a time is
+    buying a lottery ticket several times over. One row raises the stat on
+    all of them, and its limit is the smallest any member allows so no unit
+    is taken past its own ceiling.
+    """
+    from randomizer.rewards.weights import (
+        ECONOMY_WEIGHT_TYPES,
+        UNIT_BUFF_WEIGHT_TYPES,
+    )
+
+    from .ownership import STOLEN_TECH_GROUP
+
+    labels = dict(UNIT_BUFF_WEIGHT_TYPES) | dict(ECONOMY_WEIGHT_TYPES)
+    bundles = []
+    for buff_type, found in sorted(by_buff_type.items()):
+        limit = min(item.limit for item in found)
+        if limit <= 0:
+            continue
+        label = labels.get(buff_type, buff_type.replace('_', ' ').title())
+        effects = {item.effect for item in found}
+        # Not every stolen-tech unit takes every stat -- one has no weapon
+        # to fire faster, another carries nobody -- so a row names the ones
+        # it actually improves rather than the whole set.
+        reached = sorted({item.unit for item in found})
+        bundles.append(Upgrade(
+            unit=STOLEN_TECH_GROUP,
+            buff_type=buff_type,
+            name=f'Stolen Tech: {label}',
+            description=(
+                'Stolen tech, raised on every unit it applies to: '
+                + ', '.join(reached)
+            ),
+            price=int(round(
+                max(item.price for item in found)
+                * (1 + (len(reached) - 1) * STOLEN_TECH_PRICE_PER_UNIT)
+            )),
+            limit=int(limit),
+            # One sentence when they all do the same thing, and the stat's
+            # own name when they do not -- a unit's own numbers would be a
+            # promise the other units in the bundle do not keep.
+            effect=(
+                effects.pop() if len(effects) == 1
+                else f'{label}, on {len(reached)} stolen tech units'
+            ),
+        ))
+    return bundles
 
 
 def owned_stacks(purchases, unit, buff_type):

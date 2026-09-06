@@ -899,6 +899,10 @@ class SkirmishController:
             battle['purchases'],
             battle['seat'],
             prefix=PLAYER_CLONE_PREFIX,
+            # Gated to the seat, but drawn from the army the player chose:
+            # a seat can fall on another side, and a shelf row standing for
+            # a set of units means that side's set.
+            roster=battle['player'].country_id,
         )
         self.prepare_skirmish_ai(battle)
         self.write_launch_options(battle['difficulty'], battle['game_speed'])

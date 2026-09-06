@@ -110,6 +110,27 @@ def option_map_code_paths(settings, *, game_root=None, selections=None):
     return tuple(path for path in paths if path.is_file())
 
 
+def option_ini_path(option, *, game_root=None):
+    """Return the INI one named game option merges, on or off.
+
+    Some of what an option turns on is only described in its own file --
+    the stolen-tech units carry their country lists and their
+    ``Prerequisite.StolenTechs`` there and nowhere else -- so a reader that
+    needs those has to be able to ask for the file by the flag's name.
+    """
+    root = Path(game_root) if game_root else GAME_ROOT
+    options_path = (
+        root / 'Resources' / 'GameOptions.ini' if game_root
+        else GAME_OPTIONS_PATH
+    )
+    checkboxes, _dropdowns = parse_game_options(read_ini_sections(options_path))
+    custom = checkboxes.get(str(option))
+    if not custom:
+        return None
+    path = root / Path(str(custom).replace('\\', '/'))
+    return path if path.is_file() else None
+
+
 def merge_game_options(map_path, settings, *, game_root=None, selections=None):
     """Write every option's map code into the map, and say what it cost.
 

@@ -145,6 +145,57 @@ def buildable_units(country):
     )
 
 
+# One purchase for all of them rather than one per unit. A stolen-tech unit
+# is not something a run fields on purpose: it arrives only if the player
+# infiltrates the right building, and which one they get is not theirs to
+# choose. Pricing sixteen separate upgrades for units that may never appear
+# would be selling a lottery ticket sixteen times.
+STOLEN_TECH_GROUP = '@STOLENTECH'
+STOLEN_TECH_KEY = 'prerequisite.stolentechs'
+
+
+@lru_cache(maxsize=1)
+def stolen_tech_sections():
+    """Return the option file that defines the stolen-tech units.
+
+    Not the rules: what makes these units exist at all is the Stolen Tech
+    game option, and its file carries both the country lists and the
+    ``Prerequisite.StolenTechs`` that gate them.
+    """
+    from .options import option_ini_path, read_ini_sections
+
+    path = option_ini_path('StolenTech')
+    if path is None:
+        return {}
+    return {
+        str(name).upper(): values
+        for name, values in read_ini_sections(path).items()
+    }
+
+
+@lru_cache(maxsize=16)
+def stolen_tech_units(country):
+    """Return the units this country reaches only by infiltrating somebody."""
+    sections = stolen_tech_sections()
+    if not sections:
+        return ()
+    from randomizer.rewards.catalogue import BUFF_TARGETS
+
+    return tuple(sorted(
+        unit for unit, values in sections.items()
+        if any(str(key).lower() == STOLEN_TECH_KEY for key in values)
+        and unit in BUFF_TARGETS
+        and owns(values, country)
+    ))
+
+
+def expand_group(unit, country):
+    """Return the units one shelf row stands for."""
+    if str(unit).upper() == STOLEN_TECH_GROUP:
+        return stolen_tech_units(country)
+    return (str(unit).upper(),)
+
+
 @lru_cache(maxsize=16)
 def country_faction(country):
     """Return what Mental Omega calls this country's faction."""
