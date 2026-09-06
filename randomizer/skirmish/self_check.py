@@ -1209,6 +1209,57 @@ def _shop_checks():
         and enter_nightmare(again).nightmare == 2
     )
 
+    # A run that ends still exists on the board, with what it did.
+    from tempfile import TemporaryDirectory as _TempDir
+
+    from .leaderboard import BoardEntry, board_row, load_board, record_run
+    from .results import HouseResult
+    from .stats import RunStats, record_battle, stats_lines
+
+    fresh = record_battle(
+        RunStats(),
+        won=True,
+        result=HouseResult(
+            name='Commander', won=True, scheme=1, lost=15, kills=120,
+            built=104, score=106946,
+        ),
+        offer=_offer(),
+        reward=175,
+        tier=3,
+        nightmare=1,
+    )
+    quit_early = record_battle(fresh, won=False, tier=2, nightmare=1)
+    with _TempDir(prefix='mo-board-') as _board_dir:
+        board_file = Path(_board_dir) / 'board.dat'
+        entry = BoardEntry(
+            run_id='r', seed='SEED', army='Allies', ally='Soviets',
+            started='2026-09-06', ended='2026-09-06', outcome='Out of lives',
+            battle=13, tier=3, nightmare=1, stats=quit_early,
+        )
+        record_run(entry, board_file)
+        further = record_run(
+            replace(entry, run_id='r2', tier=5, nightmare=2), board_file
+        )
+        board_valid = bool(
+            # One battle in, and the totals are the game's own numbers.
+            fresh.battles == 1 and fresh.won == 1
+            and fresh.kills == 120 and fresh.score == 106946
+            and fresh.best_score == 106946 and fresh.ore_earned == 175
+            and fresh.bonus_battles == 0
+            # A battle closed before it ended still counts as a battle and
+            # as a defeat, and adds kills nobody made.
+            and quit_early.battles == 2 and quit_early.lost == 1
+            and quit_early.kills == fresh.kills
+            # How far it got is where it reached, not where it fell back to.
+            and quit_early.best_tier == 3 and quit_early.best_nightmare == 1
+            # The board keeps them furthest first, and reads back.
+            and len(further) == 2
+            and further[0].run_id == 'r2'
+            and load_board(board_file)[0].stats.kills == 120
+            and len(board_row(entry)) == 8
+            and len(stats_lines(quit_early)) == 8
+        )
+
     reward_valid = bool(
         battle_reward(1) == BATTLE_REWARD
         and battle_reward(4) == BATTLE_REWARD
@@ -1525,6 +1576,7 @@ def _shop_checks():
         'skirmish_warmup_valid': warmup_valid,
         'skirmish_offer_bonuses_valid': bonus_valid,
         'skirmish_nightmare_valid': nightmare_valid,
+        'skirmish_run_board_valid': board_valid,
         'skirmish_battle_reward_valid': reward_valid,
         'skirmish_purchase_valid': purchase_valid,
         'skirmish_ally_shops_alone_valid': ally_valid,

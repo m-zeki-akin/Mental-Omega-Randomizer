@@ -10,10 +10,12 @@ so a run survives the game being moved or reinstalled, and so the pool a map
 came from is still readable from what was stored.
 """
 
-from dataclasses import dataclass, field, replace
+from dataclasses import dataclass, field, field, replace
 from typing import Any
 
 from randomizer.shop.model import RunStatus
+
+from .stats import RunStats
 
 
 SKIRMISH_RUN_SCHEMA_VERSION = 1
@@ -136,6 +138,8 @@ class SkirmishRun:
     # run through; one and up are Nightmare, where the enemies keep
     # everything they have and both your armies start again with nothing.
     nightmare: int = 0
+    # What the run has done, added up as it happens.
+    stats: 'RunStats' = field(default_factory=lambda: RunStats())
     # Relative paths, so a challenge is not offered twice until the pool has
     # been through once.
     used_challenge_maps: tuple[str, ...] = ()
@@ -198,6 +202,7 @@ class SkirmishRun:
             'committed_offer': self.committed_offer,
             'won_battles': self.won_battles,
             'nightmare': self.nightmare,
+            'stats': self.stats.to_dict(),
             'used_challenge_maps': list(self.used_challenge_maps),
         }
 

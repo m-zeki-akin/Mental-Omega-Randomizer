@@ -118,6 +118,78 @@ def open_skirmish_run_window(self, _event=None):
     return window
 
 
+def open_skirmish_board_window(self, _event=None):
+    """Open the board of finished runs."""
+    from randomizer.skirmish.leaderboard import BOARD_COLUMNS
+
+    window = getattr(self, '_skirmish_board_window', None)
+    if window is not None and window.winfo_exists():
+        window.deiconify()
+        self.refresh_skirmish_board()
+        center_on_pointer(self, window)
+        window.lift()
+        window.focus_set()
+        return window
+    window = tk.Toplevel(self)
+    window.title('Skirmish Records')
+    window.transient(self)
+    frame = ttk.Frame(window, padding=12)
+    frame.grid(row=0, column=0, sticky='nsew')
+    window.columnconfigure(0, weight=1)
+    window.rowconfigure(0, weight=1)
+    frame.columnconfigure(0, weight=1)
+    frame.rowconfigure(1, weight=1)
+    ttk.Label(
+        frame,
+        text=(
+            'Every run that ended, furthest first. A run leaves the list '
+            'when you delete it; what it did stays here.'
+        ),
+        style='Muted.TLabel',
+        wraplength=700,
+        justify='left',
+    ).grid(row=0, column=0, sticky='ew', pady=(0, 8))
+    tree_frame = ttk.Frame(frame)
+    tree_frame.grid(row=1, column=0, sticky='nsew')
+    tree = ttk.Treeview(
+        tree_frame,
+        columns=tuple(column for column, _heading, _width in BOARD_COLUMNS),
+        show='headings',
+        selectmode='browse',
+        height=12,
+    )
+    for column, heading, width in BOARD_COLUMNS:
+        tree.heading(column, text=heading)
+        tree.column(column, width=width, minwidth=60, stretch=True)
+    scrollbar = ttk.Scrollbar(tree_frame, orient='vertical', command=tree.yview)
+    tree.configure(yscrollcommand=scrollbar.set)
+    tree.grid(row=0, column=0, sticky='nsew')
+    scrollbar.grid(row=0, column=1, sticky='ns')
+    tree_frame.columnconfigure(0, weight=1)
+    tree_frame.rowconfigure(0, weight=1)
+    scroll_owner(tree_frame, target=tree, units=3)
+    for widget in (tree, scrollbar):
+        claim_wheel(widget)
+    self.skirmish_board_tree = tree
+    detail = ttk.Label(
+        frame,
+        textvariable=self.skirmish_board_detail_var,
+        style='Shop.Help.TLabel',
+        justify='left',
+    )
+    detail.grid(row=2, column=0, sticky='ew', pady=(8, 0))
+    tree.bind('<<TreeviewSelect>>', self.refresh_skirmish_board_detail)
+    ttk.Button(frame, text='Close', command=window.destroy).grid(
+        row=3, column=0, sticky='e', pady=(8, 0)
+    )
+    self._skirmish_board_window = window
+    self.refresh_skirmish_board()
+    center_on_pointer(self, window)
+    window.lift()
+    window.focus_set()
+    return window
+
+
 def _build_setup(self, parent):
     """The panel shown between runs: choose an army and start."""
     setup = ttk.LabelFrame(parent, text='New Run', padding=8)
@@ -352,6 +424,11 @@ def build_skirmish_tab(self, workspace_tabs):
         command=self.open_skirmish_setup,
     )
     self.skirmish_new_run_button.pack(side='left')
+    ttk.Button(
+        actions,
+        text='Records...',
+        command=lambda: open_skirmish_board_window(self),
+    ).pack(side='left', padx=(6, 0))
     ttk.Label(
         actions,
         textvariable=self.skirmish_message_var,

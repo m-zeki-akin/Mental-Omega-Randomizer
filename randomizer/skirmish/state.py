@@ -12,6 +12,7 @@ from copy import deepcopy
 from randomizer.core.integrity import strip_signature
 from randomizer.shop.model import RunStatus
 
+from .stats import normalize_stats
 from .model import (
     WARMUP_BATTLE,
     SKIRMISH_RUN_COLLECTION_SCHEMA_VERSION,
@@ -191,6 +192,7 @@ def normalize_skirmish_run(document):
         committed_offer=committed,
         won_battles=_int(document.get('won_battles'), 'won_battles'),
         nightmare=_int(document.get('nightmare'), 'nightmare'),
+        stats=normalize_stats(document.get('stats')),
         used_challenge_maps=tuple(
             dict.fromkeys(
                 _string(path, 'used_challenge_maps[]', required=True)

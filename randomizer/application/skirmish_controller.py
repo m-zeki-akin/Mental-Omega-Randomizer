@@ -50,6 +50,13 @@ from randomizer.skirmish.persistence import (
     SkirmishPersistenceError,
     SkirmishRepository,
 )
+from randomizer.skirmish.leaderboard import (
+    BoardEntry,
+    board_row,
+    load_board,
+    reached_text,
+    record_run,
+)
 from randomizer.skirmish.progression import (
     ALLY_DIFFICULTY,
     describe_offer,
@@ -75,6 +82,7 @@ from randomizer.skirmish.results import (
     read_debug_log_tail,
 )
 from randomizer.skirmish.options import merge_game_options
+from randomizer.skirmish.stats import stats_lines
 from randomizer.skirmish.spawn import (
     SkirmishHouse,
     match_settings,
@@ -127,6 +135,8 @@ class SkirmishController:
         self.skirmish_ore_var = tk.StringVar(value='Ore: 0')
         self.skirmish_shop_help_var = tk.StringVar(value='')
         self.skirmish_owned_var = tk.StringVar(value='')
+        self.skirmish_board_detail_var = tk.StringVar(value='')
+        self._skirmish_board = ()
         self._skirmish_shelf = ()
         self._skirmish_country_by_label = {}
         self._skirmish_preview_images = {}
@@ -372,6 +382,70 @@ class SkirmishController:
         )
         self.refresh_skirmish_mode()
 
+    def refresh_skirmish_board(self):
+        """Repaint the board of finished runs."""
+        tree = getattr(self, 'skirmish_board_tree', None)
+        if tree is None or not tree.winfo_exists():
+            return
+        self._skirmish_board = load_board()
+        tree.delete(*tree.get_children())
+        for index, entry in enumerate(self._skirmish_board):
+            tree.insert('', 'end', iid=str(index), values=board_row(entry))
+        self.skirmish_board_detail_var.set(
+            'No run has ended yet.' if not self._skirmish_board
+            else 'Select a run to see what it did.'
+        )
+
+    def refresh_skirmish_board_detail(self, _event=None):
+        tree = getattr(self, 'skirmish_board_tree', None)
+        if tree is None:
+            return
+        selection = tree.selection()
+        if not selection:
+            return
+        index = int(selection[0])
+        if index >= len(self._skirmish_board):
+            return
+        entry = self._skirmish_board[index]
+        self.skirmish_board_detail_var.set(
+            f'{reached_text(entry)}   seed {entry.seed}\n'
+            + '   '.join(stats_lines(entry.stats))
+        )
+
+    def record_skirmish_run_end(self, run, outcome):
+        """Put a finished run on the board, which is where it goes on living.
+
+        A run that ends is deleted or left in the list as a dead row, and
+        either way what it did would be gone.
+        """
+        player = country_by_index(run.player_country)
+        ally = country_by_index(run.ally_country)
+        try:
+            record_run(BoardEntry(
+                run_id=run.run_id,
+                seed=run.seed,
+                army=player.display if player else str(run.player_country),
+                ally=ally.display if ally else str(run.ally_country),
+                started=run.created,
+                ended=date.today().isoformat(),
+                outcome=outcome,
+                battle=run.battle,
+                tier=run.tier,
+                nightmare=run.nightmare,
+                stats=run.stats,
+            ))
+        except OSError as exc:
+            self.append_log(f'Could not write the skirmish board: {exc}', error=True)
+            return
+        log_event(
+            'skirmish_run_recorded',
+            run_id=run.run_id,
+            outcome=outcome,
+            tier=run.tier,
+            nightmare=run.nightmare,
+            **run.stats.to_dict(),
+        )
+
     def give_up_skirmish_run(self):
         run = self.skirmish_run
         if run is None or run.status is not RunStatus.ACTIVE:
@@ -386,7 +460,10 @@ class SkirmishController:
             parent=self,
         ):
             return
-        self.skirmish_run = self.skirmish_repository.save_run(give_up(run))
+        ended = give_up(run)
+        self.skirmish_run = self.skirmish_repository.save_run(ended)
+        self.record_skirmish_run_end(ended, 'Gave up')
+        self.refresh_skirmish_board()
         self.skirmish_message_var.set(
             f'Gave up at battle {run.battle}. Start a new run when ready.'
         )
@@ -1134,7 +1211,9 @@ class SkirmishController:
             if won:
                 ally = country_by_index(run.ally_country)
                 run = self.offer_skirmish_battles(record_victory(
-                    run, ally_country=ally.country_id if ally else None
+                    run,
+                    ally_country=ally.country_id if ally else None,
+                    result=result,
                 ))
                 message = (
                     f'Victory on {entry.name} — {result.kills} kills, '
@@ -1142,7 +1221,7 @@ class SkirmishController:
                     f'Battle {run.battle} is ready.'
                 )
             else:
-                run = record_defeat(run)
+                run = record_defeat(run, result=result)
                 how = (
                     f'Defeat on {entry.name}' if result is not None
                     else f'Left {entry.name} unfinished, which counts as a '
@@ -1155,6 +1234,9 @@ class SkirmishController:
                         'the same battle stands.'
                     )
                 else:
+                    # Out of lives. What it did outlives it on the board.
+                    self.record_skirmish_run_end(run, 'Out of lives')
+                    self.refresh_skirmish_board()
                     message = (
                         f'{how}. The run ends at battle '
                         f'{run.battle}, {run.won_battles} won.'

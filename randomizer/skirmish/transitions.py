@@ -22,6 +22,7 @@ from .model import (
     SkirmishRun,
 )
 from .progression import is_challenge_battle, is_warmup
+from .stats import record_battle, record_purchase
 from .shop import (
     ally_shopping,
     battle_reward,
@@ -100,7 +101,7 @@ def commit_offer(run, index):
     return replace(run, committed_offer=index)
 
 
-def record_victory(run, *, ally_country=None):
+def record_victory(run, *, ally_country=None, result=None):
     """Advance to the next battle, paying for it and letting the ally shop.
 
     What a battle pays is decided by the tier it was fought in and nothing
@@ -128,6 +129,15 @@ def record_victory(run, *, ally_country=None):
         run,
         battle=run.battle + 1,
         won_battles=run.won_battles + 1,
+        stats=record_battle(
+            run.stats,
+            won=True,
+            result=result,
+            offer=offer,
+            reward=reward,
+            tier=run.tier,
+            nightmare=run.nightmare,
+        ),
         coins=run.coins + reward,
         ally_coins=ally_coins,
         ally_purchases=ally_purchases,
@@ -193,10 +203,11 @@ def buy_upgrade(run, upgrade):
         run,
         coins=run.coins - upgrade.price,
         purchases=purchase_stacks(run.purchases, upgrade),
+        stats=record_purchase(run.stats),
     )
 
 
-def record_defeat(run):
+def record_defeat(run, *, result=None):
     """Spend a life. The battle stands; the run ends when none are left.
 
     Except in the warmup, which costs nothing: it is the fight before the
@@ -207,8 +218,16 @@ def record_defeat(run):
         raise SkirmishTransitionError('No battle was committed')
     if run.status is not RunStatus.ACTIVE:
         raise SkirmishTransitionError('This run is over')
+    counted = record_battle(
+        run.stats,
+        won=False,
+        result=result,
+        offer=run.committed(),
+        tier=run.tier,
+        nightmare=run.nightmare,
+    )
     if is_warmup(run.battle):
-        return replace(run, committed_offer=None)
+        return replace(run, committed_offer=None, stats=counted)
     revivals = run.revivals_used + 1
     out_of_lives = revivals >= run.lives
     return replace(
@@ -216,6 +235,7 @@ def record_defeat(run):
         revivals_used=revivals,
         status=RunStatus.FAILED if out_of_lives else run.status,
         committed_offer=None,
+        stats=counted,
     )
 
 
