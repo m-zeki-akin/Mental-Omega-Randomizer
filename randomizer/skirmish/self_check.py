@@ -1127,6 +1127,16 @@ def _shop_checks():
         and country_builds('HOWI', 'Pacific')
         and not country_builds('HOWI', 'UnitedStates')
         and 'HOWI' in pacific and 'HOWI' not in united
+        # A campaign unit is not a skirmish unit. The Future Tank X-0 and
+        # Sammy Stallion sit above the match's tech level, with no owner
+        # and no prerequisite, because a mission hands them over.
+        and not country_builds('AHVYBOT', 'UnitedStates')
+        and not country_builds('STLN', 'UnitedStates')
+        and 'AHVYBOT' not in united and 'STLN' not in united
+        # But the Construction Yard, TechLevel=-1 because an MCV deploys
+        # into one, must not take the whole tech tree down with it.
+        and country_builds('GGI', 'UnitedStates')
+        and country_builds('TANY', 'UnitedStates')
         # And the sides do not bleed into one another.
         # The stolen-tech Cyborg Commando is everybody's, and it is the
         # only unit both sides can field.

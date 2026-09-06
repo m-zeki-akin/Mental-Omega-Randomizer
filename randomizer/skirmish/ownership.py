@@ -13,6 +13,18 @@ Two gates decide it, and both have to be read:
 anything in ``ForbiddenHouses``; ``FactoryOwners`` narrows it again, because
 a type only that country's factory may produce is only that country's.
 
+**Tech level.** A match is played to a cap -- ``TechLevel`` in spawn.ini,
+10 by default -- and a type above it is not built in one. This is what
+separates the campaign units from the rest: the Future Tank X-0, Sammy
+Stallion and four hundred others sit at level 11, with no owner and no
+prerequisite, because a mission hands them over rather than a factory. A
+level of -1 is never built either.
+
+The cap applies to the type being sold and to nothing it stands on. A
+Construction Yard is ``TechLevel=-1`` because an MCV deploys into one
+rather than a sidebar producing it, so a prerequisite chain that read the
+cap would refuse every building in the game.
+
 **Prerequisites.** A prerequisite names a building, or a group of them --
 ``ALLT2`` is ``GAMERC,GASCEA,GASCPF``, one per Allied country -- and a group
 is satisfied by any one member. So the tier-two chain gates a whole tier of
@@ -98,7 +110,31 @@ def _groups(rules):
     return groups
 
 
+def within_tech_level(values, cap):
+    """Whether this type is reachable in a match played to ``cap``."""
+    raw = str(_value(values, 'TechLevel')).strip()
+    if not raw:
+        return True
+    try:
+        level = int(float(raw))
+    except ValueError:
+        return True
+    if level < 0:
+        # Never built. The rules use this for clones, AI-only variants and
+        # everything else the sidebar is not meant to offer.
+        return False
+    return level <= cap
+
+
 def _buildable(unit, country, rules, groups, seen, depth):
+    """Whether this country can have this type, prerequisites and all.
+
+    Ownership only, all the way down. The tech level belongs to the type
+    being sold and not to what it stands on: a Construction Yard is
+    ``TechLevel=-1`` because nobody builds one from a sidebar -- an MCV
+    deploys into it -- and a chain that refused it would refuse every
+    building in the game.
+    """
     unit = str(unit).upper()
     if unit in seen or depth <= 0:
         # A prerequisite loop, or a chain too deep to be worth following.
@@ -122,11 +158,22 @@ def _buildable(unit, country, rules, groups, seen, depth):
     return True
 
 
-@lru_cache(maxsize=16)
-def buildable_units(country):
+def match_tech_level():
+    """Return the tech level a skirmish is played to."""
+    from .spawn import DEFAULT_MATCH_OPTIONS
+
+    try:
+        return int(str(DEFAULT_MATCH_OPTIONS.get('TechLevel', 10)).strip())
+    except ValueError:
+        return 10
+
+
+@lru_cache(maxsize=32)
+def buildable_units(country, tech_level=None):
     """Return every TechnoType id this country can put on the field."""
     from randomizer.ui.cameos import installed_rules_registry
 
+    cap = match_tech_level() if tech_level is None else int(tech_level)
     _superweapons, rules = installed_rules_registry(synchronous=True)
     if not rules:
         return frozenset()
@@ -141,7 +188,8 @@ def buildable_units(country):
         )
     return frozenset(
         unit for unit in listed
-        if _buildable(unit, country, upper, groups, frozenset(), OWNERSHIP_DEPTH)
+        if within_tech_level(upper.get(unit), cap)
+        and _buildable(unit, country, upper, groups, frozenset(), OWNERSHIP_DEPTH)
     )
 
 
@@ -181,11 +229,15 @@ def stolen_tech_units(country):
         return ()
     from randomizer.rewards.catalogue import BUFF_TARGETS
 
+    fielded = buildable_units(country)
     return tuple(sorted(
         unit for unit, values in sections.items()
         if any(str(key).lower() == STOLEN_TECH_KEY for key in values)
         and unit in BUFF_TARGETS
         and owns(values, country)
+        # The option file describes them; the rules still say how far up the
+        # tech tree they sit, and a match has a ceiling.
+        and unit in fielded
     ))
 
 
@@ -207,6 +259,6 @@ def country_faction(country):
     return ''
 
 
-def country_builds(unit, country):
+def country_builds(unit, country, tech_level=None):
     """Whether one country can build one unit, prerequisites and all."""
-    return str(unit).upper() in buildable_units(country)
+    return str(unit).upper() in buildable_units(country, tech_level)
