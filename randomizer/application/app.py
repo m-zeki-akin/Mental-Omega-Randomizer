@@ -41,6 +41,7 @@ from ._dependencies import (
     valid_choice,
 )
 
+from randomizer.shell import choice as interface_choice
 from randomizer.shop.config import SHOP_CONFIG
 
 from .window import WindowController
@@ -168,6 +169,12 @@ class LauncherApp(
         self._shop_launch_run = None
         self._shop_launch_mission_pool = ()
         self.dark_mode_var = tk.BooleanVar(value=bool(self.config.get('dark_mode', False)))
+        # Which of the two interfaces a double-click opens. Read here and
+        # written when it changes; it takes effect the next time the
+        # launcher starts, because a window cannot become another one.
+        self.new_interface_var = tk.BooleanVar(
+            value=interface_choice.remembered(self.config) == interface_choice.NEW
+        )
         self.hide_reward_details_var = tk.BooleanVar(
             value=bool(self.config.get('hide_reward_details', False))
         )

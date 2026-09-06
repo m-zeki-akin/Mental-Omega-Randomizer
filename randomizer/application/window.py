@@ -247,6 +247,21 @@ class WindowController:
         )
         save_config(self.config)
 
+    def on_new_interface_changed(self):
+        """Keep which interface opens, and say when it will."""
+        from randomizer.shell.choice import CLASSIC, NEW, remember
+
+        wanted = NEW if bool(self.new_interface_var.get()) else CLASSIC
+        remember(wanted)
+        self.config['interface'] = wanted
+        messagebox.showinfo(
+            'Interface',
+            'The new interface opens the next time the launcher starts.'
+            if wanted == NEW else
+            'This window opens the next time the launcher starts.',
+            parent=self,
+        )
+
     def on_dark_mode_changed(self):
         self.apply_color_mode()
         self.save_ui_preferences()

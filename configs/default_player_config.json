@@ -6,6 +6,7 @@
       "player_name": "Commander",
       "game": "Mental Omega",
       "dark_mode": false,
+      "interface": "classic",
       "hide_reward_details": false,
       "hide_locked_grid_missions": false,
       "seed": "",

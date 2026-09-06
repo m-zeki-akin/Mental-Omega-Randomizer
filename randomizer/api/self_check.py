@@ -53,9 +53,12 @@ def _touched():
     """Return everything a sweep must leave alone, as something comparable.
 
     The runs being played, the board of the ones that ended, whether a
-    battle is up, and the three files a battle is written into. Each of
-    them has been written by a check that was only supposed to be asking.
+    battle is up, the three files a battle is written into, and the
+    player's own settings. Each of the first four has been written by a
+    check that was only supposed to be asking; the settings are here
+    because a command that writes one now exists.
     """
+    from randomizer.config.player import load_config
     from randomizer.core.paths import GAME_ROOT, SPAWN_INI
     from randomizer.skirmish.launch import SPAWN_MAP_INI
     from randomizer.skirmish.leaderboard import load_board
@@ -88,6 +91,9 @@ def _touched():
         session.running(),
         tuple(stamp(path) for path in (
             SPAWN_INI, SPAWN_MAP_INI, GAME_ROOT / 'aimo.ini',
+        )),
+        tuple(sorted(
+            (key, repr(value)) for key, value in load_config().items()
         )),
     )
 

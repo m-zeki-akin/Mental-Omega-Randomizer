@@ -132,9 +132,34 @@ function runList(runs, active) {
   ];
 }
 
+/* The rest of the launcher is still the old window: the campaign, the
+ * Campaign Shop, Archipelago and the settings. Until they are here too,
+ * going back has to be one press rather than a command line. */
+function interfacePanel(chosen) {
+  return panel('Interface', [
+    el('div', { class: 'card__body', text:
+      'This interface draws the Skirmish Shop mode. The campaign, the '
+      + 'Campaign Shop, Archipelago and the settings are still in the '
+      + 'classic window.' }),
+    el('div', { class: 'card__footer' }, [
+      el('span', { class: 'muted', text:
+        chosen.new
+          ? 'This interface opens at start.'
+          : 'The classic window opens at start.' }),
+      button(chosen.new ? 'Open the classic window at start' : 'Open this one at start', {
+        variant: 'quiet',
+        onClick: () => act('launcher.use_interface', {
+          name: chosen.new ? 'classic' : 'new',
+        }),
+      }),
+    ]),
+  ]);
+}
+
 async function render(root) {
   const countries = await call('skirmish.countries');
   const { runs, active } = await call('skirmish.runs');
+  const chosen = await call('launcher.interface');
   if (army === null) {
     const playing = runs.find((run) => run.run_id === active);
     army = playing ? playing.player.index : (countries[0] || {}).index;
@@ -145,6 +170,7 @@ async function render(root) {
   root.replaceChildren(
     section('Start', chooser(countries)),
     section('Runs', runList(runs, active)),
+    section(null, interfacePanel(chosen)),
   );
 }
 

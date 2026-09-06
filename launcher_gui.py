@@ -84,6 +84,10 @@ def run_launcher():
         # Housekeeping must never be the reason the launcher fails to open.
         log_event('runtime_leftover_sweep_failed', traceback=traceback.format_exc())
     try:
+        from randomizer.shell.entry import open_chosen_interface
+
+        if open_chosen_interface():
+            return 0
         from randomizer.application.app import main
         main()
         return 0

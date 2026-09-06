@@ -35,6 +35,66 @@ def _read(path):
         return ''
 
 
+def _choice_valid():
+    """The interface that opens is the one that was asked for.
+
+    Two ways of asking and one of them wins: a flag is for one run, the
+    kept setting is for every other. A setting nobody recognises means the
+    old window, because that is the one that can do everything.
+    """
+    from . import choice
+
+    kept = {'interface': choice.NEW}
+    return bool(
+        choice.chosen(['--classic'], kept) == choice.CLASSIC
+        and choice.chosen(['--interface'], {'interface': choice.CLASSIC})
+        == choice.NEW
+        and choice.chosen(['--shell'], {}) == choice.NEW
+        # A flag among others, and nothing to say about the rest.
+        and choice.chosen(['--self-check', '--interface'], {}) == choice.NEW
+        and choice.chosen([], kept) == choice.NEW
+        and choice.chosen([], {}) == choice.CLASSIC
+        and choice.chosen([], {'interface': 'sideways'}) == choice.CLASSIC
+        and choice.chosen(None, None) == choice.CLASSIC
+    )
+
+
+def _fallback_valid():
+    """An interface that will not open leaves the player with the other one.
+
+    The launcher asks this before it builds a window. A false answer is
+    the old window, and a failure has to be a false answer rather than an
+    exception: the alternative is an exe that opens nothing.
+    """
+    import randomizer.shell as package
+
+    from .entry import open_chosen_interface
+
+    opened = []
+
+    def refuse():
+        raise RuntimeError('no WebView2 here')
+
+    keep = package.run_shell
+    try:
+        # Asked for and broken: the old window, quietly.
+        package.run_shell = refuse
+        failed = open_chosen_interface(['--interface'], warn=False)
+        # Asked for and working: this one, and only once.
+        package.run_shell = lambda: opened.append(True)
+        asked = open_chosen_interface(['--interface'], warn=False)
+        # Not asked for: the old window, without the new one being built.
+        classic = open_chosen_interface(['--classic'], warn=False)
+    finally:
+        package.run_shell = keep
+    return bool(
+        failed is False
+        and asked is True
+        and classic is False
+        and opened == [True]
+    )
+
+
 def validate_shell_contract():
     """Return one row per promise the interface makes about itself."""
     root = web_root()
@@ -111,6 +171,8 @@ def validate_shell_contract():
 
     return {
         'shell_pages_present_valid': present,
+        'shell_interface_choice_valid': _choice_valid(),
+        'shell_falls_back_to_the_old_window_valid': _fallback_valid(),
         'shell_tokens_are_the_only_palette_valid': not stray_colours,
         'shell_tokens_are_the_only_scale_valid': not stray_sizes,
         'shell_both_themes_complete_valid': bool(themed and themed <= light),
@@ -121,6 +183,8 @@ def validate_shell_contract():
         ),
         'shell_contract_valid': bool(
             present
+            and _choice_valid()
+            and _fallback_valid()
             and not stray_colours
             and not stray_sizes
             and markup_free

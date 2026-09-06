@@ -51,13 +51,27 @@ def build_general_settings(self, settings_frame):
         command=self.on_dark_mode_changed,
     )
     self.dark_mode_check.grid(row=0, column=0, sticky='w')
+    self.new_interface_check = ttk.Checkbutton(
+        appearance_frame,
+        text='Open the new interface at start',
+        variable=self.new_interface_var,
+        command=self.on_new_interface_changed,
+    )
+    self.new_interface_check.grid(row=1, column=0, sticky='w', pady=(4, 0))
+    WidgetTooltip(
+        self.new_interface_check,
+        'The new interface draws the Skirmish Shop mode only. Everything '
+        'else -- the campaign, the Campaign Shop, Archipelago and these '
+        'settings -- is still in this window. Takes effect at the next '
+        'start; the exe also takes --interface and --classic.',
+    )
     self.hide_reward_details_check = ttk.Checkbutton(
         appearance_frame,
         text='Hide reward names in Mission Details',
         variable=self.hide_reward_details_var,
         command=self.on_hide_reward_details_changed,
     )
-    self.hide_reward_details_check.grid(row=1, column=0, sticky='w', pady=(4, 0))
+    self.hide_reward_details_check.grid(row=2, column=0, sticky='w', pady=(4, 0))
     WidgetTooltip(
         self.hide_reward_details_check,
         'Shows ????? for pending rewards in Mission Details and mission-row hover text. '
@@ -69,7 +83,7 @@ def build_general_settings(self, settings_frame):
         variable=self.hide_locked_grid_missions_var,
         command=self.on_hide_locked_grid_missions_changed,
     )
-    self.hide_locked_grid_missions_check.grid(row=2, column=0, sticky='w', pady=(4, 0))
+    self.hide_locked_grid_missions_check.grid(row=3, column=0, sticky='w', pady=(4, 0))
     WidgetTooltip(
         self.hide_locked_grid_missions_check,
         'Shows locked grid nodes as ? tiles. Completing a visible mission reveals '
