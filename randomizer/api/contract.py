@@ -25,6 +25,13 @@ class ApiError(RuntimeError):
     """A call that failed for a reason worth telling the player."""
 
 
+# What an action is for. A reading answers whenever it is asked; a command
+# changes something and is allowed to refuse -- there may be no run to buy
+# for. Both matter to a screen, and they matter differently.
+READ = 'read'
+COMMAND = 'command'
+
+
 @dataclass(frozen=True)
 class Action:
     """One thing a screen may ask the launcher to do."""
@@ -32,6 +39,7 @@ class Action:
     name: str
     call: Callable[..., Any]
     summary: str
+    kind: str = READ
 
     def __call__(self, **arguments):
         return self.call(**arguments)
@@ -40,7 +48,7 @@ class Action:
 _ACTIONS: dict[str, Action] = {}
 
 
-def action(name, summary=''):
+def action(name, summary='', kind=READ):
     """Register one call under a name a screen can ask for."""
 
     def register(function):
@@ -50,6 +58,7 @@ def action(name, summary=''):
             name=name,
             call=function,
             summary=summary or (function.__doc__ or '').strip().split('\n')[0],
+            kind=kind,
         )
         return function
 
@@ -65,7 +74,7 @@ def actions():
 def describe_actions():
     """Return what a screen may ask, for a screen that wants to know."""
     return tuple(
-        {'name': entry.name, 'summary': entry.summary}
+        {'name': entry.name, 'summary': entry.summary, 'kind': entry.kind}
         for entry in sorted(actions().values(), key=lambda item: item.name)
     )
 

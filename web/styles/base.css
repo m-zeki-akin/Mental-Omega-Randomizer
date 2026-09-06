@@ -1,0 +1,162 @@
+/* The shell: what every screen sits inside, and nothing a screen owns. */
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font);
+  font-size: var(--size-base);
+  line-height: var(--leading);
+  -webkit-font-smoothing: antialiased;
+  /* A launcher window is not a document. Nothing here is selected on
+   * purpose except the text a player might want to copy, which asks for
+   * it back. */
+  user-select: none;
+}
+
+.selectable,
+input,
+textarea {
+  user-select: text;
+}
+
+h1,
+h2,
+h3 {
+  margin: 0;
+  font-weight: var(--weight-bold);
+  letter-spacing: 0.1px;
+}
+
+h1 { font-size: var(--size-xl); }
+h2 { font-size: var(--size-lg); }
+h3 { font-size: var(--size-base); }
+
+p { margin: 0; }
+
+.app {
+  display: grid;
+  grid-template-rows: auto auto 1fr;
+  height: 100%;
+  min-height: 0;
+}
+
+/* --- the title bar ---------------------------------------------------
+ * Name on the left, the run's own state in the middle, what the launcher
+ * is doing on the right. It never scrolls away. */
+.titlebar {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  border-bottom: var(--border) solid var(--line);
+  background: var(--surface);
+}
+
+.titlebar__name {
+  font-size: var(--size-lg);
+  font-weight: var(--weight-bold);
+}
+
+.titlebar__spacer { flex: 1; }
+
+.titlebar__status {
+  color: var(--text-muted);
+  font-size: var(--size-sm);
+}
+
+/* --- tabs ------------------------------------------------------------- */
+.tabs {
+  display: flex;
+  gap: var(--space-1);
+  padding: 0 var(--space-4);
+  border-bottom: var(--border) solid var(--line);
+  background: var(--surface);
+}
+
+.tab {
+  appearance: none;
+  border: 0;
+  background: none;
+  color: var(--text-muted);
+  font: inherit;
+  font-weight: var(--weight-medium);
+  padding: var(--space-2) var(--space-3);
+  border-bottom: 2px solid transparent;
+  cursor: pointer;
+  transition: color var(--fast) var(--ease),
+    border-color var(--fast) var(--ease);
+}
+
+.tab:hover { color: var(--text); }
+
+.tab[aria-selected="true"] {
+  color: var(--text);
+  border-bottom-color: var(--accent);
+}
+
+/* --- the screen ------------------------------------------------------- */
+.screen {
+  min-height: 0;
+  overflow-y: auto;
+  padding: var(--space-4);
+  display: grid;
+  gap: var(--space-4);
+  align-content: start;
+}
+
+.screen[hidden] { display: none; }
+
+/* A section is a titled band of one screen. */
+.section {
+  display: grid;
+  gap: var(--space-2);
+}
+
+.section__title {
+  color: var(--text-faint);
+  font-size: var(--size-xs);
+  font-weight: var(--weight-bold);
+  letter-spacing: 0.8px;
+  text-transform: uppercase;
+}
+
+.grid {
+  display: grid;
+  gap: var(--space-2);
+  grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
+}
+
+.grid--wide {
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}
+
+.muted { color: var(--text-muted); }
+.faint { color: var(--text-faint); }
+.ore { color: var(--ore); font-weight: var(--weight-bold); }
+
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-thumb {
+  background: var(--line-strong);
+  border-radius: var(--radius-pill);
+  border: 3px solid var(--bg);
+}
+::-webkit-scrollbar-track { background: transparent; }

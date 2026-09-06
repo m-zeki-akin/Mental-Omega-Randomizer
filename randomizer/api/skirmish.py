@@ -5,15 +5,46 @@ it is offered, what is on its shelf, and the board of runs that have
 ended. Nothing in it knows what will draw it.
 """
 
+from pathlib import Path
+
 from randomizer.skirmish.factions import country_by_index, skirmish_countries
 from randomizer.skirmish.leaderboard import board_row, load_board, reached_text
 from randomizer.skirmish.maps import map_by_relative_path
-from randomizer.skirmish.progression import describe_offer
+from randomizer.skirmish.progression import SKILL_NAMES, describe_offer
 from randomizer.skirmish.shop import owned_stacks, shelf_for
 from randomizer.skirmish.stats import stats_lines
 from randomizer.skirmish.transitions import run_progress_text
 
-from .contract import ApiError, action
+from .contract import COMMAND, ApiError, action
+
+
+# What a preview is allowed to weigh before it is not worth sending. The
+# stock previews run to 300 KB and the median is 122 KB; three of those on
+# every redraw is a quarter of a megabyte across the bridge for pictures
+# that have not changed.
+MAX_PREVIEW_BYTES = 512 * 1024
+
+
+def _data_uri(path):
+    """Return a picture the page can draw, as data rather than as a path.
+
+    A page loaded from a file cannot open another file: the engine refuses
+    it, and a refused picture looks exactly like a map that has none. So
+    the bytes go across and the page caches them by map.
+    """
+    import base64
+
+    if not path:
+        return ''
+    path = Path(path)
+    try:
+        if not path.is_file() or path.stat().st_size > MAX_PREVIEW_BYTES:
+            return ''
+        raw = path.read_bytes()
+    except OSError:
+        return ''
+    encoded = base64.b64encode(raw).decode('ascii')
+    return f'data:image/png;base64,{encoded}'
 
 
 def _country(index):
@@ -49,9 +80,18 @@ def offer_view(offer, index):
         'map_name': offer.map_name or offer.map_path,
         'map_path': offer.map_path,
         'installed': entry is not None,
-        'preview': str(entry.preview) if entry and entry.preview else '',
+        # Whether there is one to ask for. The picture itself is asked
+        # for by map, once, rather than sent with every redraw.
+        'has_preview': bool(entry is not None and entry.preview),
         'summary': describe_offer(offer),
-        'enemies': [_country(index) for index in offer.enemy_countries],
+        # Each enemy with how well it plays: a tier mixes them, so the
+        # card has to be able to say two trained and one hardened.
+        'enemies': [
+            dict(_country(index), skill=SKILL_NAMES.get(handicap, ''))
+            for index, handicap in zip(
+                offer.enemy_countries, offer.enemy_handicaps()
+            )
+        ],
         'challenge': offer.challenge,
         'ally': offer.ally,
         'mental_ai': offer.mental_ai,
@@ -166,6 +206,14 @@ def board():
     ]
 
 
+@action('skirmish.preview', "One map's picture, as data a page can draw")
+def preview(map_path=''):
+    entry = map_by_relative_path(str(map_path))
+    if entry is None:
+        return {'map_path': map_path, 'uri': ''}
+    return {'map_path': map_path, 'uri': _data_uri(entry.preview)}
+
+
 @action('skirmish.tiers', 'What each tier of a run is made of')
 def tiers():
     from randomizer.skirmish.progression import (
@@ -203,6 +251,90 @@ def tiers():
         ],
         'plain_bonus_count': len(BONUSES),
     }
+
+
+def _repository():
+    from randomizer.skirmish.persistence import SkirmishRepository
+
+    return SkirmishRepository()
+
+
+def _playing(repository):
+    """Return the run being played, or say there is not one."""
+    current = repository.load_run()
+    if current is None:
+        raise ApiError('There is no run to play')
+    return current
+
+
+@action(
+    'skirmish.buy',
+    "Spend Ore on one upgrade from this battle's shelf",
+    kind=COMMAND,
+)
+def buy(key=''):
+    from randomizer.skirmish.transitions import (
+        SkirmishTransitionError,
+        buy_upgrade,
+    )
+
+    repository = _repository()
+    current = _playing(repository)
+    country = country_by_index(current.player_country)
+    if country is None:
+        raise ApiError('This run plays a country the rules no longer have')
+    wanted = str(key)
+    upgrade = next(
+        (
+            item for item in shelf_for(current, country.country_id)
+            if f'{item.unit}:{item.buff_type}' == wanted
+        ),
+        None,
+    )
+    if upgrade is None:
+        raise ApiError('That upgrade is not on this battle\'s shelf')
+    try:
+        saved = repository.save_run(buy_upgrade(current, upgrade))
+    except SkirmishTransitionError as exc:
+        raise ApiError(str(exc)) from exc
+    return {'bought': upgrade.name, 'coins': saved.coins}
+
+
+@action('skirmish.skip_warmup', 'Step past the warmup without fighting it', kind=COMMAND)
+def skip_the_warmup():
+    from randomizer.skirmish.transitions import (
+        SkirmishTransitionError,
+        skip_warmup,
+    )
+
+    repository = _repository()
+    current = _playing(repository)
+    try:
+        saved = repository.save_run(skip_warmup(current))
+    except SkirmishTransitionError as exc:
+        raise ApiError(str(exc)) from exc
+    return {'battle': saved.battle}
+
+
+@action('skirmish.give_up', 'End the run being played', kind=COMMAND)
+def give_up_run():
+    from randomizer.skirmish.transitions import give_up
+
+    repository = _repository()
+    current = _playing(repository)
+    saved = repository.save_run(give_up(current))
+    return {'status': saved.status.value}
+
+
+@action('skirmish.launch', 'Start the battle behind one of the offers', kind=COMMAND)
+def launch(index=0):
+    # Copying the map, writing the spawn file and starting the process
+    # still live in the window's own controller. Until that moves across,
+    # saying so is better than a button that does nothing.
+    raise ApiError(
+        'Launching a battle is still wired to the old window. '
+        f'Offer {index} was not started.'
+    )
 
 
 @action('skirmish.upgrades', "Everything one country's shelf can ever hold")

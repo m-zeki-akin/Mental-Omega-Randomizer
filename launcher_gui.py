@@ -1203,6 +1203,12 @@ def run_self_check():
         # and no widget toolkit on the launcher's side of it.
         from randomizer.api.self_check import validate_api_contract
         api_contract = validate_api_contract()
+        # And the interface drawn across it: that its pages are in the
+        # bundle at all, and that they are still built the way they were
+        # designed -- one palette, one scale, no markup parsed from text
+        # the game wrote.
+        from randomizer.shell.self_check import validate_shell_contract
+        shell_contract = validate_shell_contract()
         # What the offer clamp is withholding on this installation: rewards
         # the submod has already granted, or pushed past the speed ceiling.
         from randomizer.rewards.buff_reach import summary as buff_reach_summary
@@ -1244,7 +1250,11 @@ def run_self_check():
             'enemy_draft_contract_valid': all(enemy_draft_contract.values()),
             'skirmish_contract': skirmish_contract,
             'api_contract': api_contract,
+            'shell_contract': shell_contract,
             'api_contract_valid': bool(api_contract['api_contract_valid']),
+            'shell_contract_valid': bool(
+                shell_contract['shell_contract_valid']
+            ),
             'skirmish_contract_valid': all(
                 value for key, value in skirmish_contract.items()
                 if key.endswith('_valid')
@@ -1480,6 +1490,7 @@ def run_self_check():
                 'enemy_draft_contract_valid',
                 'skirmish_contract_valid',
                 'api_contract_valid',
+                'shell_contract_valid',
                 'player_data_contract_valid',
                 'permanent_purchase_gate_shared',
                 'undefined_globals_valid',

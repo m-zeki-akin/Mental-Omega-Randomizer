@@ -1,0 +1,279 @@
+/* Every component the launcher is built from, and nothing a screen owns.
+ *
+ * If a rule here needs a value that is not a token, the token is missing.
+ * Add it to tokens.css rather than writing the value twice. */
+
+/* --- card ------------------------------------------------------------
+ * The launcher's unit of choice: a battle, an upgrade, a saved run. It
+ * lifts a little under the pointer so that a thing you can take looks
+ * different from a thing you are only reading. */
+.card {
+  display: grid;
+  gap: var(--space-1);
+  align-content: start;
+  padding: var(--space-3);
+  background: var(--surface);
+  border: var(--border) solid var(--line);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-card);
+  transition: border-color var(--fast) var(--ease),
+    transform var(--fast) var(--ease),
+    background-color var(--fast) var(--ease);
+}
+
+.card--actionable { cursor: pointer; }
+
+.card--actionable:hover {
+  border-color: var(--line-strong);
+  background: var(--surface-raised);
+  transform: translateY(-1px);
+}
+
+.card--selected {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+
+/* Taken, spent, done. It stays where it was and stops asking. */
+.card--taken {
+  opacity: 0.62;
+  border-style: dashed;
+}
+
+.card--taken:hover { transform: none; }
+
+.card__title {
+  font-weight: var(--weight-bold);
+  font-size: var(--size-base);
+}
+
+.card__body {
+  color: var(--text-muted);
+  font-size: var(--size-sm);
+}
+
+.card__footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  margin-top: var(--space-2);
+}
+
+.card__figure {
+  margin: var(--space-1) 0;
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+  background: var(--bg);
+  aspect-ratio: 4 / 3;
+  display: grid;
+  place-items: center;
+}
+
+.card__figure img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.card__figure--empty {
+  color: var(--text-faint);
+  font-size: var(--size-xs);
+}
+
+/* --- button ----------------------------------------------------------- */
+.button {
+  appearance: none;
+  font: inherit;
+  font-weight: var(--weight-medium);
+  color: var(--text);
+  background: var(--surface-raised);
+  border: var(--border) solid var(--line-strong);
+  border-radius: var(--radius-sm);
+  padding: var(--space-2) var(--space-3);
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background-color var(--fast) var(--ease),
+    border-color var(--fast) var(--ease), opacity var(--fast) var(--ease);
+}
+
+.button:hover:not(:disabled) {
+  background: var(--surface-hover);
+  border-color: var(--accent);
+}
+
+.button:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.button--primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--on-accent);
+}
+
+.button--primary:hover:not(:disabled) {
+  filter: brightness(1.1);
+  background: var(--accent);
+}
+
+.button--danger {
+  color: var(--danger);
+  border-color: var(--danger-soft);
+  background: var(--danger-soft);
+}
+
+.button--danger:hover:not(:disabled) {
+  border-color: var(--danger);
+  background: var(--danger-soft);
+}
+
+.button--quiet {
+  background: none;
+  border-color: transparent;
+  color: var(--text-muted);
+}
+
+.button--quiet:hover:not(:disabled) {
+  color: var(--text);
+  background: var(--surface-hover);
+  border-color: var(--line);
+}
+
+/* --- pill ------------------------------------------------------------
+ * One fact, small: a difficulty, a bonus, a state. */
+.pill {
+  display: inline-block;
+  padding: 1px var(--space-2);
+  border-radius: var(--radius-pill);
+  background: var(--surface-raised);
+  border: var(--border) solid var(--line);
+  color: var(--text-muted);
+  font-size: var(--size-xs);
+  font-weight: var(--weight-medium);
+  white-space: nowrap;
+}
+
+.pill--ore { color: var(--ore); border-color: var(--ore); }
+.pill--accent { color: var(--accent); border-color: var(--accent); }
+.pill--danger { color: var(--danger); border-color: var(--danger); }
+.pill--green { color: var(--skill-green); border-color: var(--skill-green); }
+.pill--trained {
+  color: var(--skill-trained);
+  border-color: var(--skill-trained);
+}
+.pill--hardened {
+  color: var(--skill-hardened);
+  border-color: var(--skill-hardened);
+}
+
+/* --- table ------------------------------------------------------------ */
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--size-sm);
+  background: var(--surface);
+  border: var(--border) solid var(--line);
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+
+.table th {
+  text-align: left;
+  color: var(--text-faint);
+  font-size: var(--size-xs);
+  font-weight: var(--weight-bold);
+  letter-spacing: 0.6px;
+  text-transform: uppercase;
+  padding: var(--space-2) var(--space-3);
+  border-bottom: var(--border) solid var(--line);
+  background: var(--surface-raised);
+}
+
+.table td {
+  padding: var(--space-2) var(--space-3);
+  border-bottom: var(--border) solid var(--line);
+}
+
+.table tbody tr:last-child td { border-bottom: 0; }
+
+.table tbody tr {
+  cursor: default;
+  transition: background-color var(--fast) var(--ease);
+}
+
+.table--selectable tbody tr { cursor: pointer; }
+.table--selectable tbody tr:hover { background: var(--surface-hover); }
+.table tbody tr[aria-selected="true"] { background: var(--accent-soft); }
+
+/* --- panel ------------------------------------------------------------
+ * A titled box for things that are not a list: a form, a summary. */
+.panel {
+  background: var(--surface);
+  border: var(--border) solid var(--line);
+  border-radius: var(--radius);
+  padding: var(--space-3);
+  display: grid;
+  gap: var(--space-2);
+}
+
+.panel__title {
+  font-weight: var(--weight-bold);
+  font-size: var(--size-base);
+}
+
+/* --- field ------------------------------------------------------------ */
+.field {
+  display: grid;
+  gap: var(--space-1);
+}
+
+.field__label {
+  color: var(--text-muted);
+  font-size: var(--size-sm);
+}
+
+.field select,
+.field input {
+  font: inherit;
+  color: var(--text);
+  background: var(--surface-raised);
+  border: var(--border) solid var(--line-strong);
+  border-radius: var(--radius-sm);
+  padding: var(--space-2);
+}
+
+.field select:focus,
+.field input:focus {
+  outline: 2px solid var(--accent);
+  outline-offset: -1px;
+}
+
+/* --- empty and error --------------------------------------------------
+ * A screen with nothing on it says why. */
+.notice {
+  padding: var(--space-4);
+  text-align: center;
+  color: var(--text-muted);
+  background: var(--surface);
+  border: var(--border) dashed var(--line-strong);
+  border-radius: var(--radius);
+}
+
+.notice--error {
+  color: var(--danger);
+  border-color: var(--danger);
+  background: var(--danger-soft);
+  text-align: left;
+}
+
+/* --- stat line -------------------------------------------------------- */
+.stats {
+  display: grid;
+  gap: var(--space-1);
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  font-size: var(--size-sm);
+  color: var(--text-muted);
+}

@@ -13,6 +13,9 @@ from .contract import ApiError, actions, call, describe_actions
 
 
 TOOLKIT_NAMES = ('tkinter', 'import tk', 'ttk.', 'webview')
+# Readings that are about one named thing and cannot be asked in
+# general. The screens that use them are where they are checked.
+ARGUMENT_REQUIRED = frozenset({'skirmish.upgrades'})
 
 
 def _package_files():
@@ -50,6 +53,15 @@ def validate_api_contract():
             json_safe = False
 
     # Two failures a screen has to be able to survive.
+    reads = {
+        name for name, entry in registered.items()
+        if entry.kind == 'read' and name not in ARGUMENT_REQUIRED
+    }
+    commands = {
+        name for name, entry in registered.items()
+        if entry.kind == 'command'
+    }
+
     unknown = call('no.such.action')
     bad_argument = call('skirmish.upgrades')
 
@@ -74,13 +86,22 @@ def validate_api_contract():
             and bad_argument.get('kind') == 'ApiError'
             and bad_argument.get('error')
         ),
-        # Every action that does not need a run of its own answers cleanly.
-        'api_actions_answer_valid': bool(
-            replies
+        # A reading answers whenever it is asked. This is the row that
+        # catches one which only works on the machine it was written on --
+        # one that needs a run to exist, or a file, or an argument nobody
+        # will always have.
+        'api_readings_answer_valid': bool(
+            reads and all(replies[name].get('ok') for name in reads)
+        ),
+        # A command may refuse: there may be no run to buy for. What it
+        # may not do is crash -- it refuses with something a screen can
+        # put in front of a player.
+        'api_commands_refuse_cleanly_valid': bool(
+            commands
             and all(
-                reply.get('ok')
-                for name, reply in replies.items()
-                if name != 'skirmish.upgrades'
+                replies[name].get('ok')
+                or replies[name].get('kind') == 'ApiError'
+                for name in commands
             )
         ),
         # The point of the boundary: the launcher's rules never learn what
@@ -91,5 +112,6 @@ def validate_api_contract():
             and toolkit_free
             and unknown.get('ok') is False
             and described
+            and all(replies[name].get('ok') for name in reads)
         ),
     }

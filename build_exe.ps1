@@ -16,6 +16,8 @@ $workDir = Join-Path $scriptDir "build"
 $iconPath = Join-Path $scriptDir "mo-logo-puzzle-icon.ico"
 $staticConfigPath = Join-Path $scriptDir "configs"
 $assetPath = Join-Path $scriptDir "assets"
+# The interface itself: the pages the shell window is drawn from.
+$webPath = Join-Path $scriptDir "web"
 $tkRuntimeHook = Join-Path $scriptDir "tools\pyinstaller_tk_runtime.py"
 $versionInfoPath = Join-Path ([IO.Path]::GetTempPath()) "MentalOmegaRandomizer-$PID-version.txt"
 $configManifestDir = Join-Path ([IO.Path]::GetTempPath()) "MentalOmegaRandomizer-$PID-config"
@@ -52,6 +54,9 @@ if (-not (Test-Path -LiteralPath $staticConfigPath -PathType Container)) {
 }
 if (-not (Test-Path -LiteralPath $assetPath -PathType Container)) {
     throw "Launcher asset directory is missing: $assetPath"
+}
+if (-not (Test-Path -LiteralPath $webPath -PathType Container)) {
+    throw "Launcher interface directory is missing: $webPath"
 }
 
 # PyInstaller's Tcl/Tk probe can reject otherwise working Python 3.14 installs.
@@ -207,6 +212,7 @@ try {
         --add-data "$staticConfigPath\rewards;configs\rewards" `
         --add-data "$configManifestPath;configs" `
         --add-data "$assetPath;assets" `
+        --add-data "$webPath;web" `
         --add-binary "$tkinterBinary;." `
         --add-data "$tkinterPackage;tkinter" `
         --add-binary "$tclBinary;." `

@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Mental Omega Randomizer</title>
+  <link rel="stylesheet" href="styles/tokens.css">
+  <link rel="stylesheet" href="styles/base.css">
+  <link rel="stylesheet" href="styles/components.css">
+</head>
+<body>
+  <div class="app">
+    <header class="titlebar">
+      <span class="titlebar__name">Mental Omega Randomizer</span>
+      <span class="titlebar__spacer"></span>
+      <span class="titlebar__status" id="status"></span>
+    </header>
+
+    <nav class="tabs" role="tablist">
+      <button class="tab" role="tab" data-view="skirmish"
+              aria-selected="true">Skirmish</button>
+      <button class="tab" role="tab" data-view="records"
+              aria-selected="false">Records</button>
+    </nav>
+
+    <main>
+      <div class="screen" id="view-skirmish" role="tabpanel"></div>
+      <div class="screen" id="view-records" role="tabpanel" hidden></div>
+    </main>
+  </div>
+
+  <script type="module" src="views/skirmish.js"></script>
+  <script type="module" src="views/records.js"></script>
+  <script type="module" src="app.js"></script>
+</body>
+</html>

@@ -1,0 +1,131 @@
+/* The only place a colour, a size or a duration is decided.
+ *
+ * A component that writes its own hex value is a component that will not
+ * follow a theme, and the launcher has two: it sits beside a game that is
+ * dark, and it is opened in daylight by someone setting a run up.
+ *
+ * The scales are small on purpose. Four steps of space and five of type is
+ * enough to build a whole launcher, and a scale nobody can hold in their
+ * head stops being a scale. */
+
+:root {
+  color-scheme: dark;
+
+  /* --- surface -------------------------------------------------------
+   * Four depths, back to front: the window, a panel on it, a card on the
+   * panel, and something raised off the card. */
+  --bg: #0d0f13;
+  --surface: #14171d;
+  --surface-raised: #1a1e26;
+  --surface-hover: #1f242e;
+  --line: #262c37;
+  --line-strong: #38404e;
+
+  /* --- ink ----------------------------------------------------------- */
+  --text: #e7eaf0;
+  --text-muted: #8f98ab;
+  --text-faint: #626b7c;
+
+  /* --- meaning -------------------------------------------------------
+   * Ore is gold because the game says so. The accent is the launcher's
+   * own; danger and success are only ever used to mean those two things. */
+  --ore: #e3b341;
+  --accent: #4d8bff;
+  --accent-soft: #1c2a45;
+  /* What is written on top of the accent, which is not --text: the
+   * accent stays the same colour in both themes and the ink on it
+   * has to stay readable against it. */
+  --on-accent: #ffffff;
+  --danger: #e05561;
+  --danger-soft: #3a1d22;
+  --success: #4ec78f;
+  --warn: #d99a3c;
+
+  /* --- difficulty ----------------------------------------------------
+   * The three the game itself has, in the order it counts them. */
+  --skill-green: #6fbf73;
+  --skill-trained: #d3a63c;
+  --skill-hardened: #e0625f;
+
+  /* --- space ---------------------------------------------------------
+   * A four-step scale. Anything between two steps is a decision somebody
+   * will make differently next time. */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 14px;
+  --space-4: 22px;
+  --space-5: 34px;
+
+  /* --- type ----------------------------------------------------------
+   * Sizes, not colours. The ink is --text and its two quieter forms;
+   * these are how big something is set, which daylight does not
+   * change. Named apart so that the two never look like one family. */
+  --font: "Segoe UI", system-ui, -apple-system, sans-serif;
+  --font-mono: "Cascadia Mono", Consolas, monospace;
+  --size-xs: 11px;
+  --size-sm: 12px;
+  --size-base: 13px;
+  --size-lg: 15px;
+  --size-xl: 19px;
+  --weight-normal: 400;
+  --weight-medium: 500;
+  --weight-bold: 600;
+  --leading: 1.5;
+
+  /* --- shape ---------------------------------------------------------- */
+  --radius-sm: 4px;
+  --radius: 8px;
+  --radius-lg: 12px;
+  --radius-pill: 999px;
+  --border: 1px;
+
+  /* --- depth ---------------------------------------------------------- */
+  --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.4);
+  --shadow-raised: 0 6px 20px rgba(0, 0, 0, 0.45);
+
+  /* --- motion --------------------------------------------------------
+   * Short and small. Nothing in a launcher needs to travel. */
+  --fast: 120ms;
+  --medium: 160ms;
+  --ease: cubic-bezier(0.2, 0, 0.2, 1);
+}
+
+/* Daylight. Same names, same meanings, different values -- so every
+ * component follows without knowing a theme exists. */
+:root[data-theme="light"] {
+  color-scheme: light;
+
+  --bg: #f2f4f7;
+  --surface: #ffffff;
+  --surface-raised: #ffffff;
+  --surface-hover: #eef1f6;
+  --line: #dde2ea;
+  --line-strong: #c3cbd8;
+
+  --text: #171b22;
+  --text-muted: #5c6675;
+  --text-faint: #8b94a3;
+
+  --ore: #a3781a;
+  --accent: #2f6fe0;
+  --accent-soft: #e3ecfd;
+  --on-accent: #ffffff;
+  --danger: #c2394a;
+  --danger-soft: #fbe6e8;
+  --success: #1f8f60;
+  --warn: #a5701d;
+
+  --skill-green: #3f8a45;
+  --skill-trained: #9a7620;
+  --skill-hardened: #bf4b48;
+
+  --shadow-card: 0 1px 2px rgba(15, 20, 30, 0.08);
+  --shadow-raised: 0 8px 24px rgba(15, 20, 30, 0.12);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --fast: 1ms;
+    --medium: 1ms;
+  }
+}
