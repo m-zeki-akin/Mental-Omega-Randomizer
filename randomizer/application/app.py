@@ -32,6 +32,7 @@ from ._dependencies import (
     WINDOW_ICON_PATH,
     clamp_int,
     load_config,
+    mode_family,
     log_event,
     normalize_reward_weights,
     normalize_arsenal_settings,
@@ -339,6 +340,12 @@ class LauncherApp(
             DEFAULT_PROGRESSION_MODE,
         )
         self.progression_mode_var = tk.StringVar(value=progression_mode_default)
+        # Which kind of game the mode is one of. Derived, never stored: the
+        # workspace keeps a mode, and the kind is how the five are offered.
+        self.mode_family_var = tk.StringVar(
+            value=mode_family(progression_mode_default)
+        )
+        self.progression_mode_var.trace_add('write', self.follow_mode_family)
         grid_state = self.state.get('grid', {}) if isinstance(self.state.get('grid'), dict) else {}
         self.grid_two_starts_var = tk.BooleanVar(
             value=bool(grid_state.get(

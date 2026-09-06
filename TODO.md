@@ -186,10 +186,13 @@ Roguelike two are not (`shop_*` keys beside skirmish's own).
   everything shared on it, and Grid's three of its own shown only when
   Grid is standing. They are all config-backed already.
 
-- **The classic window still offers five flat modes.** Its dropdown is
-  the old list, so the two windows describe the same choice differently.
-  Making it two controls is a Tk change of its own; nothing is broken
-  until then, because what is stored is the same five names.
+- **The classic window's mode control names the modes, not the labels.**
+  It is two controls now, like the new interface, but its second one lists
+  the stored names (`Shop Mode`, `Skirmish Shop`) where the new interface
+  lists what they are called inside their kind (`Campaign`, `Skirmish`).
+  Showing labels there means a display value that is not the stored one,
+  in a combobox bound straight to the mode variable; worth doing, worth
+  doing carefully.
 
 - **The screens for the four modes themselves.** A mode drawn here needs
   what Skirmish Shop has: the play loop, not only the settings. Until a

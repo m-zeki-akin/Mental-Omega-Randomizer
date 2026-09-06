@@ -23,6 +23,9 @@ from randomizer.ui.config import (
     DEFAULT_PROGRESSION_MODE,
     MODE_FAMILIES,
     PROGRESSION_MODES,
+    mode_family,
+    mode_label,
+    modes_in_family,
 )
 
 
@@ -75,31 +78,17 @@ def families():
 
 def family(mode):
     """Return the name of the kind of game a mode is, or the first kind."""
-    wanted = known(mode)
-    for entry in MODE_FAMILIES:
-        if any(item['mode'] == wanted for item in entry['modes']):
-            return entry['name']
-    return MODE_FAMILIES[0]['name']
+    return mode_family(known(mode))
 
 
 def label(mode):
     """Return what a mode is called inside its own kind of game."""
-    wanted = known(mode)
-    for entry in MODE_FAMILIES:
-        for item in entry['modes']:
-            if item['mode'] == wanted:
-                return item['label']
-    return wanted
+    return mode_label(known(mode))
 
 
 def modes_in(name):
-    """Return the modes of one kind of game, in the order it lists them."""
-    for entry in MODE_FAMILIES:
-        if entry['name'] == str(name or ''):
-            return [
-                item['mode'] for item in entry['modes'] if item['mode'] in BY_MODE
-            ]
-    return []
+    """Return the modes of one kind of game that this interface can draw."""
+    return [mode for mode in modes_in_family(name) if mode in BY_MODE]
 
 
 def known(mode):

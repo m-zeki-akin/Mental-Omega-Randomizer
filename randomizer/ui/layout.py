@@ -1,6 +1,11 @@
 """Main window shell, side panel, and information tabs."""
 
 from randomizer.shop.config import PACING_LABELS, RUN_PACING_SETTINGS
+from randomizer.ui.config import (
+    family_description,
+    mode_family_names,
+    modes_in_family,
+)
 
 from ._builder_dependencies import (
     APP_VERSION,
@@ -476,14 +481,39 @@ def _build_right_panel(self, main_frame):
     )
 
     ttk.Label(options_row, text='Progression').grid(row=10, column=0, sticky='w', pady=(6, 0), padx=(0, 8))
+    # Two controls, one choice: which kind of game, then which one of that
+    # kind. Five modes offered flat made a player read a list to find out
+    # that three of them are the campaign and two are a roguelike run.
+    progression_cell = ttk.Frame(options_row)
+    progression_cell.grid(row=10, column=1, sticky='ew', pady=(6, 0))
+    progression_cell.columnconfigure(0, weight=1)
+    progression_cell.columnconfigure(1, weight=1)
+    self.mode_family_combo = ttk.Combobox(
+        progression_cell,
+        state='readonly',
+        textvariable=self.mode_family_var,
+        values=mode_family_names(),
+        width=10,
+    )
+    self.mode_family_combo.grid(row=0, column=0, sticky='ew', padx=(0, 4))
+    self.mode_family_combo.bind(
+        '<<ComboboxSelected>>', self.on_mode_family_changed, add='+'
+    )
+    WidgetTooltip(
+        self.mode_family_combo,
+        '\n\n'.join(
+            f'{name}: {family_description(name)}'
+            for name in mode_family_names()
+        ),
+    )
     self.progression_mode_combo = ttk.Combobox(
-        options_row,
+        progression_cell,
         state='readonly',
         textvariable=self.progression_mode_var,
-        values=PROGRESSION_MODES,
+        values=modes_in_family(self.mode_family_var.get()) or PROGRESSION_MODES,
         width=12,
     )
-    self.progression_mode_combo.grid(row=10, column=1, sticky='ew', pady=(6, 0))
+    self.progression_mode_combo.grid(row=0, column=1, sticky='ew')
     self.progression_mode_combo.bind('<<ComboboxSelected>>', self.on_progression_mode_changed, add='+')
     WidgetTooltip(
         self.progression_mode_combo,
@@ -500,6 +530,7 @@ def _build_right_panel(self, main_frame):
         self.campaign_combo,
         self.difficulty_combo,
         self.reward_mode_combo,
+        self.mode_family_combo,
         self.progression_mode_combo,
     ):
         combo.bind('<MouseWheel>', self.on_settings_control_mousewheel, add='+')
@@ -553,14 +584,29 @@ def _build_right_panel(self, main_frame):
     ttk.Label(shop_settings_frame, text='Progression').grid(
         row=1, column=0, sticky='w', padx=(0, 12)
     )
+    shop_progression_cell = ttk.Frame(shop_settings_frame)
+    shop_progression_cell.grid(row=1, column=1, sticky='ew')
+    shop_progression_cell.columnconfigure(0, weight=1)
+    shop_progression_cell.columnconfigure(1, weight=1)
+    self.shop_mode_family_combo = ttk.Combobox(
+        shop_progression_cell,
+        state='readonly',
+        textvariable=self.mode_family_var,
+        values=mode_family_names(),
+        width=10,
+    )
+    self.shop_mode_family_combo.grid(row=0, column=0, sticky='ew', padx=(0, 4))
+    self.shop_mode_family_combo.bind(
+        '<<ComboboxSelected>>', self.on_mode_family_changed, add='+'
+    )
     self.shop_progression_mode_combo = ttk.Combobox(
-        shop_settings_frame,
+        shop_progression_cell,
         state='readonly',
         textvariable=self.progression_mode_var,
-        values=PROGRESSION_MODES,
+        values=modes_in_family(self.mode_family_var.get()) or PROGRESSION_MODES,
         width=18,
     )
-    self.shop_progression_mode_combo.grid(row=1, column=1, sticky='ew')
+    self.shop_progression_mode_combo.grid(row=0, column=1, sticky='ew')
     self.shop_progression_mode_combo.bind(
         '<<ComboboxSelected>>', self.on_progression_mode_changed, add='+'
     )

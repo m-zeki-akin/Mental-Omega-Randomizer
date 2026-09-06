@@ -1186,6 +1186,43 @@ class AdvancedSettingsController:
         if not self.state:
             self.redraw_progression_views()
 
+    def follow_mode_family(self, *_args):
+        """Keep the kind of game showing whatever the mode is one of.
+
+        Hung off the mode variable rather than off the control, because the
+        mode is set from several places -- the settings file, a portable
+        settings import, an Archipelago slot -- and the kind has to follow
+        all of them, not just the dropdown.
+        """
+        from randomizer.ui.config import mode_family, modes_in_family
+
+        mode = self.progression_mode_var.get()
+        kind = mode_family(mode)
+        if self.mode_family_var.get() != kind:
+            self.mode_family_var.set(kind)
+        within = modes_in_family(kind)
+        for name in ('progression_mode_combo', 'shop_progression_mode_combo'):
+            combo = getattr(self, name, None)
+            if combo is not None:
+                combo.configure(values=within)
+
+    def on_mode_family_changed(self, _event=None):
+        """Move to the chosen kind of game, staying put if already in it.
+
+        The five modes are two kinds, and a player picks the kind first.
+        Picking one they are already in changes nothing -- switching from
+        Campaign to Campaign should not throw away the mode they had.
+        """
+        from randomizer.ui.config import modes_in_family
+
+        within = modes_in_family(self.mode_family_var.get())
+        if not within:
+            return
+        if self.progression_mode_var.get() not in within:
+            self.progression_mode_var.set(within[0])
+        self.follow_mode_family()
+        self.on_progression_mode_changed()
+
     def refresh_progression_setting_states(self):
         if not hasattr(self, 'grid_options_frame'):
             return

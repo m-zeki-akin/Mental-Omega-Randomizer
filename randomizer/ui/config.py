@@ -50,6 +50,46 @@ MODE_FAMILIES = [
     }
     for family in _UI_CONFIG['mode_families']
 ]
+
+
+def mode_family_names():
+    """Return the kinds of game, in the order they are offered."""
+    return [family['name'] for family in MODE_FAMILIES]
+
+
+def mode_family(mode):
+    """Return the kind of game a mode is one of, or the first kind."""
+    wanted = str(mode or '')
+    for family in MODE_FAMILIES:
+        if any(entry['mode'] == wanted for entry in family['modes']):
+            return family['name']
+    return MODE_FAMILIES[0]['name']
+
+
+def mode_label(mode):
+    """Return what a mode is called inside its own kind of game."""
+    wanted = str(mode or '')
+    for family in MODE_FAMILIES:
+        for entry in family['modes']:
+            if entry['mode'] == wanted:
+                return entry['label']
+    return wanted
+
+
+def modes_in_family(name):
+    """Return the modes of one kind of game, in its own order."""
+    for family in MODE_FAMILIES:
+        if family['name'] == str(name or ''):
+            return [entry['mode'] for entry in family['modes']]
+    return []
+
+
+def family_description(name):
+    """Return what a kind of game is, for the control that offers it."""
+    for family in MODE_FAMILIES:
+        if family['name'] == str(name or ''):
+            return family['description']
+    return ''
 PLAYER_COLORS = list(_UI_CONFIG['player_colors'])
 RAINBOWIZER_COLORS = list(_UI_CONFIG['rainbowizer_colors'])
 
