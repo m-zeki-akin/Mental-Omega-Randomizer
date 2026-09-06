@@ -23,6 +23,9 @@ SKIRMISH_RUN_COLLECTION_SCHEMA_VERSION = 1
 # is fought on a challenge map. The two are the same number on purpose: the
 # challenge is what closes a tier.
 BATTLES_PER_TIER = 5
+# The battle number a run opens on. Everything counted from one is a tier
+# battle; zero is the warmup, which is none of them.
+WARMUP_BATTLE = 0
 DEFAULT_LIVES = 3
 
 
@@ -102,8 +105,10 @@ class SkirmishRun:
     ally_country: int
     created: str = ''
     status: RunStatus = RunStatus.ACTIVE
-    # The battle about to be played, counted from one.
-    battle: int = 1
+    # The battle about to be played. Zero is the warmup: one fight to
+    # find the mouse again, with no shop and nothing riding on it, which
+    # the player may skip outright.
+    battle: int = WARMUP_BATTLE
     lives: int = DEFAULT_LIVES
     revivals_used: int = 0
     coins: int = 0
@@ -126,13 +131,22 @@ class SkirmishRun:
     schema_version: int = SKIRMISH_RUN_SCHEMA_VERSION
 
     @property
+    def warmup(self):
+        return self.battle <= WARMUP_BATTLE
+
+    @property
     def tier(self):
-        """Which difficulty tier this battle belongs to, counted from one."""
-        return (max(1, self.battle) - 1) // BATTLES_PER_TIER + 1
+        """Which tier this battle belongs to. The warmup is tier zero."""
+        if self.warmup:
+            return WARMUP_BATTLE
+        return (self.battle - 1) // BATTLES_PER_TIER + 1
 
     @property
     def challenge_battle(self):
-        return max(1, self.battle) % BATTLES_PER_TIER == 0
+        """Whether this battle closes a tier. The warmup closes nothing."""
+        if self.warmup:
+            return False
+        return self.battle % BATTLES_PER_TIER == 0
 
     @property
     def lives_left(self):

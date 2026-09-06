@@ -189,6 +189,13 @@ def _build_run_header(self, parent):
         command=self.give_up_skirmish_run,
     )
     self.skirmish_give_up_button.grid(row=0, column=3, sticky='w')
+    # Shown only during the warmup, which is the only thing it skips.
+    self.skirmish_skip_button = ttk.Button(
+        header,
+        text='Skip Warmup',
+        command=self.skip_skirmish_warmup,
+    )
+    self.skirmish_skip_button.grid(row=0, column=6, sticky='e')
     return header
 
 

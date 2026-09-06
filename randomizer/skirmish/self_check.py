@@ -407,12 +407,17 @@ def _run_checks():
         standard_pool = _fixture_pool(standard, 12, prefix='std')
         challenge_pool = _fixture_pool(challenge, 4, prefix='chl', seats=5)
 
-        run = start_run(
-            run_id='check-run',
-            seed='SKIRMISH-CHECK',
-            player_country=0,
-            ally_country=3,
-            created='2026-09-06',
+        # Past the warmup: what is checked here is how a tier counts, and
+        # the warmup is outside the count.
+        run = replace(
+            start_run(
+                run_id='check-run',
+                seed='SKIRMISH-CHECK',
+                player_country=0,
+                ally_country=3,
+                created='2026-09-06',
+            ),
+            battle=1,
         )
         # A tier is five battles and the fifth is the challenge.
         cadence_valid = bool(
@@ -1094,11 +1099,49 @@ def _shop_checks():
         purchase_stacks,
         shelf_for,
     )
-    from .transitions import buy_upgrade, start_run
+    from .transitions import buy_upgrade, record_defeat, start_run
 
     # Fixed by the tier the battle was fought in, and doubled for a
     # challenge. Never by score: a score can be farmed by dragging a won
     # battle out, and the difficulty is not something to grind around.
+    # The warmup is fought with what you have: no shop, no life at stake,
+    # and it can be stepped past. And the ally is equipped before the first
+    # shot rather than after the first victory.
+    from .model import WARMUP_BATTLE
+    from .progression import is_warmup
+    from .transitions import skip_warmup
+
+    opening = start_run(
+        run_id='warmup-check', seed='WARMUP', player_country=0,
+        ally_country=3, ally_roster='USSR',
+    )
+    fought = replace(
+        opening, offers=(_offer(),), committed_offer=0,
+    )
+    try:
+        buy_upgrade(opening, Upgrade(
+            unit='GGI', buff_type='speed', name='x', description='',
+            price=1, limit=1,
+        ))
+        warmup_shops = True
+    except SkirmishTransitionError:
+        warmup_shops = False
+    warmup_valid = bool(
+        opening.battle == WARMUP_BATTLE
+        and opening.warmup
+        and is_warmup(opening.battle)
+        and not opening.challenge_battle
+        # The ally has already spent its opening Ore.
+        and opening.ally_purchases
+        and opening.ally_coins < STARTING_ORE
+        # Nothing is bought during it and nothing is lost by losing it.
+        and not warmup_shops
+        and record_defeat(fought).lives_left == fought.lives_left
+        # And it can be stepped past, which starts the run at battle one.
+        and skip_warmup(opening).battle == WARMUP_BATTLE + 1
+        and not skip_warmup(opening).warmup
+    )
+
     reward_valid = bool(
         battle_reward(1) == BATTLE_REWARD
         and battle_reward(4) == BATTLE_REWARD
@@ -1107,11 +1150,16 @@ def _shop_checks():
         and battle_reward(5, challenge=True) == BATTLE_REWARD * 2
     )
 
-    run = start_run(
-        run_id='shop-check',
-        seed='SHOP-CHECK',
-        player_country=0,
-        ally_country=3,
+    # Past the warmup: nothing is bought during it, so a shop check has
+    # to stand where a shop stands.
+    run = replace(
+        start_run(
+            run_id='shop-check',
+            seed='SHOP-CHECK',
+            player_country=0,
+            ally_country=3,
+        ),
+        battle=1,
     )
     cheap = Upgrade(
         unit='GGI', buff_type='speed', name='Cheap', description='',
@@ -1407,6 +1455,7 @@ def _shop_checks():
     )
 
     return {
+        'skirmish_warmup_valid': warmup_valid,
         'skirmish_battle_reward_valid': reward_valid,
         'skirmish_purchase_valid': purchase_valid,
         'skirmish_ally_shops_alone_valid': ally_valid,

@@ -19,7 +19,7 @@ from dataclasses import dataclass
 import random
 
 from .challenges import challenge_for
-from .model import BATTLES_PER_TIER, BattleOffer
+from .model import BATTLES_PER_TIER, WARMUP_BATTLE, BattleOffer
 from .spawn import (
     AI_DIFFICULTY_EASY,
     AI_DIFFICULTY_HARD,
@@ -94,6 +94,10 @@ TIERS = (
         mental=True,
     ),
 )
+# The warmup. One trained enemy and the ally beside you, no shop, no
+# challenge and no life at stake: a fight to find the mouse again before
+# the run starts counting. It can be skipped.
+WARMUP = Tier(enemies=(AI_DIFFICULTY_MEDIUM,), challenge=AI_DIFFICULTY_EASY)
 OFFER_COUNT = 3
 # What the ally plays at, whatever the enemies play at. It is the player's
 # partner, and a partner on Easy develops a base and then stands in it: the
@@ -102,18 +106,31 @@ OFFER_COUNT = 3
 ALLY_DIFFICULTY = AI_DIFFICULTY_HARD
 
 
+def is_warmup(battle):
+    """Whether this is the fight before the run starts counting."""
+    return int(battle) <= WARMUP_BATTLE
+
+
 def tier_for(battle):
-    """Which tier a battle belongs to, counted from one."""
-    return (max(1, int(battle)) - 1) // BATTLES_PER_TIER + 1
+    """Which tier a battle belongs to. The warmup is tier zero."""
+    battle = int(battle)
+    if is_warmup(battle):
+        return WARMUP_BATTLE
+    return (battle - 1) // BATTLES_PER_TIER + 1
 
 
 def tier_rules(battle):
     """The tier's own table, with the last tier standing for every one after."""
+    if is_warmup(battle):
+        return WARMUP
     return TIERS[min(tier_for(battle), len(TIERS)) - 1]
 
 
 def is_challenge_battle(battle):
-    return max(1, int(battle)) % BATTLES_PER_TIER == 0
+    """Whether this battle closes a tier. The warmup closes nothing."""
+    if is_warmup(battle):
+        return False
+    return int(battle) % BATTLES_PER_TIER == 0
 
 
 def _rng(seed, battle, salt=''):

@@ -90,6 +90,7 @@ from randomizer.skirmish.transitions import (
     record_defeat,
     record_victory,
     run_progress_text,
+    skip_warmup,
     start_run,
 )
 
@@ -283,6 +284,10 @@ class SkirmishController:
                 player_country=player.index,
                 ally_country=ally.index,
                 created=date.today().isoformat(),
+                # So the ally is not empty-handed in the opening battle: it
+                # shops out of what a victory pays, and at the start nothing
+                # has been won.
+                ally_roster=ally.country_id,
             )
             run = self.offer_skirmish_battles(run)
         except SkirmishTransitionError as exc:
@@ -347,6 +352,26 @@ class SkirmishController:
             run, offers, shelf=draw_shelf(run, self.skirmish_country_id(run))
         )
 
+    def skip_skirmish_warmup(self):
+        """Step past the warmup without fighting it."""
+        run = self.skirmish_run
+        if run is None or not run.warmup:
+            return
+        if self.skirmish_launch_blocked():
+            self.skirmish_message_var.set('Wait for the running game to close.')
+            return
+        try:
+            run = self.offer_skirmish_battles(skip_warmup(run))
+        except SkirmishTransitionError as exc:
+            self.skirmish_message_var.set(str(exc))
+            return
+        self.skirmish_run = self.skirmish_repository.save_run(run)
+        log_event('skirmish_warmup_skipped', run_id=run.run_id)
+        self.skirmish_message_var.set(
+            'Warmup skipped. The run starts at battle 1.'
+        )
+        self.refresh_skirmish_mode()
+
     def give_up_skirmish_run(self):
         run = self.skirmish_run
         if run is None or run.status is not RunStatus.ACTIVE:
@@ -403,6 +428,14 @@ class SkirmishController:
         self.skirmish_give_up_button.configure(
             state='normal' if playable else 'disabled'
         )
+        # The skip is the warmup's own, so it is there while the warmup is.
+        if playable and run.warmup:
+            self.skirmish_skip_button.grid()
+            self.skirmish_skip_button.configure(
+                state='disabled' if self.skirmish_launch_blocked() else 'normal'
+            )
+        else:
+            self.skirmish_skip_button.grid_remove()
         if playable:
             self.skirmish_cards_frame.grid(
                 row=2, column=0, sticky='nsew', pady=(8, 0)
@@ -411,7 +444,13 @@ class SkirmishController:
                 row=3, column=0, sticky='nsew', pady=(8, 0)
             )
             self.refresh_skirmish_cards(run)
-            self.refresh_skirmish_shop(run)
+            if run.warmup:
+                # The warmup is fought with what you have. There is nothing
+                # to spend and nothing riding on it.
+                self.skirmish_shop_frame.grid_remove()
+                self.skirmish_ore_var.set(f'Ore: {run.coins}')
+            else:
+                self.refresh_skirmish_shop(run)
         else:
             self.skirmish_cards_frame.grid_remove()
             self.skirmish_shop_frame.grid_remove()

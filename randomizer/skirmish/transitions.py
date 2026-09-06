@@ -14,8 +14,8 @@ from dataclasses import replace
 
 from randomizer.shop.model import RunStatus
 
-from .model import DEFAULT_LIVES, SkirmishRun
-from .progression import is_challenge_battle
+from .model import DEFAULT_LIVES, WARMUP_BATTLE, SkirmishRun
+from .progression import is_challenge_battle, is_warmup
 from .shop import (
     ally_shopping,
     battle_reward,
@@ -37,12 +37,13 @@ def start_run(
     ally_country,
     created='',
     lives=DEFAULT_LIVES,
+    ally_roster='',
 ):
     run_id = str(run_id or '')
     seed = str(seed or '')
     if not run_id or not seed:
         raise SkirmishTransitionError('A skirmish run needs a run_id and a seed')
-    return SkirmishRun(
+    run = SkirmishRun(
         run_id=run_id,
         seed=seed,
         created=str(created or ''),
@@ -52,6 +53,13 @@ def start_run(
         coins=STARTING_ORE,
         ally_coins=STARTING_ORE,
     )
+    if not ally_roster:
+        return run
+    # The ally does its first shopping before the run's first shot. It had
+    # none in the opening battle otherwise: it shops out of what a victory
+    # pays, and at the start nothing has been won.
+    purchases, left = ally_shopping(run, ally_roster, run.ally_coins)
+    return replace(run, ally_purchases=purchases, ally_coins=left)
 
 
 def offer_battles(run, offers, *, shelf=None):
@@ -124,6 +132,10 @@ def buy_upgrade(run, upgrade):
     """Spend Ore on one more stack of an upgrade."""
     if run.status is not RunStatus.ACTIVE:
         raise SkirmishTransitionError('This run is over')
+    if is_warmup(run.battle):
+        raise SkirmishTransitionError(
+            'The warmup is fought with what you have'
+        )
     owned = owned_stacks(run.purchases, upgrade.unit, upgrade.buff_type)
     if owned >= upgrade.limit:
         raise SkirmishTransitionError(
@@ -141,17 +153,39 @@ def buy_upgrade(run, upgrade):
 
 
 def record_defeat(run):
-    """Spend a life. The battle stands; the run ends when none are left."""
+    """Spend a life. The battle stands; the run ends when none are left.
+
+    Except in the warmup, which costs nothing: it is the fight before the
+    run starts counting, and a run that can be lost before it has begun is
+    not a warmup.
+    """
     if run.committed() is None:
         raise SkirmishTransitionError('No battle was committed')
     if run.status is not RunStatus.ACTIVE:
         raise SkirmishTransitionError('This run is over')
+    if is_warmup(run.battle):
+        return replace(run, committed_offer=None)
     revivals = run.revivals_used + 1
     out_of_lives = revivals >= run.lives
     return replace(
         run,
         revivals_used=revivals,
         status=RunStatus.FAILED if out_of_lives else run.status,
+        committed_offer=None,
+    )
+
+
+def skip_warmup(run):
+    """Step past the warmup without fighting it, and without being paid."""
+    if run.status is not RunStatus.ACTIVE:
+        raise SkirmishTransitionError('This run is over')
+    if not is_warmup(run.battle):
+        raise SkirmishTransitionError('The warmup is already behind you')
+    return replace(
+        run,
+        battle=WARMUP_BATTLE + 1,
+        offers=(),
+        shelf=(),
         committed_offer=None,
     )
 
@@ -165,6 +199,8 @@ def give_up(run):
 def run_progress_text(run):
     """The headline: where the run is and what it has left."""
     lives = run.lives_left
+    if is_warmup(run.battle):
+        return f'Warmup — {lives} {"life" if lives == 1 else "lives"} in hand'
     challenge = ' — challenge' if is_challenge_battle(run.battle) else ''
     return (
         f'Battle {run.battle} — tier {run.tier}{challenge} — '

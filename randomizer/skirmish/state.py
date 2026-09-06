@@ -13,6 +13,7 @@ from randomizer.core.integrity import strip_signature
 from randomizer.shop.model import RunStatus
 
 from .model import (
+    WARMUP_BATTLE,
     SKIRMISH_RUN_COLLECTION_SCHEMA_VERSION,
     SKIRMISH_RUN_SCHEMA_VERSION,
     BattleOffer,
@@ -168,7 +169,11 @@ def normalize_skirmish_run(document):
         status=status,
         player_country=_int(document.get('player_country'), 'player_country'),
         ally_country=_int(document.get('ally_country'), 'ally_country'),
-        battle=_int(document.get('battle'), 'battle', minimum=1, default=1),
+        # Zero is the warmup, so a run may legitimately sit below one.
+        battle=_int(
+            document.get('battle'), 'battle',
+            minimum=WARMUP_BATTLE, default=WARMUP_BATTLE,
+        ),
         lives=_int(document.get('lives'), 'lives', minimum=1, default=1),
         revivals_used=_int(document.get('revivals_used'), 'revivals_used'),
         coins=_int(document.get('coins'), 'coins'),
