@@ -201,7 +201,26 @@ def main(argv=None):
     parser.add_argument('--seed', type=int, default=12345)
     parser.add_argument('--map', type=Path, default=None)
     parser.add_argument('--game-root', default=None)
+    # The line-up is a constant because the spike is a fixed test, but a
+    # control run for a symptom seen elsewhere has to reproduce that
+    # line-up rather than this one.
+    parser.add_argument('--player', type=int, default=None)
+    parser.add_argument('--ally', type=int, default=None)
+    parser.add_argument('--enemies', default=None)
+    parser.add_argument('--handicap', type=int, default=None)
     args = parser.parse_args(argv)
+
+    global PLAYER_COUNTRY, ALLY_COUNTRY, ENEMY_COUNTRIES, AI_HANDICAP
+    if args.player is not None:
+        PLAYER_COUNTRY = args.player
+    if args.ally is not None:
+        ALLY_COUNTRY = args.ally
+    if args.enemies:
+        ENEMY_COUNTRIES = tuple(
+            int(item) for item in str(args.enemies).split(',') if item.strip()
+        )
+    if args.handicap is not None:
+        AI_HANDICAP = args.handicap
 
     game_root = resolve_game_root(args.game_root)
     print(f'game folder: {game_root}')
@@ -245,8 +264,16 @@ def main(argv=None):
         if path.is_file():
             shutil.copy2(path, path.with_suffix(path.suffix + '.pre-spike'))
     shutil.copy2(chosen['path'], spawnmap)
-    from randomizer.skirmish.spawn import write_skirmish_spawn_ini
+    from randomizer.skirmish.options import merge_game_options
+    from randomizer.skirmish.spawn import (
+        DEFAULT_MATCH_OPTIONS,
+        write_skirmish_spawn_ini,
+    )
 
+    # A game option is a flag in spawn.ini and an INI merged into the map.
+    # Writing only the flag is what left StolenTech on with nothing spyable.
+    files, keys = merge_game_options(spawnmap, DEFAULT_MATCH_OPTIONS)
+    print(f'game options: {files} files, {keys} keys')
     write_skirmish_spawn_ini(spawn, text)
     print(f'wrote {spawnmap.name} from {chosen["path"].name}')
     print(f'wrote {spawn.name} ({len(text.splitlines())} lines)')

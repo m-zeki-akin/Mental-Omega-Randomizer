@@ -61,8 +61,10 @@ from randomizer.skirmish.results import (
     last_game_result,
     read_debug_log_tail,
 )
+from randomizer.skirmish.options import merge_game_options
 from randomizer.skirmish.spawn import (
     SkirmishHouse,
+    match_settings,
     skirmish_spawn_ini_text,
     write_skirmish_spawn_ini,
 )
@@ -798,12 +800,20 @@ class SkirmishController:
             options.update(forced_options(
                 f'{game_mode}ForcedOptions', described.forced_options
             ))
-            code = map_code_path(game_mode)
-            if code is not None:
-                merge_map_code(SPAWN_MAP_INI, code)
             starts = {1: 0}
             for index, house in enumerate(described.houses):
                 starts[index + 2] = house.start
+        # Half of a game option lives in the map: StolenTech is what puts
+        # Spyable=yes on every Construction Yard, and writing the flag
+        # without the file is a match whose spies cannot infiltrate. The
+        # settings are read after a challenge has forced its own, so the
+        # flag and the file can never disagree.
+        merge_game_options(SPAWN_MAP_INI, match_settings(options))
+        if described is not None:
+            code = map_code_path(game_mode)
+            if code is not None:
+                # Last, so a challenge's own code outranks an option's.
+                merge_map_code(SPAWN_MAP_INI, code)
         write_skirmish_spawn_ini(
             SPAWN_INI,
             skirmish_spawn_ini_text(

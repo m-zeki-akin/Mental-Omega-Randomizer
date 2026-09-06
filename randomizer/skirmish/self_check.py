@@ -693,6 +693,56 @@ def _challenge_checks():
         'skirmish_challenge_map_code_valid': merge_valid,
     }
 
+def _option_checks():
+    """A game option answers in two places, and both have to agree.
+
+    The client writes a flag into spawn.ini and merges an INI into the map.
+    The launcher wrote the flags and merged nothing, so a match declaring
+    stolen tech had no Construction Yard a spy could enter. What is checked
+    here is that every option this mode turns on still resolves to the file
+    the installed client says it resolves to.
+    """
+    from .options import (
+        GAME_OPTIONS_PATH,
+        option_map_code_paths,
+        parse_game_options,
+        read_ini_sections,
+    )
+    from .spawn import DEFAULT_MATCH_OPTIONS, match_settings
+
+    sections = read_ini_sections(GAME_OPTIONS_PATH)
+    checkboxes, dropdowns = parse_game_options(sections)
+    known_valid = bool(
+        checkboxes
+        and dropdowns
+        # Every option named in the client is one this mode has an answer
+        # for; an option it has never heard of would go out unset.
+        and all(option in DEFAULT_MATCH_OPTIONS for option in checkboxes)
+    )
+
+    paths = option_map_code_paths(match_settings({}))
+    names = {path.name.lower() for path in paths}
+    spyable = {}
+    for path in paths:
+        for section, values in read_ini_sections(path).items():
+            if any(key.lower() == 'spyable' for key in values):
+                spyable[section] = values
+    merged_valid = bool(
+        paths
+        # Stolen tech is on by default, so the file that makes a Construction
+        # Yard enterable has to be among what the map gets.
+        and 'stolen tech.ini' in names
+        and 'GACNST' in spyable
+        and 'GATECH' in spyable
+        # And an option this mode leaves off brings nothing with it.
+        and 'mental ai.ini' not in names
+    )
+    return {
+        'skirmish_game_options_known': known_valid,
+        'skirmish_game_options_merged': merged_valid,
+    }
+
+
 def _shop_checks():
     from .model import UpgradePurchase
     from .rules import unit_rules
@@ -862,6 +912,7 @@ def validate_skirmish_contract():
     report.update(_country_checks())
     report.update(_run_checks())
     report.update(_challenge_checks())
+    report.update(_option_checks())
     report.update(_shop_checks())
     report['skirmish_map_pools'] = (
         summarize_map_pools()

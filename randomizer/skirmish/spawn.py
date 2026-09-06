@@ -62,7 +62,7 @@ DEFAULT_MATCH_OPTIONS = {
     'FreeRadar': 'False',
     'NoSpawnPreviews': 'False',
     'ConYardStart': 'False',
-    'NerfEights': 'True',
+    'NerfEights': 'False',
     'UnitCount': '0',
     'GameSpeed': '1',
     'Credits': '10000',
@@ -70,6 +70,19 @@ DEFAULT_MATCH_OPTIONS = {
     'FogOfWar': 'No',
     'MultiEngineer': 'Yes',
 }
+
+
+def match_settings(options=None):
+    """Return the settings this match plays under.
+
+    A setting is answered in two places -- the flag the spawner reads and
+    the INI the client merges into the map -- so both have to be decided
+    from the same dictionary or a match ends up saying one thing and
+    playing another.
+    """
+    settings = dict(DEFAULT_MATCH_OPTIONS)
+    settings.update(options or {})
+    return settings
 
 
 @dataclass(frozen=True)
@@ -112,8 +125,7 @@ def skirmish_spawn_ini_text(
     friendly = [1] + [multi for multi, house in numbered if house.friendly]
     hostile = [multi for multi, house in numbered if not house.friendly]
 
-    settings = dict(DEFAULT_MATCH_OPTIONS)
-    settings.update(options or {})
+    settings = match_settings(options)
     lines = [
         '[Settings]',
         f'Name={player_name}',
