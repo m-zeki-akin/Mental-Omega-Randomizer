@@ -154,7 +154,7 @@ async function render(root) {
   let run = await call('skirmish.run');
   if (!run) {
     root.replaceChildren(
-      notice('No run yet. Start one to begin the warmup.'),
+      notice('No run yet. Start one on the Setup tab.'),
     );
     return;
   }

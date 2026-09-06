@@ -7,6 +7,7 @@ ended. Nothing in it knows what will draw it.
 
 from pathlib import Path
 
+from randomizer.core.diagnostics import event as log_event
 from randomizer.core.paths import GAME_EXE, GAME_LAUNCHER_EXE
 from randomizer.launch.game import (
     clear_generated_root_maps,
@@ -267,6 +268,98 @@ def tiers():
         ],
         'plain_bonus_count': len(BONUSES),
     }
+
+
+@action('skirmish.start', 'Begin a new run as one army, allied with another',
+        kind=COMMAND)
+def start(player=0, ally=3):
+    """Start a run and deal its warmup, and make it the run being played.
+
+    The run that was being played is not thrown away -- it stays in the
+    list, and can be resumed. What changes is which one the screens are
+    looking at.
+    """
+    from datetime import date
+    from uuid import uuid4
+
+    from randomizer.skirmish.transitions import (
+        SkirmishTransitionError,
+        start_run,
+    )
+
+    if session.running():
+        raise ApiError('Wait for the running game to close')
+    chosen = country_by_index(int(player))
+    beside = country_by_index(int(ally))
+    if chosen is None or beside is None:
+        raise ApiError('Choose an army and an ally')
+    try:
+        run = deal(start_run(
+            run_id=uuid4().hex,
+            seed=uuid4().hex[:12].upper(),
+            player_country=chosen.index,
+            ally_country=beside.index,
+            created=date.today().isoformat(),
+            # So the ally is not empty-handed in the opening battle: it
+            # shops out of what a victory pays, and at the start nothing
+            # has been won.
+            ally_roster=beside.country_id,
+        ))
+    except SkirmishTransitionError as exc:
+        raise ApiError(str(exc)) from exc
+    saved = _repository().save_run(run)
+    log_event(
+        'skirmish_run_started',
+        run_id=saved.run_id,
+        seed=saved.seed,
+        player_country=chosen.country_id,
+        ally_country=beside.country_id,
+    )
+    return {
+        'run_id': saved.run_id,
+        'seed': saved.seed,
+        'army': chosen.display,
+        'ally': beside.display,
+    }
+
+
+@action('skirmish.resume', 'Play a stored run instead of the current one',
+        kind=COMMAND)
+def resume(run_id=''):
+    from randomizer.skirmish.persistence import SkirmishPersistenceError
+
+    if session.running():
+        raise ApiError('Wait for the running game to close')
+    try:
+        run = _repository().select_run(str(run_id))
+    except SkirmishPersistenceError as exc:
+        raise ApiError(str(exc)) from exc
+    return {'run_id': run.run_id, 'seed': run.seed, 'battle': run.battle}
+
+
+@action('skirmish.delete', 'Forget a stored run', kind=COMMAND)
+def delete(run_id=''):
+    """Delete one run. What it did is on the board if it ended there.
+
+    Deleting the run being played leaves none being played, which the
+    screens say rather than hide.
+    """
+    from randomizer.skirmish.persistence import SkirmishPersistenceError
+
+    if session.running():
+        raise ApiError('Wait for the running game to close')
+    repository = _repository()
+    stored, _active = repository.list_runs()
+    gone = next(
+        (item for item in stored if item.run_id == str(run_id)), None
+    )
+    if gone is None:
+        raise ApiError('No such run')
+    try:
+        repository.delete_run(gone.run_id)
+    except SkirmishPersistenceError as exc:
+        raise ApiError(str(exc)) from exc
+    return {'run_id': gone.run_id, 'seed': gone.seed}
 
 
 def _repository():

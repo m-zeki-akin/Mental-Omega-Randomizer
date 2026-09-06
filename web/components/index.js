@@ -117,6 +117,33 @@ export function notice(text, { error } = {}) {
   });
 }
 
+/** A labelled control. `control` is the thing being labelled. */
+export function field(label, control) {
+  const id = `field-${(label || '').toLowerCase().replace(/[^a-z]+/g, '-')}`;
+  control.setAttribute('id', id);
+  return el('div', { class: 'field' }, [
+    el('label', { class: 'field__label', text: label, for: id }),
+    control,
+  ]);
+}
+
+/**
+ * A choice between named things.
+ *
+ * `options` are `{value, label}`; `value` is the one standing. The label
+ * is set as text, never as markup: a country's name comes from the
+ * installed rules, which a submod is free to write.
+ */
+export function select(options, { value, onChange } = {}) {
+  return el('select', {
+    onChange: onChange ? (event) => onChange(event.target.value) : null,
+  }, options.map((option) => el('option', {
+    value: option.value,
+    text: option.label,
+    selected: String(option.value) === String(value) ? true : null,
+  })));
+}
+
 /** A grid of cards. */
 export function grid(children, { wide } = {}) {
   return el('div', { class: wide ? 'grid grid--wide' : 'grid' }, children);

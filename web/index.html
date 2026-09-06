@@ -19,17 +19,21 @@
     <nav class="tabs" role="tablist">
       <button class="tab" role="tab" data-view="skirmish"
               aria-selected="true">Skirmish</button>
+      <button class="tab" role="tab" data-view="setup"
+              aria-selected="false">Setup</button>
       <button class="tab" role="tab" data-view="records"
               aria-selected="false">Records</button>
     </nav>
 
     <main>
       <div class="screen" id="view-skirmish" role="tabpanel"></div>
+      <div class="screen" id="view-setup" role="tabpanel" hidden></div>
       <div class="screen" id="view-records" role="tabpanel" hidden></div>
     </main>
   </div>
 
   <script type="module" src="views/skirmish.js"></script>
+  <script type="module" src="views/setup.js"></script>
   <script type="module" src="views/records.js"></script>
   <script type="module" src="app.js"></script>
 </body>
