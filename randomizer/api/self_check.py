@@ -152,6 +152,12 @@ def _battle_outlives_the_launcher_valid():
     -- a ticket written, a launcher that never saw the game finding it,
     the game still being up meaning wait, and the game being gone meaning
     the battle is recorded and the ticket taken away.
+
+    And what a ticket must never do: mistake somebody else's game for its
+    own. A player who opens Mental Omega themselves is a running
+    ``gamemd.exe`` that has nothing to do with the ticket, so the question
+    is asked of the process that was playing the battle. A battle whose
+    result is already in the log is over whatever is running now.
     """
     from randomizer.api import session
 
@@ -161,40 +167,68 @@ def _battle_outlives_the_launcher_valid():
         def load_run(self):
             return None
 
+    class Score:
+        """Stands in for the game's own score block."""
+
+        won = True
+
+        def to_dict(self):
+            return {'won': True}
+
     import randomizer.launch.running as machine
+
+    def ticket_for(pid):
+        return {
+            'run_id': 'gone-with-the-launcher', 'battle': 3,
+            'map_name': 'Somewhere', 'map_file': 'somewhere.map',
+            'player_name': 'Commander', 'log_offset': 0, 'pid': pid,
+        }
 
     with _store_of_its_own():
         kept = session.SKIRMISH_LAUNCH_PATH
         playing, process = session._PLAYING, session._PROCESS
-        asked = machine.game_is_running
+        by_name, by_pid = machine.game_is_running, machine.pid_is_running
+        reading, scoring = session.read_debug_log_tail, session.last_game_result
         with TemporaryDirectory(prefix='mo-ticket-check-') as folder:
             session.SKIRMISH_LAUNCH_PATH = Path(folder) / 'launch.dat'
             session._PLAYING = session._PROCESS = None
+            # The player's own log has nothing to say about a battle that
+            # never happened, and is not read for one.
+            session.read_debug_log_tail = lambda *_a, **_k: ''
+            session.last_game_result = lambda *_a, **_k: None
             try:
                 # Nothing left behind: nothing is being played.
                 empty = session.poll(Repository())
-                ticket = {
-                    'run_id': 'gone-with-the-launcher', 'battle': 3,
-                    'map_name': 'Somewhere', 'map_file': 'somewhere.map',
-                    'player_name': 'Commander', 'log_offset': 0,
-                }
+                ticket = ticket_for(4321)
                 session._keep(ticket)
                 read_back = session._kept()
-                # The game is still up: the battle is still being played,
-                # by a launcher that never started it.
-                machine.game_is_running = lambda name=None: True
+                # The battle's own process is still up, and nothing else
+                # by that name is: the battle is still being played, by a
+                # launcher that never started it.
+                machine.game_is_running = lambda name=None: False
+                machine.pid_is_running = lambda pid: pid == 4321
                 waiting = session.poll(Repository())
                 held = session.running()
-                # The game is gone: the battle is recorded and the ticket
-                # taken away with it. This run belongs to nobody, which is
-                # the one outcome that needs no store behind it.
-                machine.game_is_running = lambda name=None: False
-                finished = session.poll(Repository())
+                # The result is in the log. The battle is over whatever
+                # the process table says.
+                session.last_game_result = lambda *_a, **_k: Score()
+                scored = session.poll(Repository())
+                session.last_game_result = lambda *_a, **_k: None
+                # Somebody else's game: a copy running under the same name
+                # while the battle's own process is gone. Not this battle.
+                session._keep(ticket)
+                machine.game_is_running = lambda name=None: True
+                machine.pid_is_running = lambda pid: False
+                stranger = session.poll(Repository())
                 left = session.SKIRMISH_LAUNCH_PATH.exists()
             finally:
-                machine.game_is_running = asked
+                machine.game_is_running, machine.pid_is_running = by_name, by_pid
+                session.read_debug_log_tail = reading
+                session.last_game_result = scoring
                 session.SKIRMISH_LAUNCH_PATH = kept
                 session._PLAYING, session._PROCESS = playing, process
+    # A run belonging to nobody is the one outcome that needs no store
+    # behind it, which is why every recording here is a refused one.
     return bool(
         empty == {'playing': False, 'finished': None}
         and read_back == ticket
@@ -202,8 +236,10 @@ def _battle_outlives_the_launcher_valid():
         and waiting.get('adopted') is True
         and waiting.get('battle') == 3
         and held is True
-        and finished.get('playing') is False
-        and finished.get('finished', {}).get('recorded') is False
+        and scored.get('playing') is False
+        and scored.get('finished', {}).get('recorded') is False
+        and stranger.get('playing') is False
+        and stranger.get('finished', {}).get('recorded') is False
         and not left
     )
 

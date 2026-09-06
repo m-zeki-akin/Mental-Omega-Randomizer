@@ -38,7 +38,7 @@ _PROCESS = None
 LAUNCH_SCHEMA_VERSION = 1
 
 
-def _ticket(battle, offset):
+def _ticket(battle, offset, pid=0):
     """Return what a battle has to leave behind to be recorded later."""
     return {
         'run_id': battle['run_id'],
@@ -47,6 +47,10 @@ def _ticket(battle, offset):
         'map_file': battle['map'].path.name,
         'player_name': battle['player_name'],
         'log_offset': int(offset),
+        # Which process was playing it. A launcher that comes after has to
+        # tell this battle from any other game the player has since opened
+        # themselves, and a name cannot.
+        'pid': int(pid or 0),
     }
 
 
@@ -89,21 +93,38 @@ def _kept():
         'map_file': str(ticket.get('map_file') or ''),
         'player_name': str(ticket.get('player_name') or 'Commander'),
         'log_offset': int(ticket.get('log_offset') or 0),
+        'pid': int(ticket.get('pid') or 0),
     }
 
 
 def _adopt():
     """Take up a battle this launcher did not start.
 
-    Returns the ticket and whether the game is still up. Only reached when
-    nothing is being played here, which is why the process table is asked:
+    Returns the ticket and whether it is still being played. Only reached
+    when nothing is being played here, which is why the machine is asked:
     there is no handle to ask instead.
+
+    Two questions in order, because the obvious one is not enough. A game
+    the player opened themselves is a running ``gamemd.exe`` that has
+    nothing to do with this ticket, and a battle finished while the
+    launcher was closed is a ticket whose result is already in the log.
+    So: the log first -- a battle that wrote its score is over whatever is
+    running now -- and then the process that was playing it, by pid.
     """
-    from randomizer.launch.running import game_is_running
+    from randomizer.launch.running import game_is_running, pid_is_running
 
     ticket = _kept()
     if ticket is None:
         return None, False
+    finished = last_game_result(
+        read_debug_log_tail(DEBUG_LOG, ticket['log_offset']),
+        player_name=ticket['player_name'],
+    )
+    if finished is not None:
+        return ticket, False
+    if ticket.get('pid'):
+        return ticket, pid_is_running(ticket['pid'])
+    # A ticket from before pids were kept. The name is all there is.
     return ticket, game_is_running()
 
 
@@ -136,7 +157,7 @@ def start(battle):
     except OSError:
         offset = 0
     process = subprocess.Popen(command, cwd=str(GAME_ROOT), **options)
-    _PLAYING = _ticket(battle, offset)
+    _PLAYING = _ticket(battle, offset, process.pid)
     _PROCESS = process
     _keep(_PLAYING)
     log_event(
