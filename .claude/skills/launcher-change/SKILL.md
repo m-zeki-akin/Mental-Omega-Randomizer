@@ -83,6 +83,14 @@ Two that matter and are worth rebuilding if missing:
 - `origin` is upstream and refuses pushes; the fork remote is `fork`.
 - `build_exe.local.ps1` stays out of the diff (gitignored).
 
+## Editing
+
+- A string literal holding a backslash escape must not travel through a
+  shell heredoc. Quoted or not, the escape arrives mangled -- a two-
+  character newline escape lands in the file as a real line break and
+  the module stops parsing. Build such a string by joining the pieces,
+  or write the file with the editing tools instead.
+
 ## Do not
 
 - Do not add an npm/node step to the build. The chain is PowerShell +
