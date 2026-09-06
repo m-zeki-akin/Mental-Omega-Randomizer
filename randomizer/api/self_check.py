@@ -9,9 +9,18 @@ leaves the player's own runs exactly as they were.
 That last one is here because it was not. Checking that a command refuses
 cleanly means calling it, and every command was being called against the
 player's saved runs -- so a check meant to prove the launcher safe was
-skipping a warmup and giving up a run every time it ran. The commands are
-called against a store of their own now, and the row after them says the
-real one never moved.
+skipping a warmup and giving up a run every time it ran.
+
+Worse followed. Once one command could start a run, the sweep could reach
+a launch with a run standing in front of it, and starting a battle is
+exactly what a launch does: the check opened the game. A set has no order,
+so it did that on some runs and not others.
+
+So each command is called against a store built for that one call and
+thrown away after it, in a fixed order, and starting a game is taken away
+from the boundary for the length of the sweep. The row after them says the
+player's runs, their board, and the files a battle is written into are all
+where they were.
 """
 
 import json
@@ -40,30 +49,51 @@ def _package_files():
     )
 
 
-def _stored_runs():
-    """Return what the player has, as something comparable.
+def _touched():
+    """Return everything a sweep must leave alone, as something comparable.
 
-    Both stores: the runs being played and the board of the ones that
-    ended. A command sweep can reach either -- ending a run writes to both.
+    The runs being played, the board of the ones that ended, whether a
+    battle is up, and the three files a battle is written into. Each of
+    them has been written by a check that was only supposed to be asking.
     """
+    from randomizer.core.paths import GAME_ROOT, SPAWN_INI
+    from randomizer.skirmish.launch import SPAWN_MAP_INI
     from randomizer.skirmish.leaderboard import load_board
     from randomizer.skirmish.persistence import (
         SkirmishPersistenceError,
         SkirmishRepository,
     )
 
+    from . import session
+
+    def stamp(path):
+        try:
+            return (path.name, path.stat().st_mtime_ns, path.stat().st_size)
+        except OSError:
+            return (path.name, None, None)
+
     try:
         runs, active = SkirmishRepository().list_runs()
-    except SkirmishPersistenceError as exc:
-        return ('unreadable', str(exc))
-    return (
-        active,
-        tuple(sorted(
+        stored = tuple(sorted(
             (run.run_id, run.battle, run.status.value, len(run.purchases))
             for run in runs
-        )),
+        ))
+    except SkirmishPersistenceError as exc:
+        active, stored = 'unreadable', (str(exc),)
+    return (
+        active,
+        stored,
         tuple(sorted(entry.run_id for entry in load_board())),
+        # A check that leaves a game running is a check that started one.
+        session.running(),
+        tuple(stamp(path) for path in (
+            SPAWN_INI, SPAWN_MAP_INI, GAME_ROOT / 'aimo.ini',
+        )),
     )
+
+
+def _refuse_to_start(*_args, **_kwargs):
+    raise ApiError('The self-check does not start games')
 
 
 @contextmanager
@@ -74,7 +104,7 @@ def _store_of_its_own():
     a command called for that reason must not be able to touch a run
     somebody is playing.
     """
-    from randomizer.skirmish import leaderboard
+    from randomizer.skirmish import launch, leaderboard
     from randomizer.skirmish.persistence import (
         SkirmishPersistencePaths,
         SkirmishRepository,
@@ -82,10 +112,20 @@ def _store_of_its_own():
 
     from . import skirmish as actions_module
 
+    from . import session
+
     original = actions_module._repository
     # The board is the other thing a command can write: a run given up is
     # a run recorded. It goes to the same temporary folder.
     board = leaderboard.LEADERBOARD_PATH
+    # And the two things no check may do at all. A launch that found a run
+    # in front of it wrote a battle into the game folder and opened the
+    # game, and every command after it then refused politely because a game
+    # was up -- so the sweep read as clean while a match was running.
+    # Refusing both means it cannot happen whatever order they are called
+    # in, and writing the battle is refused first because it comes first.
+    starter = session.start
+    preparer = launch.prepare_battle
     with TemporaryDirectory(prefix='mo-api-check-') as folder:
         paths = SkirmishPersistencePaths(
             runs=Path(folder) / 'runs.dat',
@@ -93,11 +133,15 @@ def _store_of_its_own():
         )
         actions_module._repository = lambda: SkirmishRepository(paths)
         leaderboard.LEADERBOARD_PATH = Path(folder) / 'board.dat'
+        session.start = _refuse_to_start
+        launch.prepare_battle = _refuse_to_start
         try:
             yield
         finally:
             actions_module._repository = original
             leaderboard.LEADERBOARD_PATH = board
+            session.start = starter
+            launch.prepare_battle = preparer
 
 
 def validate_api_contract():
@@ -117,7 +161,7 @@ def validate_api_contract():
     # Every action answers, and what it answers is plain data. The ones
     # that need a game folder are read here too: an action that only works
     # on a developer's machine is not an action a launcher can offer.
-    before = _stored_runs()
+    before = _touched()
     replies = {}
     for name in registered:
         if name in commands:
@@ -126,15 +170,18 @@ def validate_api_contract():
             replies[name] = call(name)
         except Exception as exc:  # noqa: BLE001 - that is the failure
             replies[name] = {'ok': False, 'error': repr(exc), 'kind': 'raised'}
-    with _store_of_its_own():
-        for name in commands:
+    # One store each, in a fixed order. Sharing one meant a command could
+    # meet what the command before it left, which is how a check that
+    # starts a run and a check that starts a battle became the same sweep.
+    for name in sorted(commands):
+        with _store_of_its_own():
             try:
                 replies[name] = call(name)
             except Exception as exc:  # noqa: BLE001 - that is the failure
                 replies[name] = {
                     'ok': False, 'error': repr(exc), 'kind': 'raised',
                 }
-    after = _stored_runs()
+    after = _touched()
 
     json_safe = True
     for reply in replies.values():
@@ -190,8 +237,8 @@ def validate_api_contract():
         # is drawing them, and this side never learns either.
         'api_toolkit_free_valid': toolkit_free,
         # Asking the launcher what it can do is not playing it. Every
-        # command was called above; the player's own runs are where they
-        # were, down to which one was being played.
+        # command was called above; the runs, the board, the battle files
+        # and the game itself are all where they were.
         'api_asking_changes_nothing_valid': before == after,
         'api_contract_valid': bool(
             json_safe

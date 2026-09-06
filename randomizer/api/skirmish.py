@@ -540,6 +540,12 @@ def battle_session():
     A screen asks this on a timer. While the game is up it says so; the
     first read after it closes is the one that reads the score block and
     writes the outcome into the run.
+
+    So this is the one reading that writes, and it is deliberate: a screen
+    polls it, and a poll that had to be a command would mean every screen
+    asking permission to notice the game had closed. It writes nothing
+    unless the launcher itself started a game, which is why the self-check
+    -- where nothing has -- can call it as safely as any other reading.
     """
     return session.poll(_repository())
 
