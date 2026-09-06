@@ -128,10 +128,11 @@ def _build_setup(self, parent):
         setup,
         text=(
             'Your army and your ally are chosen once and stand for the whole '
-            'run. Which battles you are offered, how many enemies they hold '
-            'and whether your ally is beside you are the run\'s business '
-            f'from then on -- every {BATTLES_PER_TIER}th battle is a '
-            'challenge, fought on a challenge map with no choice of which.'
+            'run -- the same country twice is fine. Which battles you are '
+            'offered, how many enemies they hold and whether your ally is '
+            'beside you are the run\'s business from then on -- every '
+            f'{BATTLES_PER_TIER}th battle is a challenge, fought on a '
+            'challenge map with no choice of which.'
         ),
         style='Muted.TLabel',
         wraplength=620,

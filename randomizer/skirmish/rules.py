@@ -1,24 +1,16 @@
-"""Turning what a run has bought into what the battle is played with.
-
-The campaign builds clone units and grants access to them. A skirmish needs
-none of that: both armies already field their whole country, and what an
-upgrade changes is how well. So a purchase is written straight onto the
-unit's own section in the map the battle is fought on -- ``[GGI] Speed=`` --
-and the engine reads it from there.
+"""What one upgrade does to one unit, on this installation.
 
 The values come from the same code the campaign buffs use, applied to the
 unit as this installation actually has it, so an upgrade adds to what the
 unit is rather than to what stock Mental Omega says it was.
 
-One consequence worth stating: a TechnoType is global. Buffing a Soviet tank
-buffs it for everyone fielding that tank, which is why the enemies a battle
-draws never share a side with the player or their ally.
+Where the answer goes is ``clones``' business, and it is not the unit's own
+section: a TechnoType is global, so ``[GGI] Speed=8`` is Guardian GI's speed
+for the enemy too. That is what this module used to write, and what the
+private copies replaced. What is left here is the arithmetic, which the shop
+also asks in order not to sell an upgrade this installation would not
+notice.
 """
-
-from randomizer.core.diagnostics import event as log_event
-
-from .mapfile import merge_into_map
-
 
 WEAPON_BUFF_TYPES = frozenset({'damage', 'range', 'reload'})
 
@@ -66,39 +58,3 @@ def unit_rules(unit, buff_type, stacks, installed, targets):
         if before.get(key) != value
     }
     return {unit: changed} if changed else {}
-
-
-def upgrade_rules(purchases):
-    """Return ``{section: {key: value}}`` for everything a run has bought."""
-    from randomizer.rewards.catalogue import BUFF_TARGETS
-    from randomizer.rewards.roster import _installed_sections
-
-    installed = _installed_sections()
-    if not installed:
-        return {}
-    rules = {}
-    for purchase in purchases or ():
-        for section, values in unit_rules(
-            purchase.unit,
-            purchase.buff_type,
-            purchase.stacks,
-            installed,
-            BUFF_TARGETS,
-        ).items():
-            rules.setdefault(section, {}).update(values)
-    return rules
-
-
-def apply_upgrades_to_map(map_path, purchases):
-    """Write a run's upgrades into the map the battle will be played on."""
-    rules = upgrade_rules(purchases)
-    if not rules:
-        return 0
-    applied = merge_into_map(map_path, rules)
-    log_event(
-        'skirmish_upgrades_applied',
-        purchases=len(tuple(purchases or ())),
-        sections=len(rules),
-        keys=applied,
-    )
-    return applied

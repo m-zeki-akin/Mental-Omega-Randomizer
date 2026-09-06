@@ -51,7 +51,8 @@ from randomizer.skirmish.persistence import (
     SkirmishRepository,
 )
 from randomizer.skirmish.progression import describe_offer, offers_for
-from randomizer.skirmish.rules import apply_upgrades_to_map
+from randomizer.skirmish.clones import apply_house_clones
+from randomizer.skirmish.seats import apply_seat, pick_seat
 from randomizer.skirmish.shop import (
     owned_stacks,
     purchase_labels,
@@ -93,6 +94,9 @@ HOUSE_COLORS = (0, 2, 4, 6, 8, 10, 12, 14)
 # What a card's preview is allowed to take up, in pixels. Tk subsamples by
 # whole factors and nothing else, so the image steps down until it fits.
 PREVIEW_BOX = (300, 210)
+# What a player's private copy of a unit is called. Short, so the ID still
+# fits inside the length Ares accepts.
+PLAYER_CLONE_PREFIX = 'MOP'
 
 
 class SkirmishController:
@@ -289,25 +293,13 @@ class SkirmishController:
     def skirmish_enemy_pool(self, run):
         """Return the countries a battle may be fought against.
 
-        Never the player's side and never the ally's: a unit upgrade is
-        written onto the unit itself and the engine gives it to everyone
-        fielding that unit, so an enemy of the same side would be handed
-        the run's own purchases.
+        Every installed country. What keeps the run's upgrades out of enemy
+        hands is not which side they fight for: the player is seated on a
+        country nobody else in the battle plays, and their upgraded units
+        are copies gated to that seat. So Allies against Allies is a battle
+        this mode can offer again.
         """
-        countries = skirmish_countries()
-        sides = {
-            country.side for country in (
-                country_by_index(run.player_country),
-                country_by_index(run.ally_country),
-            ) if country is not None
-        }
-        eligible = tuple(
-            country for country in countries if country.side not in sides
-        )
-        # The fallback covers one case only: an installation whose whole
-        # country list is the player's own side, where there is no enemy
-        # left to draw. A battle against someone beats no battle at all.
-        return eligible or countries
+        return skirmish_countries()
 
     def offer_skirmish_battles(self, run):
         """Put this battle's offers on the table, drawing them if needed."""
@@ -492,8 +484,11 @@ class SkirmishController:
             tree.selection_set(restored)
         self.skirmish_shop_help_var.set(
             f'{side} upgrades only, and only upgrades -- a run fields what '
-            'its country fields. The shelf changes with every battle, and '
-            'your ally spends its own Ore on its own army.'
+            'its country fields. What you buy becomes your own copy of the '
+            'unit, which nobody else in the battle can build. The shelf '
+            'changes with every battle. Your ally is still saving up: an AI '
+            'builds what its task forces name, and teaching them to name '
+            'its copies is the next piece of work.'
         )
         bought = sum(purchase.stacks for purchase in run.purchases)
         ally_bought = sum(purchase.stacks for purchase in run.ally_purchases)
@@ -516,7 +511,7 @@ class SkirmishController:
         )
         lines = ['Yours:'] + [f'  {line}' for line in mine or ('nothing yet',)]
         lines += [
-            f'{ally.display if ally else "Ally"}:'
+            f'{ally.display if ally else "Ally"} (not in battle yet):'
         ] + [f'  {line}' for line in theirs or ('nothing yet',)]
         tooltip.text = '\n'.join(lines)
 
@@ -750,6 +745,7 @@ class SkirmishController:
             return
         self.skirmish_run = self.skirmish_repository.save_run(run)
         described = challenge_for(offer.map_path) if offer.challenge else None
+        houses = self.skirmish_houses(run, offer)
         battle = {
             'run_id': run.run_id,
             'battle': run.battle,
@@ -764,10 +760,27 @@ class SkirmishController:
                 if described is None
                 or color not in described.disallowed_colors
             ),
-            'houses': self.skirmish_houses(run, offer),
+            'houses': houses,
+            # The country the player is seated on: one nobody else in this
+            # battle plays, wearing the country they chose. It is what makes
+            # their upgraded units theirs, and it is why the ally may now
+            # play the very country they picked.
+            'seat': pick_seat(
+                player.country_id,
+                [
+                    country.country_id for country in (
+                        country_by_index(house.country) for house in houses
+                    ) if country is not None
+                ],
+                [country.country_id for country in skirmish_countries()],
+                salt=f'{run.seed}:{run.battle}:seat',
+            ),
             'seed': offer.seed,
             'player_name': SKIRMISH_PLAYER_NAME,
-            'purchases': run.purchases + run.ally_purchases,
+            # The ally's purchases are not written here: an AI builds what
+            # its task forces name, and those name the original. Until that
+            # is wired, only the player's own copies reach the battle.
+            'purchases': run.purchases,
             # Read here rather than in the worker: these come off Tk
             # variables, and Tk is not safe to touch from another thread.
             'difficulty': self.get_selected_difficulty_value(),
@@ -814,12 +827,22 @@ class SkirmishController:
             if code is not None:
                 # Last, so a challenge's own code outranks an option's.
                 merge_map_code(SPAWN_MAP_INI, code)
+        # The seat first: every list of countries has to know the seat
+        # stands for the player's country before anything is gated on it.
+        apply_seat(SPAWN_MAP_INI, battle['player'].country_id, battle['seat'])
+        seat_index = next(
+            (
+                country.index for country in skirmish_countries()
+                if country.country_id == battle['seat']
+            ),
+            battle['player'].index,
+        )
         write_skirmish_spawn_ini(
             SPAWN_INI,
             skirmish_spawn_ini_text(
                 map_name=entry.name,
                 player_name=battle['player_name'],
-                player_country=battle['player'].index,
+                player_country=seat_index,
                 player_color=battle['player_color'],
                 houses=battle['houses'],
                 seed=battle['seed'],
@@ -831,10 +854,16 @@ class SkirmishController:
                 options=options,
             ),
         )
-        # What the run has bought is written onto the units themselves, in
-        # the map this battle is played on. The ally's purchases go in too:
-        # they are its own army's, and no enemy shares a side with either.
-        apply_upgrades_to_map(SPAWN_MAP_INI, battle['purchases'])
+        # What the run has bought becomes the player's own copies of those
+        # units, gated to the seat. Writing the buff onto the unit itself
+        # would hand it to every house fielding that unit, the enemy
+        # included -- a TechnoType is global, a type ID is not.
+        apply_house_clones(
+            SPAWN_MAP_INI,
+            battle['purchases'],
+            battle['seat'],
+            prefix=PLAYER_CLONE_PREFIX,
+        )
         self.write_launch_options(battle['difficulty'], battle['game_speed'])
         return True
 

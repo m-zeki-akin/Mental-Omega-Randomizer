@@ -743,6 +743,99 @@ def _option_checks():
     }
 
 
+def _clone_checks():
+    """A run's upgrades must reach the run and nobody else.
+
+    Writing a buff onto the unit changes it for every house fielding that
+    unit. So what a purchase produces is a copy of the type, gated to a
+    country only the buyer plays, with the weapons it fires copied too --
+    damage, range and reload are the weapon's, and weapons are shared.
+    """
+    from randomizer.rewards.catalogue import BUFF_TARGETS
+    from randomizer.rewards.roster import _installed_sections
+    from .clones import house_clone_code
+    from .model import UpgradePurchase
+    from .seats import pick_seat, seat_map_code
+
+    installed = _installed_sections()
+    purchases = (
+        UpgradePurchase('GGI', 'speed', 5),
+        UpgradePurchase('GGI', 'damage', 4),
+    )
+    sections, built = house_clone_code(purchases, 'Guild3', prefix='MOP')
+    clone = sections.get(built.get('GGI'), {})
+    stock = installed.get('GGI') or {}
+
+    def value(body, key):
+        return next(
+            (body[name] for name in body if name.lower() == key.lower()), ''
+        )
+
+    # The installed sections are keyed in upper case; a rules file's own
+    # spelling is not.
+    weapon = str(value(clone, 'Primary')).upper()
+    stock_weapon = str(value(stock, 'Primary')).upper()
+    clone_valid = bool(
+        built.get('GGI')
+        # The copy is faster than the unit it was copied from, and the unit
+        # itself is untouched but for the gate that shuts the buyer out.
+        and int(value(clone, 'Speed')) > int(value(stock, 'Speed'))
+        and value(clone, 'RequiredHouses') == 'Guild3'
+        and 'Guild3' in str(value(clone, 'Owner'))
+        and set(sections.get('GGI', {})) == {'ForbiddenHouses'}
+        # Art comes from the source, so no art file is needed.
+        and value(clone, 'Image')
+        # The weapon is the copy's own, and it hits harder than the shared
+        # one every other house still fires.
+        and weapon and weapon != stock_weapon
+        and weapon in sections
+        and float(value(sections[weapon], 'Damage'))
+        > float(value(installed.get(stock_weapon, {}), 'Damage'))
+        # Registered at the end of its list: a script argument can be an
+        # index into one, so nothing may be renumbered.
+        and int(next(iter(sections.get('InfantryTypes', {'0': ''})))) >= 20000
+    )
+
+    countries = [
+        'UnitedStates', 'Europeans', 'Pacific', 'USSR', 'Latin', 'Chinese',
+        'PsiCorps', 'ScorpionCell', 'Headquaters', 'Guild1', 'Guild2',
+        'Guild3',
+    ]
+    seat = pick_seat('UnitedStates', ['UnitedStates', 'Guild1'], countries,
+                     salt='x')
+    code, counts = seat_map_code('UnitedStates', seat)
+    sides = code.get('Sides') or {}
+    seat_valid = bool(
+        seat not in {'UnitedStates', 'Guild1'}
+        and seat == pick_seat(
+            'UnitedStates', ['UnitedStates', 'Guild1'], countries, salt='x'
+        )
+        # The seat wears the chosen country and keeps its own place in the
+        # country list, which is what the spawner counts with.
+        and value(code.get(seat, {}), 'Side')
+        == value(installed.get('UNITEDSTATES', {}), 'Side')
+        and value(code.get(seat, {}), 'ListIndex')
+        == value(installed.get(seat.upper(), {}), 'ListIndex')
+        # Every side is written, not only the two that change: a map naming
+        # two sides leaves the game with two sides.
+        and len(sides) == len(_installed_sides())
+        and seat in str(sides.get('GDI', ''))
+        and counts['added'] > 0
+        and counts['removed'] > 0
+    )
+    return {
+        'skirmish_unit_clone_valid': clone_valid,
+        'skirmish_private_seat_valid': seat_valid,
+    }
+
+
+def _installed_sides():
+    from randomizer.ui.cameos import installed_rules_registry
+
+    _superweapons, sections = installed_rules_registry(synchronous=True)
+    return dict((sections or {}).get('Sides') or {})
+
+
 def _shop_checks():
     from .model import UpgradePurchase
     from .rules import unit_rules
@@ -913,6 +1006,7 @@ def validate_skirmish_contract():
     report.update(_run_checks())
     report.update(_challenge_checks())
     report.update(_option_checks())
+    report.update(_clone_checks())
     report.update(_shop_checks())
     report['skirmish_map_pools'] = (
         summarize_map_pools()
