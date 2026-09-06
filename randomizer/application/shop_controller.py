@@ -270,10 +270,22 @@ class ShopController(ShopPolishController):
         self.config[PACING_SETTING_KEY] = pacing_to_store(
             self.shop_pacing_settings(), self.shop_config
         )
-        self.config[MODIFIER_SETTING_KEY] = list(
-            self.selected_shop_modifier_ids()
-        )
+        if not self.shop_setup_locked():
+            # While a run is active the modifier boxes are filled in from
+            # that run and disabled, so what they hold is the run's rather
+            # than the choice for the next one. Writing them then would
+            # quietly replace the choice with the run.
+            self.config[MODIFIER_SETTING_KEY] = list(
+                self.selected_shop_modifier_ids()
+            )
         return super().save_current_launcher_config()
+
+    def shop_setup_locked(self):
+        """Whether the modifier boxes are showing a run rather than a choice."""
+        return bool(
+            self.shop_run is not None
+            and self.shop_run.status is RunStatus.ACTIVE
+        )
 
     def selected_shop_modifier_ids(self):
         """Return the optional modifiers turned on for the next run."""
@@ -2373,10 +2385,7 @@ class ShopController(ShopPolishController):
                 options['image'] = cameo
             tree.insert('', 'end', **options)
             self._shop_loadout_rows[iid] = entry.reward_id
-        modifiers_locked = bool(
-            self.shop_run is not None
-            and self.shop_run.status is RunStatus.ACTIVE
-        )
+        modifiers_locked = self.shop_setup_locked()
         tree.configure(selectmode='none')
         if modifiers_locked:
             selected_modifiers = set(self.shop_run.modifiers)
@@ -2392,6 +2401,13 @@ class ShopController(ShopPolishController):
                 + '. Finish or give up the run to configure the next one.'
             )
         else:
+            # The run that was filling these in is over. What belongs in
+            # them again is the choice, which is kept rather than lost.
+            saved_modifiers = configured_modifiers(
+                self.config, self.shop_config
+            )
+            for modifier_id, variable in self.shop_modifier_vars.items():
+                variable.set(modifier_id in saved_modifiers)
             self.shop_modifier_status_var.set(
                 'Optional run-wide tradeoffs. Check any combination before '
                 'starting; both benefits and penalties apply for the whole run.'

@@ -1248,6 +1248,11 @@ def run_self_check():
             in ShopController.save_current_launcher_config.__code__.co_names
             and 'configured_pacing'
             in ShopController.apply_portable_settings.__code__.co_names
+            # And the one moment the boxes are not the player's choice:
+            # an active run fills them in and disables them, so saving
+            # then would write the run over the choice.
+            and 'shop_setup_locked'
+            in ShopController.save_current_launcher_config.__code__.co_names
         )
         permanent_purchase_gate_shared = (
             'shop_permanent_purchase_block'
