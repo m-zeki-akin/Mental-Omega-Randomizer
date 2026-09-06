@@ -218,7 +218,8 @@ def _spawn_checks():
     # left out is not defaulted to the sensible thing: it is read as off,
     # which is how a whole run was played with no superweapons in it.
     spawner_keys_valid = bool(
-        settings['Superweapons'] == 'True'
+        settings['Credits'] == '25000'
+        and settings['Superweapons'] == 'True'
         and settings['Bases'] == 'True'
         and settings['MultipleFactory'] == 'True'
         and settings['BridgeDestroy'] == 'True'
@@ -749,8 +750,16 @@ def _option_checks():
         and 'stolen tech.ini' in names
         and 'GACNST' in spyable
         and 'GATECH' in spyable
+        # And the AI boost, which this mode turns on: without it the AI
+        # plays on MultiplayerAICM=500,250,100 and runs out of money.
+        and 'mental ai.ini' in names
+        and any(
+            'MultiplayerAICM' in values
+            for path in paths if path.name.lower() == 'mental ai.ini'
+            for values in read_ini_sections(path).values()
+        )
         # And an option this mode leaves off brings nothing with it.
-        and 'mental ai.ini' not in names
+        and 'naval combat.ini' not in names
     )
     return {
         'skirmish_game_options_known': known_valid,

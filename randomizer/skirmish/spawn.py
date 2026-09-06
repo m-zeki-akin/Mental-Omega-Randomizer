@@ -73,7 +73,15 @@ DEFAULT_MATCH_OPTIONS = {
     'NavalCombat': 'False',
     'AlliesAllowed': 'True',
     'StolenTech': 'True',
-    'MentalAI': 'False',
+    # Mental Omega's own AI boost, and this mode wants it. Without it the
+    # AI plays on the stock numbers -- MultiplayerAICM=500,250,100 and
+    # AIVirtualPurifiers=2,1,0 -- and in a match where its harvesters are
+    # hunted it simply runs out of money and stops. The option file raises
+    # those to 4800,2400,1200 and 50,24,12, cuts AIHateDelays from 30 to 8
+    # so it decides to attack sooner, and lets it keep more than one of
+    # each factory. A roguelike whose enemies are meant to get harder
+    # cannot start from an AI that cannot pay for an attack.
+    'MentalAI': 'True',
     'LimitedMCV': 'False',
     'ImmuneDerricks': 'False',
     'FreeRadar': 'False',
@@ -82,7 +90,10 @@ DEFAULT_MATCH_OPTIONS = {
     'NerfEights': 'False',
     'UnitCount': '0',
     'GameSpeed': '1',
-    'Credits': '10000',
+    # Everybody's starting credits, the player and every computer player
+    # alike. High, on purpose: the AI's own income cheat is small and a
+    # battle that opens with both sides broke is a battle nobody fights.
+    'Credits': '25000',
     'TechLevel': '10',
     'FogOfWar': 'No',
     'MultiEngineer': 'Yes',
