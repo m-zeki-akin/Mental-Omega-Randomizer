@@ -50,7 +50,11 @@ from randomizer.skirmish.persistence import (
     SkirmishPersistenceError,
     SkirmishRepository,
 )
-from randomizer.skirmish.progression import describe_offer, offers_for
+from randomizer.skirmish.progression import (
+    ALLY_DIFFICULTY,
+    describe_offer,
+    offers_for,
+)
 from randomizer.skirmish.ai import (
     ai_house_code,
     remove_staged_ai_file,
@@ -726,14 +730,19 @@ class SkirmishController:
                 country=run.ally_country,
                 color=HOUSE_COLORS[1],
                 friendly=True,
-                handicap=offer.handicap,
+                # Not the tier's difficulty. An ally on Easy builds a base
+                # and stands in it; what a run is fought against is the
+                # dial, not who it is fought beside.
+                handicap=ALLY_DIFFICULTY,
             ))
-        for country in offer.enemy_countries:
+        for country, handicap in zip(
+            offer.enemy_countries, offer.enemy_handicaps()
+        ):
             houses.append(SkirmishHouse(
                 country=country,
                 color=HOUSE_COLORS[len(houses) + 1],
                 friendly=False,
-                handicap=offer.handicap,
+                handicap=handicap,
             ))
         return tuple(houses)
 
@@ -850,6 +859,10 @@ class SkirmishController:
         game_mode = 'Standard'
         starts = None
         described = battle['challenge']
+        if battle['offer'].mental_ai:
+            # The late tiers are fought against the boosted AI, and so are
+            # the battles that offer it as the price of a bonus.
+            options['MentalAI'] = 'True'
         if described is not None:
             game_mode = challenge_mode_for_level(battle['offer'].handicap)
             # The mode forces its own match options and merges an INI of

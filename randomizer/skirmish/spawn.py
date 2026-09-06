@@ -73,15 +73,12 @@ DEFAULT_MATCH_OPTIONS = {
     'NavalCombat': 'False',
     'AlliesAllowed': 'True',
     'StolenTech': 'True',
-    # Mental Omega's own AI boost, and this mode wants it. Without it the
-    # AI plays on the stock numbers -- MultiplayerAICM=500,250,100 and
-    # AIVirtualPurifiers=2,1,0 -- and in a match where its harvesters are
-    # hunted it simply runs out of money and stops. The option file raises
-    # those to 4800,2400,1200 and 50,24,12, cuts AIHateDelays from 30 to 8
-    # so it decides to attack sooner, and lets it keep more than one of
-    # each factory. A roguelike whose enemies are meant to get harder
-    # cannot start from an AI that cannot pay for an attack.
-    'MentalAI': 'True',
+    # Mental Omega's own AI boost, off by default and turned on by the
+    # battles that want it. It is not a free improvement: its numbers are
+    # per difficulty, and on Easy it raises the team delay from 90 to 1000,
+    # so an easy AI given the boost attacks even less than one without it.
+    # The late tiers ask for it, and it is what a bonus battle can offer.
+    'MentalAI': 'False',
     'LimitedMCV': 'False',
     'ImmuneDerricks': 'False',
     'FreeRadar': 'False',

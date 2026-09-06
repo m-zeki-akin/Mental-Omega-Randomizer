@@ -33,15 +33,28 @@ class BattleOffer:
     map_path: str
     map_name: str
     enemy_countries: tuple[int, ...]
+    # The headline difficulty: what the ally plays at, and which of the
+    # client's three challenge modes a challenge is fought under.
     handicap: int
     seed: int
     ally: bool = True
     challenge: bool = False
+    # One difficulty per enemy, because a tier mixes them: two trained and
+    # one hardened is a different battle from three of either.
+    handicaps: tuple[int, ...] = ()
+    # Whether this battle is fought with Mental Omega's AI boost on.
+    mental_ai: bool = False
 
     @property
     def houses(self):
         """How many computer players this battle seats."""
         return len(self.enemy_countries) + (1 if self.ally else 0)
+
+    def enemy_handicaps(self):
+        """Return one difficulty per enemy, however old the stored offer is."""
+        if len(self.handicaps) == len(self.enemy_countries):
+            return self.handicaps
+        return tuple(self.handicap for _ in self.enemy_countries)
 
     @property
     def seats(self):
@@ -53,6 +66,8 @@ class BattleOffer:
             'map_name': self.map_name,
             'enemy_countries': list(self.enemy_countries),
             'handicap': self.handicap,
+            'handicaps': list(self.handicaps),
+            'mental_ai': self.mental_ai,
             'seed': self.seed,
             'ally': self.ally,
             'challenge': self.challenge,

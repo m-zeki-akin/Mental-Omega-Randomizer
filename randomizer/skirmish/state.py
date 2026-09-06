@@ -80,6 +80,14 @@ def normalize_battle_offer(document, field='offer'):
             _int(country, f'{field}.enemy_countries[]') for country in countries
         ),
         handicap=_int(document.get('handicap'), f'{field}.handicap'),
+        # One per enemy. A run stored before a tier mixed them has none,
+        # and every enemy takes the offer's own difficulty.
+        handicaps=tuple(
+            _int(value, f'{field}.handicaps[]')
+            for value in (document.get('handicaps') or [])
+            if isinstance(document.get('handicaps'), list)
+        ),
+        mental_ai=bool(document.get('mental_ai')),
         seed=_int(document.get('seed'), f'{field}.seed'),
         ally=bool(document.get('ally', True)),
         challenge=bool(document.get('challenge')),

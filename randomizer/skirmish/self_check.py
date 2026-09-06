@@ -642,12 +642,25 @@ def _challenge_checks():
     )
 
     # The three challenge modes count the other way: Hard is 0. A run meets
-    # them in order as its tiers rise.
+    # them in the order its own tier table names, and the last tier stands
+    # for every battle after it.
+    from .progression import TIERS
+
     level_valid = bool(
         challenge_level(5) == AI_DIFFICULTY_EASY
-        and challenge_level(10) == AI_DIFFICULTY_MEDIUM
-        and challenge_level(15) == AI_DIFFICULTY_HARD
-        and challenge_level(40) == AI_DIFFICULTY_HARD
+        and challenge_level(10) == AI_DIFFICULTY_EASY
+        and challenge_level(15) == AI_DIFFICULTY_MEDIUM
+        and challenge_level(25) == AI_DIFFICULTY_HARD
+        and challenge_level(45) == AI_DIFFICULTY_HARD
+        and challenge_level(400) == TIERS[-1].challenge
+        # Nothing is fought on Easy but the first two challenges: an easy
+        # AI does not make an easy battle, it makes a quiet one.
+        and not any(
+            AI_DIFFICULTY_EASY in tier.enemies for tier in TIERS
+        )
+        # The tiers name more enemies and better ones as they rise.
+        and [len(tier.enemies) for tier in TIERS] == [1, 2, 2, 3, 3, 3, 3, 4, 5]
+        and [tier.mental for tier in TIERS].count(True) == 3
     )
 
     with TemporaryDirectory(prefix='mo-skirmish-challenge-') as temporary:
@@ -750,16 +763,17 @@ def _option_checks():
         and 'stolen tech.ini' in names
         and 'GACNST' in spyable
         and 'GATECH' in spyable
-        # And the AI boost, which this mode turns on: without it the AI
-        # plays on MultiplayerAICM=500,250,100 and runs out of money.
-        and 'mental ai.ini' in names
+        # And an option this mode leaves off brings nothing with it. The
+        # AI boost is off by default and asked for by the tiers that want
+        # it, so it is not in what a plain battle merges.
+        and 'mental ai.ini' not in names
+        # But it is there for a battle that asks.
         and any(
-            'MultiplayerAICM' in values
-            for path in paths if path.name.lower() == 'mental ai.ini'
-            for values in read_ini_sections(path).values()
+            path.name.lower() == 'mental ai.ini'
+            for path in option_map_code_paths(
+                match_settings({'MentalAI': 'True'})
+            )
         )
-        # And an option this mode leaves off brings nothing with it.
-        and 'naval combat.ini' not in names
     )
     # The in-game speed slider cannot be taken away, so every one of its
     # positions is given the same delay as the speed the run is locked to.
