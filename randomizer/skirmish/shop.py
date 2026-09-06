@@ -70,11 +70,17 @@ def upgrade_price(unit):
     return int(cost_derived_buff_price(unit, SHOP_CONFIG.price_scales['run_ore']))
 
 
-def battle_reward(battle, *, challenge=False):
-    """Return the Ore a won battle pays."""
+def battle_reward(battle, *, challenge=False, bonus_percent=0):
+    """Return the Ore a won battle pays.
+
+    ``bonus_percent`` is what the offer asked for: a battle taken with one
+    more enemy on the field, or without the ally, pays for the asking.
+    """
     tier = (max(1, int(battle)) - 1) // BATTLES_PER_TIER + 1
     reward = BATTLE_REWARD + REWARD_PER_TIER * (tier - 1)
-    return reward * (CHALLENGE_REWARD_MULTIPLIER if challenge else 1)
+    if challenge:
+        reward *= CHALLENGE_REWARD_MULTIPLIER
+    return int(round(reward * (100 + max(0, int(bonus_percent))) / 100))
 
 
 @lru_cache(maxsize=16)

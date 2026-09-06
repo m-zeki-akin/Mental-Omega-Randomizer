@@ -89,6 +89,10 @@ def normalize_battle_offer(document, field='offer'):
             if isinstance(document.get('handicaps'), list)
         ),
         mental_ai=bool(document.get('mental_ai')),
+        bonus_percent=_int(
+            document.get('bonus_percent'), f'{field}.bonus_percent',
+            minimum=0, default=0,
+        ),
         seed=_int(document.get('seed'), f'{field}.seed'),
         ally=bool(document.get('ally', True)),
         challenge=bool(document.get('challenge')),

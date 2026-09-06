@@ -1142,6 +1142,34 @@ def _shop_checks():
         and not skip_warmup(opening).warmup
     )
 
+    # Three battles that differ only in which map they are on is a
+    # shuffle, not a choice. Two of the three ask for something and pay
+    # for the asking.
+    from .progression import BONUSES, offer_bonuses
+
+    early = offer_bonuses(1)
+    late = offer_bonuses(16)
+    bonus_valid = bool(
+        # The first offer is the plain one, and it is the only plain one.
+        early[0].percent == 0
+        and all(bonus.percent > 0 for bonus in early[1:])
+        # What they ask for is a harder battle, not a different map.
+        and any(bonus.extra_enemies for bonus in early)
+        and any(bonus.alone for bonus in early)
+        # From the tier that fields three, the dearest asks for a better
+        # opponent rather than another one.
+        and late[-1].mental and not early[-1].mental
+        and late[-1].percent > early[-1].percent
+        # The warmup asks for nothing.
+        and all(bonus.percent == 0 for bonus in offer_bonuses(0))
+        # And the Ore follows the asking.
+        and battle_reward(1, bonus_percent=0) == BATTLE_REWARD
+        and battle_reward(1, bonus_percent=40)
+        > battle_reward(1, bonus_percent=0)
+        and battle_reward(5, challenge=True, bonus_percent=0)
+        == BATTLE_REWARD * 2
+    )
+
     reward_valid = bool(
         battle_reward(1) == BATTLE_REWARD
         and battle_reward(4) == BATTLE_REWARD
@@ -1456,6 +1484,7 @@ def _shop_checks():
 
     return {
         'skirmish_warmup_valid': warmup_valid,
+        'skirmish_offer_bonuses_valid': bonus_valid,
         'skirmish_battle_reward_valid': reward_valid,
         'skirmish_purchase_valid': purchase_valid,
         'skirmish_ally_shops_alone_valid': ally_valid,

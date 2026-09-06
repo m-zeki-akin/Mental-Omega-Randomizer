@@ -109,7 +109,11 @@ def record_victory(run, *, ally_country=None):
     used = run.used_challenge_maps
     if offer.challenge and offer.map_path not in used:
         used = used + (offer.map_path,)
-    reward = battle_reward(run.battle, challenge=offer.challenge)
+    reward = battle_reward(
+        run.battle,
+        challenge=offer.challenge,
+        bonus_percent=offer.bonus_percent,
+    )
     ally_purchases, ally_coins = (
         (run.ally_purchases, run.ally_coins + reward) if not ally_country
         else ally_shopping(run, ally_country, run.ally_coins + reward)

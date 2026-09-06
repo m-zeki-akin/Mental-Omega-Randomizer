@@ -99,6 +99,36 @@ TIERS = (
 # the run starts counting. It can be skipped.
 WARMUP = Tier(enemies=(AI_DIFFICULTY_MEDIUM,), challenge=AI_DIFFICULTY_EASY)
 OFFER_COUNT = 3
+
+
+@dataclass(frozen=True)
+class Bonus:
+    """What one of the harder offers asks, and what it pays for asking.
+
+    Three battles that differ only in which map they are on is not a
+    choice, it is a shuffle. So two of the three cost something -- one more
+    enemy, the ally left at home, an AI playing with Mental Omega's own
+    boost -- and pay a percentage on top for it.
+    """
+
+    label: str
+    percent: int
+    extra_enemies: int = 0
+    alone: bool = False
+    mental: bool = False
+
+
+# The plain offer first, then the two that ask for something. A run that
+# wants Ore takes the third; a run that wants to survive takes the first.
+BONUSES = (
+    Bonus(label='', percent=0),
+    Bonus(label='one more enemy', percent=40, extra_enemies=1),
+    Bonus(label='no ally', percent=75, alone=True),
+)
+# From the tier that fields three enemies onwards, the dearest offer asks
+# for the boosted AI instead of a fourth body on the field.
+BOOSTED_BONUS = Bonus(label='boosted AI, no ally', percent=110, alone=True, mental=True)
+BOOSTED_FROM_TIER = 4
 # What the ally plays at, whatever the enemies play at. It is the player's
 # partner, and a partner on Easy develops a base and then stands in it: the
 # difficulty of a run is what it is fought against, not who it is fought
@@ -200,6 +230,24 @@ def challenge_offer(run, pool, maps_dir, countries):
     )
 
 
+def offer_bonuses(battle, count=OFFER_COUNT):
+    """Return what each of this battle's offers asks for, in order.
+
+    The warmup asks for nothing: it is the fight before the run starts
+    counting, and a bonus on it would be a reward for not being warmed up.
+    """
+    if is_warmup(battle):
+        return tuple(BONUSES[0] for _ in range(count))
+    table = list(BONUSES[:count])
+    if tier_for(battle) >= BOOSTED_FROM_TIER and len(table) > 2:
+        # Three enemies is already a crowd. What the dearest offer asks for
+        # from here on is a better opponent rather than another one.
+        table[-1] = BOOSTED_BONUS
+    while len(table) < count:
+        table.append(BONUSES[0])
+    return tuple(table)
+
+
 def battle_offers(run, pool, maps_dir, countries, *, count=OFFER_COUNT):
     """Return the battles offered for this run's current battle number."""
     if not pool or not countries:
@@ -209,9 +257,13 @@ def battle_offers(run, pool, maps_dir, countries, *, count=OFFER_COUNT):
     ordered = sorted(pool, key=lambda entry: entry.path.name)
     offers = []
     chosen = set()
+    bonuses = offer_bonuses(run.battle, count)
     for index in range(count):
-        handicaps = rules.enemies
-        ally = True
+        bonus = bonuses[index]
+        handicaps = rules.enemies + tuple(
+            rules.enemies[-1] for _ in range(bonus.extra_enemies)
+        )
+        ally = not bonus.alone
         enemies = len(handicaps)
         seats = 1 + enemies + (1 if ally else 0)
         candidates = [
@@ -232,7 +284,8 @@ def battle_offers(run, pool, maps_dir, countries, *, count=OFFER_COUNT):
             ),
             handicap=rules.handicap,
             handicaps=handicaps,
-            mental_ai=rules.mental,
+            mental_ai=rules.mental or bonus.mental,
+            bonus_percent=bonus.percent,
             seed=generator.randrange(1, 2 ** 31),
             ally=ally,
             challenge=False,
@@ -269,7 +322,11 @@ def describe_offer(offer):
     enemies = len(offer.enemy_countries)
     company = 'with your ally' if offer.ally else 'alone'
     boost = ', boosted AI' if offer.mental_ai else ''
+    reward = (
+        f'\n+{offer.bonus_percent}% Ore for taking it'
+        if offer.bonus_percent else ''
+    )
     return (
         f'{" and ".join(parts)} {"enemy" if enemies == 1 else "enemies"}'
-        f'{boost}, {company}'
+        f'{boost}, {company}{reward}'
     )

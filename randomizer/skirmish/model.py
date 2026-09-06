@@ -47,6 +47,9 @@ class BattleOffer:
     handicaps: tuple[int, ...] = ()
     # Whether this battle is fought with Mental Omega's AI boost on.
     mental_ai: bool = False
+    # What taking the harder of the offers is worth, as a percentage on
+    # top of what the battle pays. Zero is the plain offer.
+    bonus_percent: int = 0
 
     @property
     def houses(self):
@@ -71,6 +74,7 @@ class BattleOffer:
             'handicap': self.handicap,
             'handicaps': list(self.handicaps),
             'mental_ai': self.mental_ai,
+            'bonus_percent': self.bonus_percent,
             'seed': self.seed,
             'ally': self.ally,
             'challenge': self.challenge,
