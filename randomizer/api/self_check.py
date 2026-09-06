@@ -33,8 +33,10 @@ from .contract import ApiError, actions, call, describe_actions
 
 
 TOOLKIT_NAMES = ('tkinter', 'import tk', 'ttk.', 'webview')
-# Readings that are about one named thing and cannot be asked in
-# general. The screens that use them are where they are checked.
+# A reading that is about one named thing and cannot be asked in general,
+# so the sweep asks it without one to prove it refuses cleanly rather than
+# to read it. No screen calls it yet -- it and `skirmish.tiers` are there
+# for the shelf and tier tables that are not drawn.
 ARGUMENT_REQUIRED = frozenset({'skirmish.upgrades'})
 
 
