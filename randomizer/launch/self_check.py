@@ -11,6 +11,7 @@ import unittest
 from unittest.mock import Mock, patch
 
 from randomizer.application import launch_controller as launch
+from randomizer.launch import game, syringe
 
 
 FLAGS = ['-SPAWN', '-CD', '-SPEEDCONTROL', '-LOG']
@@ -62,9 +63,9 @@ class LaunchCommandTests(unittest.TestCase):
     def test_windows_build_command_uses_game_executable(self):
         root = PureWindowsPath(r'C:\Games\MO')
         with (
-            patch.object(launch.sys, 'platform', 'win32'),
-            patch.object(launch, 'GAME_LAUNCHER_EXE', root / 'Syringe.exe'),
-            patch.object(launch, 'GAME_EXE', root / 'gamemd.exe'),
+            patch.object(game.sys, 'platform', 'win32'),
+            patch.object(game, 'GAME_LAUNCHER_EXE', root / 'Syringe.exe'),
+            patch.object(game, 'GAME_EXE', root / 'gamemd.exe'),
         ):
             self.assertEqual(
                 self.controller().build_command(),
@@ -98,18 +99,18 @@ class LaunchCommandTests(unittest.TestCase):
 
     def test_linux_resolves_host_with_winepath(self):
         with (
-            patch.object(launch.sys, 'platform', 'linux'),
-            patch.object(launch.shutil, 'which', side_effect=lambda name: '/usr/bin/' + name),
-            patch.object(launch.subprocess, 'run') as run,
+            patch.object(game.sys, 'platform', 'linux'),
+            patch.object(game.shutil, 'which', side_effect=lambda name: '/usr/bin/' + name),
+            patch.object(game.subprocess, 'run') as run,
         ):
             run.return_value.stdout = 'Z:\\games\\Mental Omega\\gamemd.exe\n'
             argv = self.controller().build_command()
         self.assertEqual(argv, [
-            '/usr/bin/wine', str(launch.GAME_LAUNCHER_EXE),
+            '/usr/bin/wine', str(game.GAME_LAUNCHER_EXE),
             r'Z:\games\Mental Omega\gamemd.exe', *FLAGS,
         ])
         self.assertEqual(run.call_args.args[0], [
-            '/usr/bin/winepath', '-w', str(launch.GAME_EXE),
+            '/usr/bin/winepath', '-w', str(game.GAME_EXE),
         ])
         self.assertTrue(run.call_args.kwargs['check'])
 
@@ -138,7 +139,7 @@ class LaunchCommandTests(unittest.TestCase):
             ('say"hi', '"say\\"hi"'),
         ):
             with self.subTest(argument=argument):
-                self.assertEqual(launch.quote_windows_argument(argument), expected)
+                self.assertEqual(syringe.quote_windows_argument(argument), expected)
 
     @unittest.skipUnless(sys.platform == 'win32', 'Requires Windows')
     def test_real_windows_process_command_line(self):
@@ -171,7 +172,7 @@ class LaunchCommandTests(unittest.TestCase):
                 r'C:\Mental Omega\gamemd.exe',
             ):
                 with self.subTest(host=host):
-                    tail = launch.windows_syringe_command_line(
+                    tail = syringe.windows_syringe_command_line(
                         ['Syringe.exe', host, *FLAGS]
                     )
                     tail = tail.removeprefix('Syringe.exe ')
@@ -190,10 +191,92 @@ class LaunchCommandTests(unittest.TestCase):
                     self.assertEqual(argv, [host, *FLAGS])
 
 
+class LaunchStepTests(unittest.TestCase):
+    """The steps taken around every launch, whoever launches.
+
+    They used to be methods on the window, and the window was the only
+    thing that ran them. Nothing checked them, and the first thing to call
+    them from elsewhere found one importing a helper from the wrong module
+    -- which is to say, found a launch that could not start a game.
+    """
+
+    OPTIONS = '\n'.join(
+        ('[Options]', 'GameSpeed=3', 'Difficulty=0', 'CampDifficulty=0',
+         'ScrollRate=3', ''),
+    )
+
+    def test_game_options_written_without_a_window(self):
+        with tempfile.TemporaryDirectory(prefix='mo-options-') as folder:
+            options = Path(folder) / 'RA2MO.ini'
+            options.write_text(self.OPTIONS, encoding='utf-8')
+            absent = Path(folder) / 'RA2MD.INI'
+            with (
+                patch.object(game, 'OPTIONS_INI', options),
+                patch.object(game, 'YR_OPTIONS_INI', absent),
+            ):
+                written, skipped = game.write_game_options(1, 2)
+            text = options.read_text(encoding='utf-8')
+            self.assertEqual(written, ['RA2MO.ini'])
+            self.assertEqual(skipped, [])
+            self.assertIn('GameSpeed=2', text)
+            self.assertIn('Difficulty=1', text)
+            self.assertIn('CampDifficulty=1', text)
+            # Only those three. The rest of the file is the player's.
+            self.assertIn('ScrollRate=3', text)
+            # An option file the installation does not use is not created.
+            self.assertFalse(absent.exists())
+
+    def test_oversized_option_file_is_patched_in_place(self):
+        with tempfile.TemporaryDirectory(prefix='mo-options-big-') as folder:
+            options = Path(folder) / 'RA2MO.ini'
+            options.write_text(
+                self.OPTIONS + '; ' + 'x' * 64, encoding='utf-8',
+            )
+            size = options.stat().st_size
+            absent = Path(folder) / 'RA2MD.INI'
+            with (
+                patch.object(game, 'OPTIONS_INI', options),
+                patch.object(game, 'YR_OPTIONS_INI', absent),
+                patch.object(game, 'MAX_OPTION_INI_BYTES', 8),
+            ):
+                written, skipped = game.write_game_options(1, 2)
+            text = options.read_text(encoding='utf-8')
+            self.assertEqual(written, ['RA2MO.ini (in-place)'])
+            self.assertEqual(skipped, [])
+            # Patched, not rewritten: one digit for one digit.
+            self.assertEqual(options.stat().st_size, size)
+            self.assertIn('GameSpeed=2', text)
+            self.assertIn('Difficulty=1', text)
+
+    def test_generated_files_are_cleared_and_others_left(self):
+        from randomizer.maps import base
+
+        with tempfile.TemporaryDirectory(prefix='mo-generated-') as folder:
+            root = Path(folder)
+            generated = root / 'GENERATED.MAP'
+            generated.write_text('mine', encoding='utf-8')
+            theirs = root / 'THEIRS.MAP'
+            theirs.write_text('not mine', encoding='utf-8')
+            with (
+                patch.object(game, 'GAME_ROOT', root),
+                patch.object(
+                    game, 'is_generated_hooked_map',
+                    lambda path: path.name == 'GENERATED.MAP',
+                ),
+            ):
+                self.assertEqual(game.clear_generated_root_maps(), [])
+            self.assertFalse(generated.exists())
+            self.assertTrue(theirs.exists())
+            self.assertTrue(callable(base.is_generated_rules_file))
+
+
 def validate_launch_contract():
     """Raise on regression even in optimized, windowed PyInstaller builds."""
     output = io.StringIO()
-    suite = unittest.defaultTestLoader.loadTestsFromTestCase(LaunchCommandTests)
+    suite = unittest.TestSuite(
+        unittest.defaultTestLoader.loadTestsFromTestCase(case)
+        for case in (LaunchCommandTests, LaunchStepTests)
+    )
     result = unittest.TextTestRunner(stream=output).run(suite)
     if not result.wasSuccessful():
         raise RuntimeError(output.getvalue())

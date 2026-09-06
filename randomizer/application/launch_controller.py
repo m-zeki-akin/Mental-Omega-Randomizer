@@ -1,11 +1,18 @@
 """Mission file preparation, game process control, and log watching."""
 
+from randomizer.launch.syringe import windows_syringe_command_line
+from randomizer.launch.game import (
+    clear_generated_root_maps,
+    clear_generated_rules,
+    game_command,
+    patch_large_options,
+)
+
 from ._dependencies import (
     ARSENAL_MODE,
     BUFF_TARGETS,
     DEBUG_LOG,
     DIFFICULTIES,
-    DISABLED_RULESMO_INI,
     EXTRACTED_MAP_DIR,
     GAME_EXE,
     GAME_LAUNCHER_EXE,
@@ -28,7 +35,6 @@ from ._dependencies import (
     OPTIONS_INI,
     RESTART_FAILURE_GRACE_MS,
     REWARD_POOL,
-    RULESMO_INI,
     SCRIPTED_TECH_BUILD_LIMIT,
     SCRIPTED_TECH_LOCK_EXCLUSIONS,
     SPAWN_INI,
@@ -45,8 +51,6 @@ from ._dependencies import (
     deploy_generated_unit_art,
     extract_mix_files_sync,
     extract_mix_members,
-    is_generated_hooked_map,
-    is_generated_rules_file,
     launch_rules_for_reward,
     log_event,
     logging,
@@ -56,11 +60,9 @@ from ._dependencies import (
     mission_player_production_houses,
     ordered_mix_paths,
     os,
-    patch_large_ini_key,
     patch_or_append_large_ini_value,
     prepare_hooked_mission_map,
     read_text,
-    remove_generated_unit_art,
     set_ini_value_lines,
     signal,
     shutil,
@@ -75,30 +77,6 @@ from ._dependencies import (
     time,
     traceback,
 )
-
-
-def quote_windows_argument(argument):
-    """Quote even whitespace-free arguments, preserving Windows CRT escaping."""
-    encoded = subprocess.list2cmdline([argument])
-    if encoded.startswith('"'):
-        return encoded
-    # list2cmdline already escapes embedded quotes. When adding outer quotes,
-    # trailing backslashes must be doubled so they cannot escape the closing one.
-    trailing_backslashes = len(argument) - len(argument.rstrip('\\'))
-    return '"' + encoded + '\\' * trailing_backslashes + '"'
-
-
-def windows_syringe_command_line(argv):
-    """Syringe parses its raw command line and requires a quoted host EXE.
-
-    Passing a list to Windows Popen loses these mandatory quotes whenever the
-    host path has no whitespace. Keep argv structured until this final boundary.
-    """
-    return ' '.join((
-        subprocess.list2cmdline(argv[:1]),
-        quote_windows_argument(argv[1]),
-        subprocess.list2cmdline(argv[2:]),
-    )).rstrip()
 
 
 class LaunchController:
@@ -445,20 +423,19 @@ class LaunchController:
         return rules
 
     def cleanup_generated_root_maps(self):
-        for path in list(GAME_ROOT.glob('*.MAP')) + list(GAME_ROOT.glob('*.map')):
-            if is_generated_hooked_map(path):
-                try:
-                    path.unlink()
-                except OSError as exc:
-                    if (
-                        callable(self.__dict__.get('append_log'))
-                        and 'log_text' in self.__dict__
-                    ):
-                        self.append_log(
-                            f'Could not remove generated hooked map '
-                            f'{path.name}: {exc}',
-                            error=True,
-                        )
+        failed = clear_generated_root_maps()
+        if not failed:
+            return
+        if not (
+            callable(self.__dict__.get('append_log'))
+            and 'log_text' in self.__dict__
+        ):
+            return
+        for name, detail in failed:
+            self.append_log(
+                f'Could not remove generated hooked map {name}: {detail}',
+                error=True,
+            )
 
     def extract_campaign_map(self, scenario):
         EXTRACTED_MAP_DIR.mkdir(parents=True, exist_ok=True)
@@ -726,69 +703,25 @@ class LaunchController:
     def patch_large_options_ini(self, path, values):
         """Patch one-digit option values in oversized/corrupt INIs without rewriting them."""
         try:
-            patched = []
-            with path.open('r+b') as handle:
-                for key, value in values.items():
-                    if patch_large_ini_key(handle, key, value):
-                        patched.append(key)
-            missing = sorted(set(values) - set(patched))
+            missing = patch_large_options(path, values)
             if missing:
                 self.append_log(
-                    f'{path.name}: could not in-place patch {", ".join(missing)} in oversized option file.',
+                    f'{path.name}: could not in-place patch '
+                    f'{", ".join(missing)} in oversized option file.',
                     error=True,
                 )
-            return len(patched) == len(values)
+            return not missing
         except Exception:
             self.append_log(f'Failed to patch oversized option file {path.name}:', error=True)
             self.append_log(traceback.format_exc(), error=True)
             return False
 
     def disable_generated_rules_for_client(self):
-        for path in (RULESMO_INI, DISABLED_RULESMO_INI):
-            if path.exists() and is_generated_rules_file(path):
-                path.unlink()
-        remove_generated_unit_art()
+        clear_generated_rules()
 
     def build_command(self):
-        # -SPEEDCONTROL is the client's own flag and it is passed for that
-        # reason. Taking it away was an attempt to stop the speed being
-        # changed mid-match; it changed nothing, the slider is still there,
-        # and a command line the client never uses is a risk for no gain.
-        # What locks the speed, if anything does, is still to be found.
-        command = [
-            str(GAME_LAUNCHER_EXE),
-            GAME_EXE.name,
-            '-SPAWN',
-            '-CD',
-            '-SPEEDCONTROL',
-            '-LOG',
-        ]
-        if sys.platform == 'win32':
-            return command
-        wine = shutil.which('wine')
-        if not wine:
-            raise FileNotFoundError(
-                'Wine is required to launch Mental Omega on this platform.'
-            )
-        winepath = shutil.which('winepath')
-        if not winepath:
-            raise FileNotFoundError(
-                'winepath is required to resolve the Mental Omega executable.'
-            )
-        environment = os.environ.copy()
-        environment['WINEDEBUG'] = '-all'
-        resolved_path = subprocess.run(
-            [winepath, '-w', str(GAME_EXE)],
-            cwd=GAME_ROOT,
-            env=environment,
-            capture_output=True,
-            text=True,
-            check=True,
-        ).stdout.strip()
-        if not resolved_path:
-            raise RuntimeError('Wine could not resolve the Mental Omega executable.')
-        command[1] = resolved_path
-        return [wine, *command]
+        return game_command()
+
 
     def process_hook_log_text(self, text):
         if not self.active_hook or not text:

@@ -256,6 +256,7 @@ from randomizer.ui.config import (
     REWARDS_PER_CHECK_MESSAGE_THRESHOLDS,
     REWARD_MODES,
 )
+from randomizer.launch.game import MAX_OPTION_INI_BYTES
 from randomizer.ui.builder import create_widgets as build_launcher_widgets
 from randomizer.ui.grid import redraw_grid as redraw_launcher_grid
 from randomizer.ui.scrolling import scroll_under_pointer
@@ -267,7 +268,6 @@ CHECK_SCHEMA_VERSION = 18
 HOOK_POLL_MS = 1500
 RESTART_FAILURE_GRACE_MS = 3000
 VICTORY_CLOSE_DELAY_MS = 2500
-MAX_OPTION_INI_BYTES = 2 * 1024 * 1024
 
 
 def reward_cameo_token(reward):
