@@ -103,6 +103,7 @@ REQUIRED_SECTIONS = {
     'ui.json': {
         'difficulties': list,
         'game_speeds': list,
+        'skirmish_excluded_units': list,
         'campaign_filters': list,
         'reward_modes': list,
         'progression_modes': list,
@@ -707,6 +708,10 @@ def _validate_special_buildings(sections, path):
 
 
 def _validate_ui(sections, path):
+    excluded = sections['skirmish_excluded_units']
+    if not all(_is_nonempty_string(unit) for unit in excluded):
+        _invalid('Invalid skirmish_excluded_units entries', path)
+
     progression_modes = sections['progression_modes']
     required_progression_modes = {
         'Classic', 'Mission List', 'Grid Mode', 'Shop Mode'

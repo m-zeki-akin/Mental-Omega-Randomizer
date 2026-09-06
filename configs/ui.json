@@ -194,6 +194,10 @@
       "busy_title": "#f2f7fb",
       "busy_detail": "#b9c7d4"
     },
-    "locked_game_speed": 1
+    "locked_game_speed": 1,
+    "skirmish_excluded_units": [
+      "AHVYBOT2",
+      "CYCOM"
+    ]
   }
 }

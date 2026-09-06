@@ -120,6 +120,7 @@ def country_upgrades(country):
         STOLEN_TECH_GROUP,
         buildable_units,
         country_faction,
+        excluded_units,
         stolen_tech_units,
     )
     from .rules import unit_rules
@@ -132,7 +133,7 @@ def country_upgrades(country):
     bundles = {}
     for reward in UNIT_BUFF_REWARDS:
         unit = str(reward.get('unit') or '').upper()
-        if unit not in fielded:
+        if unit not in fielded or unit in excluded_units():
             continue
         # Ownership alone lets the stolen-tech units through: what gates
         # those is an infiltration, and a game option file rather than the
@@ -202,7 +203,8 @@ def _shared_effect(effects, label, count):
             break
         shared.append(words[0])
     stat = ' '.join(shared).strip(' ,:') or label
-    return f'{stat}, on all {count}'
+    reach = {1: 'on it', 2: 'on both'}.get(count, f'on all {count}')
+    return f'{stat}, {reach}'
 
 
 def _stolen_tech_bundles(by_buff_type, members):

@@ -23,6 +23,14 @@ LOCKED_GAME_SPEED_LABEL = next(
     (name for name, value in GAME_SPEEDS if value == LOCKED_GAME_SPEED_VALUE),
     GAME_SPEEDS[0][0],
 )
+# Units a skirmish does not sell upgrades for, whatever the rules say a
+# country could field. Mental Omega's own gates put some of them out of a
+# skirmish's reach in practice -- the Cyborg Commando wants all four sides'
+# barracks and all four stolen techs -- and some are simply not what this
+# mode is about.
+SKIRMISH_EXCLUDED_UNITS = frozenset(
+    str(unit).upper() for unit in _UI_CONFIG['skirmish_excluded_units']
+)
 CAMPAIGN_FILTERS = list(_UI_CONFIG['campaign_filters'])
 REWARD_MODES = list(_UI_CONFIG['reward_modes'])
 PROGRESSION_MODES = list(_UI_CONFIG['progression_modes'])

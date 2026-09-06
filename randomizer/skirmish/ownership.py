@@ -238,7 +238,15 @@ def stolen_tech_units(country):
         # The option file describes them; the rules still say how far up the
         # tech tree they sit, and a match has a ceiling.
         and unit in fielded
+        and unit not in excluded_units()
     ))
+
+
+def excluded_units():
+    """Return the units this mode does not sell upgrades for."""
+    from randomizer.ui.config import SKIRMISH_EXCLUDED_UNITS
+
+    return SKIRMISH_EXCLUDED_UNITS
 
 
 def expand_group(unit, country):

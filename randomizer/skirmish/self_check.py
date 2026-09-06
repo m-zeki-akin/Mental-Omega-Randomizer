@@ -1225,9 +1225,10 @@ def _shop_checks():
         and country_builds('GGI', 'UnitedStates')
         and country_builds('TANY', 'UnitedStates')
         # And the sides do not bleed into one another.
-        # The stolen-tech Cyborg Commando is everybody's, and it is the
-        # only unit both sides can field.
-        and (united & soviet_units) == {'CYCOM'}
+        # No unit is on two sides' shelves. The one that was -- the
+        # stolen-tech Cyborg Commando, which everybody can steal -- is
+        # excluded outright now.
+        and not (united & soviet_units)
         and 'GGI' in united and 'GGI' in pacific
     )
 
@@ -1256,7 +1257,12 @@ def _shop_checks():
     # tickets. One purchase becomes one copy per member.
     from .clones import house_clone_code
     from .model import UpgradePurchase
-    from .ownership import STOLEN_TECH_GROUP, expand_group, stolen_tech_units
+    from .ownership import (
+        STOLEN_TECH_GROUP,
+        excluded_units,
+        expand_group,
+        stolen_tech_units,
+    )
 
     members = stolen_tech_units('UnitedStates')
     bundles = [
@@ -1267,7 +1273,8 @@ def _shop_checks():
         # Read from the game option file, because that is where these units
         # are described at all -- the rules do not carry them.
         len(members) >= 2
-        and 'CYCOM' in members
+        # And what the mode has excluded is excluded here too.
+        and not (set(members) & excluded_units())
         and bundles
         # None of them is on the shelf in its own right.
         and not any(
@@ -1298,7 +1305,7 @@ def _shop_checks():
             )[1]
         )
         # A country's stolen tech is its own side's.
-        and not (set(members) & set(stolen_tech_units('USSR')) - {'CYCOM'})
+        and not (set(members) & set(stolen_tech_units('USSR')))
     )
 
     # A unit that deploys is two sections naming each other, and a copy
