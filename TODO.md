@@ -3,6 +3,35 @@
 Work that is decided but not built. Anything already true of the code
 belongs in the code's own comments, not here.
 
+## Waiting on a battle
+
+Four things are written correctly and have never been watched in a game.
+The files were read on 2026-09-06 and say what they should; what is left
+is whether the game does what they ask. Each names what to look at.
+
+- **The speed slider.** Open the in-game options mid-battle and move the
+  speed slider from end to end. Nothing should change. The map carries
+  `[GlobalControls] CustomGS=yes` with all seven `CustomGS<N>.DefaultDelay`
+  set to the run's speed, so every position asks for the same pace. If the
+  game does change pace, `DefaultDelay` is not the frame delay and the
+  other two keys Phobos reads per step are where to look.
+
+- **Superweapons.** `Superweapons=True` is written now and was not before,
+  which is why none ever appeared. A battle long enough to build one should
+  have one, for the player and for the computer players alike.
+
+- **What a tier fields.** Tier 1 seats one Medium enemy beside a Hard ally.
+  The tiers read: 1 medium; 2 medium; medium + hard; 2 medium + hard;
+  medium + 2 hard; 3 hard; 3 hard boosted; 4 hard boosted; 5 hard boosted.
+  What to watch for is whether they attack -- the tier before this one sat
+  on Easy and built defences all game.
+
+- **The ally fielding its copies.** The ally's upgrades are private copies
+  of its units, and a computer player builds what its task forces name, so
+  the staged `aimo.ini` names the copies in its teams -- 24 of them in the
+  battle that was read. Watch whether what the ally builds is the upgraded
+  copy rather than the original.
+
 ## Skirmish Shop
 
 - **Confirm the speed slider is inert.** The slider cannot be removed --
