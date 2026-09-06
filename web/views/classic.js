@@ -5,7 +5,12 @@
  * an unported mode gets is this: what it is, where it is played, and one
  * press to make the launcher open there next time. An empty panel would
  * be worse than the classic window; so would a mode that cannot be
- * selected at all. */
+ * selected at all.
+ *
+ * That press is also on the Launcher screen, on purpose and not by
+ * accident: there it is the setting, here it is the way out of a mode
+ * this interface cannot play. Removing either would cost more than the
+ * duplication does. */
 
 import { act, call, register } from '../app.js';
 import { button, el, notice, panel, section } from '../components/index.js';
