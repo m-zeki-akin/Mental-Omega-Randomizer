@@ -1243,6 +1243,7 @@ def run_self_check():
             NUMBER,
             SECTIONS,
             SWITCH,
+            TEXT,
         )
         campaign_setting_rows = [
             row for _name, rows in SECTIONS for row in rows
@@ -1252,7 +1253,7 @@ def run_self_check():
             and all(
                 row['label']
                 and row['help']
-                and row['kind'] in {SWITCH, NUMBER, CHOICE}
+                and row['kind'] in {SWITCH, NUMBER, CHOICE, TEXT}
                 and (
                     row['key'] in DEFAULT_CONFIG.get(GENERATION, {})
                     if row['where'] == GENERATION
@@ -1263,6 +1264,7 @@ def run_self_check():
                     or 0 <= row['minimum'] < row['maximum']
                 )
                 and (row['kind'] != CHOICE or row['choices'])
+                and (row['kind'] != TEXT or row['maximum_length'] > 0)
                 for row in campaign_setting_rows
             )
         )

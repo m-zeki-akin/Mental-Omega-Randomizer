@@ -290,3 +290,24 @@
   font-size: var(--size-sm);
   color: var(--text-muted);
 }
+
+/* --- something typed -------------------------------------------------
+ * The one control a player writes into rather than picks from. Styled
+ * here because a browser's own input is the browser's colours, and the
+ * launcher has two themes of its own. */
+.input {
+  font: inherit;
+  color: var(--text);
+  background: var(--surface-raised);
+  border: var(--border) solid var(--line-strong);
+  border-radius: var(--radius-sm);
+  padding: var(--space-1) var(--space-2);
+  min-width: 0;
+}
+
+.input::placeholder { color: var(--text-faint); }
+
+.input:focus {
+  outline: 2px solid var(--accent);
+  outline-offset: -1px;
+}

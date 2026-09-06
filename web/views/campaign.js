@@ -11,7 +11,8 @@
 
 import { act, call, register } from '../app.js';
 import {
-  el, grid, notice, panel, row, section, select, stepper, toggle,
+  el, grid, notice, panel, row, section, select, stepper, textField,
+  toggle,
 } from '../components/index.js';
 
 /** One setting, whatever kind it is: what it is, and what changes it. */
@@ -21,6 +22,14 @@ function control(setting) {
   });
   if (setting.kind === 'switch') {
     return toggle({ value: setting.value, onChange: change });
+  }
+  if (setting.kind === 'text') {
+    return textField({
+      value: setting.value,
+      placeholder: 'a new one each time',
+      maximum: setting.maximum_length,
+      onChange: change,
+    });
   }
   if (setting.kind === 'number') {
     return stepper({
@@ -68,6 +77,16 @@ async function render(root) {
             + 'describe is still done in the classic window.'
           : 'The campaign settings, shared by Classic, Mission List and Grid.',
       ),
+      // Why the seed box is empty when a run is standing. The classic
+      // window empties it for the same reason and says nothing; here
+      // there is room to say it.
+      answer.generated_seed
+        ? notice(
+          `A seed is standing: ${answer.generated_seed}. The box below is `
+          + 'empty on purpose, so that generating again does not replay '
+          + 'the run in progress.',
+        )
+        : null,
       ...answer.sections.map(settingsPanel),
     ]),
   );

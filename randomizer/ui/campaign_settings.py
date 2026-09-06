@@ -25,6 +25,10 @@ MAXIMUM_MISSION_GOAL = 97
 SWITCH = 'switch'
 NUMBER = 'number'
 CHOICE = 'choice'
+TEXT = 'text'
+# Long enough for any name a player would type, short enough that a
+# settings file cannot be filled with one.
+MAXIMUM_SEED_LENGTH = 64
 
 # Where a value lives: at the top of the player's settings, or inside the
 # generation block that describes how a seed is made.
@@ -47,6 +51,17 @@ def _row(key, label, kind, help_text, *, where=TOP, mode=None, **rest):
 
 
 RUN_SETTINGS = (
+    _row(
+        'seed', 'Seed name', TEXT,
+        'Type one to play a run somebody else played. Blank means a new '
+        'one is made when the seed is generated.',
+        maximum_length=MAXIMUM_SEED_LENGTH,
+        # The classic window leaves this box empty while a generated seed
+        # stands, so that pressing Generate does not silently replay the
+        # run in progress. A second window showing the old seed in it
+        # would be the same trap wearing a different face.
+        blank_while_generated=True,
+    ),
     _row(
         'campaign_filter', 'Campaign', CHOICE,
         'Which side\'s missions the run draws from.',

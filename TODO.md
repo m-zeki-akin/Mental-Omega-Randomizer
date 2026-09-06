@@ -184,7 +184,7 @@ Roguelike two are not (`shop_*` keys beside skirmish's own).
 - **What the Campaign kind's Setup screen still leaves out.** The screen
   is there, with the run, the reward rules, the reward pool and Grid's own
   three. What it does not draw yet, because each is a list rather than a
-  switch: the seed name, the arsenal and roster sizes, the exclusion lists
+  switch: the arsenal and roster sizes, the exclusion lists
   (units, superweapons, buff types), the reward weights, the starting
   unlocks, and enemy scaling. Each wants a control this interface does not
   have -- a text field, a multi-select, a weight slider -- so each is a

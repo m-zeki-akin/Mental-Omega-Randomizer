@@ -15,6 +15,7 @@ from randomizer.ui.campaign_settings import (
     GENERATION,
     NUMBER,
     SWITCH,
+    TEXT,
     rows_for,
 )
 from .contract import COMMAND, ApiError, action
@@ -51,17 +52,29 @@ def _value(config, row):
         except (TypeError, ValueError):
             number = row['minimum']
         return max(row['minimum'], min(row['maximum'], number))
+    if row['kind'] == TEXT:
+        return str(held or '').strip()[:row['maximum_length']]
     wanted = str(held or '')
     return wanted if wanted in row['choices'] else row['choices'][0]
 
 
-def _shown(row, config):
+def _standing():
+    """Return the seed the classic window has generated, if one stands."""
+    from .launcher import _campaign_seed
+
+    return str((_campaign_seed() or {}).get('seed') or '')
+
+
+def _shown(row, config, standing=''):
     shown = {
         'key': row['key'],
         'label': row['label'],
         'kind': row['kind'],
         'help': row['help'],
-        'value': _value(config, row),
+        'value': (
+            '' if standing and row.get('blank_while_generated')
+            else _value(config, row)
+        ),
     }
     if row['kind'] == NUMBER:
         shown.update(
@@ -69,6 +82,8 @@ def _shown(row, config):
         )
     elif row['kind'] == CHOICE:
         shown['choices'] = list(row['choices'])
+    elif row['kind'] == TEXT:
+        shown['maximum_length'] = row['maximum_length']
     return shown
 
 
@@ -90,12 +105,17 @@ def _mode(config):
 
 def _answer(config):
     mode = _mode(config)
+    # A seed already generated is a run in progress, and a run in progress
+    # is why the seed box is empty in the classic window. Both windows say
+    # the same thing about it, and this is what it is.
+    standing = _standing()
     return {
         'mode': mode,
+        'generated_seed': standing,
         'sections': [
             {
                 'name': name,
-                'settings': [_shown(row, config) for row in rows],
+                'settings': [_shown(row, config, standing) for row in rows],
             }
             for name, rows in rows_for(mode)
         ],
@@ -132,6 +152,10 @@ def use_setting(name='', value=None):
         except (TypeError, ValueError):
             raise ApiError(f'{row["label"]} needs a number') from None
         kept = max(row['minimum'], min(row['maximum'], number))
+    elif row['kind'] == TEXT:
+        # Trimmed and capped rather than refused: what a player typed is
+        # worth keeping even when they typed a space at the end of it.
+        kept = str(value or '').strip()[:row['maximum_length']]
     else:
         kept = str(value or '')
         if kept not in row['choices']:

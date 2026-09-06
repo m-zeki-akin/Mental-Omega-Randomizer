@@ -177,6 +177,25 @@ export function select(options, { value, onChange } = {}) {
 }
 
 /**
+ * Something typed.
+ *
+ * Reported when the player is done rather than on every keystroke: what a
+ * control changes is saved, and saving redraws the screen, which would
+ * take the cursor out from under them mid-word. A field is done on Enter
+ * or when it loses focus, which is what `change` means.
+ */
+export function textField({ value, placeholder, maximum, onChange }) {
+  return el('input', {
+    class: 'input',
+    type: 'text',
+    value: value || '',
+    placeholder: placeholder || '',
+    maxlength: maximum || null,
+    onChange: (event) => onChange(event.target.value),
+  });
+}
+
+/**
  * A number with two presses, the way a launcher window spins one.
  *
  * The value is sent whole rather than as a step, so the caller decides
