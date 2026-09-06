@@ -57,8 +57,7 @@ from randomizer.skirmish.ai import (
     side_number,
     stage_ai_file,
 )
-from randomizer.skirmish.clones import apply_house_clones, house_clone_code
-from randomizer.skirmish.mapfile import merge_into_map
+from randomizer.skirmish.clones import apply_house_clones
 from randomizer.skirmish.seats import apply_seat, pick_seat
 from randomizer.skirmish.shop import (
     owned_stacks,
@@ -857,8 +856,10 @@ class SkirmishController:
             if code is not None:
                 # Last, so a challenge's own code outranks an option's.
                 merge_map_code(SPAWN_MAP_INI, code)
-        # The seat first: every list of countries has to know the seat
-        # stands for the player's country before anything is gated on it.
+        # The seat first, and before either house's copies: the pass reads
+        # the map's own ownership, and a ForbiddenHouses the ally's copies
+        # wrote would be read as the unit's own and extended to the seat --
+        # shutting the player out of a unit only the ally had bought.
         apply_seat(SPAWN_MAP_INI, battle['player'].country_id, battle['seat'])
         seat_index = next(
             (
@@ -911,7 +912,8 @@ class SkirmishController:
         purchases = battle.get('ally_purchases') or ()
         clones = {}
         if ally is not None and purchases:
-            sections, clones = house_clone_code(
+            clones = apply_house_clones(
+                SPAWN_MAP_INI,
                 purchases,
                 ally.country_id,
                 prefix=ALLY_CLONE_PREFIX,
@@ -920,8 +922,6 @@ class SkirmishController:
                 # task force this has not rewritten.
                 forbid_source=True,
             )
-            if sections:
-                merge_into_map(SPAWN_MAP_INI, sections)
         houses = []
         for house in battle['houses']:
             country = country_by_index(house.country)

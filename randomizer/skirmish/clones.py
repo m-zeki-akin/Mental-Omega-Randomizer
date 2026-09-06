@@ -202,17 +202,24 @@ def unit_clone(unit, purchases, country, *, prefix, installed, targets, taken):
     return sections, identifier
 
 
-def house_clone_code(purchases, country, *, prefix, forbid_source=True):
+def house_clone_code(
+    purchases, country, *, prefix, forbid_source=True, existing=None,
+):
     """Return the map code that gives one house its own upgraded units.
 
     ``forbid_source`` shuts the original out of that country, which is what
-    keeps a human's sidebar to one cameo per unit. It is wrong for a house
-    whose production comes from AI task forces naming the original.
+    stops a house fielding the plain version of a unit it paid to improve.
+
+    ``existing`` is what the map already says. Two houses buy in the same
+    battle, and a key written without reading it back is a key the second
+    house takes from the first: one type-list slot, one ``ForbiddenHouses``,
+    and the player's own copy quietly stops being theirs.
     """
     from randomizer.rewards.catalogue import BUFF_TARGETS
     from randomizer.rewards.roster import _installed_sections
 
     installed = _installed_sections()
+    existing = existing or {}
     if not installed or not purchases:
         return {}, {}
     by_unit = {}
@@ -220,6 +227,7 @@ def house_clone_code(purchases, country, *, prefix, forbid_source=True):
         by_unit.setdefault(purchase.unit, []).append(purchase)
 
     taken = {str(name).lower() for name in installed}
+    taken.update(str(name).lower() for name in existing)
     sections = {}
     built = {}
     for unit, unit_purchases in sorted(by_unit.items()):
@@ -240,14 +248,17 @@ def house_clone_code(purchases, country, *, prefix, forbid_source=True):
         list_section = TYPE_LIST_BY_CATEGORY.get(category)
         if list_section:
             registered = sections.setdefault(list_section, {})
-            key = TYPE_LIST_KEY_START + len(registered)
-            while str(key) in registered:
+            spoken_for = set(registered) | set(_section(existing, list_section))
+            key = TYPE_LIST_KEY_START
+            while str(key) in spoken_for:
                 key += 1
             registered[str(key)] = identifier
         if forbid_source:
+            written = _section(existing, unit)
             forbidden = [
                 name for name in _items(
-                    _value(installed.get(unit), 'ForbiddenHouses')
+                    _value(written, 'ForbiddenHouses')
+                    or _value(installed.get(unit), 'ForbiddenHouses')
                 )
                 if name.lower() not in {'none', '<none>'}
             ]
@@ -259,10 +270,30 @@ def house_clone_code(purchases, country, *, prefix, forbid_source=True):
     return sections, built
 
 
-def apply_house_clones(map_path, purchases, country, *, prefix, forbid_source=True):
-    """Write one house's private copies into the map, and say what was made."""
+def _section(sections, name):
+    """Return a section from a parsed map, whatever case it was written in."""
+    for section, values in (sections or {}).items():
+        if str(section).lower() == str(name).lower():
+            return values
+    return {}
+
+
+def apply_house_clones(
+    map_path, purchases, country, *, prefix, forbid_source=True,
+):
+    """Write one house's private copies into the map, and say what was made.
+
+    The map is read first. A battle can have two houses buying, and the
+    second must add to what the first wrote rather than replace it.
+    """
+    from .options import read_ini_sections
+
     sections, built = house_clone_code(
-        purchases, country, prefix=prefix, forbid_source=forbid_source
+        purchases,
+        country,
+        prefix=prefix,
+        forbid_source=forbid_source,
+        existing=read_ini_sections(map_path),
     )
     if not sections:
         return {}

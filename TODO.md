@@ -17,21 +17,24 @@ belongs in the code's own comments, not here.
   passed, so it cannot be moved mid-match; what is missing is the per
   difficulty value and the wiring from the difficulty to it.
 
-- **Unit-level upgrades for the AI.** The ally and the enemies buy nothing
-  that reaches a battle yet. An AI builds what its task forces name and
-  those name the original unit, so each bought unit needs its task forces,
-  team types and AI triggers copied for that house, written into a staged
-  `aimo.ini`. Measured on the installed AI file: 697 task forces over 212
-  units, about 5 task forces, 6 teams and 10 triggers per unit; 945 of the
-  1090 trigger conditions look at a building, so cloning units does not
-  disturb them, and every script argument is numeric, so scripts are shared
-  rather than copied. Two houses' clones must not collide in
-  `TYPE_LIST_KEY_START` or in the ID prefix.
+- **Watch the ally play with what it bought.** The task force, team and
+  trigger copies are written and the staged `aimo.ini` is in place, but no
+  battle has been played with them. The design rests on one inference: that
+  the engine picks autocreate teams by what a house can build, which is why
+  a copy gated with `RequiredHouses` is its house's alone and why the
+  original can be shut out. If that is wrong the ally stops building, the
+  way the allied AI did when `[Sides]` was rewritten. The fallback is one
+  flag -- `forbid_source=False` for AI houses, accepting a mixture of plain
+  and upgraded units.
 
-- **Enemies that grow with the tier.** Once the AI channel exists, a tier's
+- **The ally's shelf still offers units its AI never fields.** Only 212 of
+  the units in the catalogue appear in a task force; an upgrade on one of
+  the others is Ore the ally will never see the benefit of.
+
+- **Enemies that grow with the tier.** The channel now exists: a tier's
   enemy strength is a purchase list generated for the enemy houses and put
-  through the same copies. Until then the tier only changes how many
-  enemies there are and how hard the AI plays.
+  through the same copies the ally's purchases go through. Until then the
+  tier only changes how many enemies there are and how hard the AI plays.
 
 - **Units the copy cannot cover.** A unit that deploys, converts or carries
   a payload names its other form by ID, and buildings are what prerequisites

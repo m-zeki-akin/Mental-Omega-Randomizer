@@ -796,6 +796,31 @@ def _clone_checks():
         and int(next(iter(sections.get('InfantryTypes', {'0': ''})))) >= 20000
     )
 
+    # Two houses buy in the same battle and both write into the same map.
+    # The second has to read what the first left, or it takes the type-list
+    # slot and the ForbiddenHouses with it -- and the player's copy quietly
+    # stops being the only one they can build.
+    first_code, player_built = house_clone_code(
+        (UpgradePurchase('GGI', 'speed', 5),), 'Pacific', prefix='MOP',
+    )
+    shared_code = dict(first_code)
+    second_code, ally_built = house_clone_code(
+        (UpgradePurchase('GGI', 'damage', 4),), 'UnitedStates', prefix='MOL',
+        forbid_source=True, existing=shared_code,
+    )
+    for name, body in second_code.items():
+        shared_code.setdefault(name, {}).update(body)
+    listed = shared_code.get('InfantryTypes') or {}
+    shared_valid = bool(
+        player_built.get('GGI')
+        and ally_built.get('GGI')
+        and player_built['GGI'] != ally_built['GGI']
+        and len(listed) == 2
+        and set(listed.values()) == {player_built['GGI'], ally_built['GGI']}
+        and set(_csv(shared_code.get('GGI', {}).get('ForbiddenHouses', '')))
+        == {'Pacific', 'UnitedStates'}
+    )
+
     countries = [
         'UnitedStates', 'Europeans', 'Pacific', 'USSR', 'Latin', 'Chinese',
         'PsiCorps', 'ScorpionCell', 'Headquaters', 'Guild1', 'Guild2',
@@ -834,8 +859,13 @@ def _clone_checks():
     )
     return {
         'skirmish_unit_clone_valid': clone_valid,
+        'skirmish_two_houses_share_the_map': shared_valid,
         'skirmish_private_seat_valid': seat_valid,
     }
+
+
+def _csv(value):
+    return [item.strip() for item in str(value or '').split(',') if item.strip()]
 
 
 def _installed_country_side(name):
@@ -960,10 +990,15 @@ def _ai_checks():
             and remove_staged_ai_file(target)
             and not target.exists()
         )
+        # A file somebody else wrote is neither ours to overwrite nor ours
+        # to delete: the AI a submod ships is its own.
         stray = Path(directory) / 'someone else.ini'
         stray.write_text('[General]\n', encoding='utf-8')
         stage_valid = bool(
-            stage_valid and not remove_staged_ai_file(stray) and stray.exists()
+            stage_valid
+            and not remove_staged_ai_file(stray)
+            and stage_ai_file(code, path=stray) is None
+            and stray.read_text(encoding='utf-8') == '[General]\n'
         )
 
     return {

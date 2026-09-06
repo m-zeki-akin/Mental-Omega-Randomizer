@@ -307,6 +307,18 @@ def stage_ai_file(code, *, path=None, sections=None):
     if not code:
         remove_staged_ai_file(target)
         return None
+    if target.is_file():
+        try:
+            with target.open('r', encoding='utf-8', errors='ignore') as handle:
+                first = handle.readline()
+        except OSError:
+            first = ''
+        if not first.startswith(RANDOMIZER_RULES_MARKER):
+            # A submod's own AI file. Overwriting it would replace the AI
+            # the installation loads, and removing it afterwards would take
+            # somebody's work with it. The battle plays without this.
+            log_event('skirmish_ai_file_left_alone', path=str(target))
+            return None
     from randomizer.core.paths import APP_DIR
 
     cache = APP_DIR / 'cameo_cache' / AI_FILE_NAME
