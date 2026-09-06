@@ -855,6 +855,124 @@ def _installed_sides():
     return dict((sections or {}).get('Sides') or {})
 
 
+def _ai_checks():
+    """A computer player has to be asked for its copies, not just given them.
+
+    Its production comes from task forces naming units by ID. So a bought
+    unit means a copy of every task force that names it, a team pointing at
+    the copy, and -- where a trigger is what reaches that team -- a copy of
+    the trigger owned by that house, with the original stood down. Standing
+    one down that nothing replaced would take behaviour away for nothing,
+    so only the replaced ones are touched.
+    """
+    import tempfile
+
+    from .ai import (
+        RANDOMIZER_RULES_MARKER,
+        TRIGGER_DIFFICULTIES,
+        TRIGGER_OWNER,
+        TRIGGER_TYPES,
+        ai_house_code,
+        installed_ai_sections,
+        remove_staged_ai_file,
+        side_number,
+        stage_ai_file,
+        taskforce_units,
+    )
+    from .options import read_ini_sections
+
+    sections = installed_ai_sections()
+    read_valid = bool(
+        sections
+        and len(sections.get(TRIGGER_TYPES) or {}) > 100
+        and len(sections.get('TaskForces') or {}) > 100
+        and side_number('GDI') == 1
+        and side_number('FourthSide') == 4
+    )
+
+    clones = {'GGI': 'MOLGGI'}
+    code = ai_house_code(
+        [('Europeans', 1, clones), ('Guild1', 4, {})], sections=sections
+    )
+    rows = code.get(TRIGGER_TYPES) or {}
+    stood_down = {key for key in rows if key in (sections.get(TRIGGER_TYPES) or {})}
+    copies = {key: rows[key] for key in rows if key not in stood_down}
+    forces = [
+        values for name, values in code.items()
+        if name not in {TRIGGER_TYPES, 'TaskForces', 'TeamTypes'}
+        and any(str(key).isdigit() for key in values)
+    ]
+    code_valid = bool(
+        forces
+        # Every copied task force asks for the copy rather than the unit.
+        and any(
+            unit == 'MOLGGI'
+            for values in forces
+            for _count, unit in taskforce_units(values).values()
+        )
+        and not any(
+            unit == 'GGI'
+            for values in forces
+            for _count, unit in taskforce_units(values).values()
+        )
+        # A copy belongs to one house, and it is live.
+        and copies
+        and all(
+            row.split(',')[TRIGGER_OWNER] in {'Europeans', 'Guild1'}
+            for row in copies.values()
+        )
+        # Live on at least one difficulty: a trigger the file had already
+        # switched off is not copied at all.
+        and all(
+            any(
+                row.split(',')[slot] != '0' for slot in TRIGGER_DIFFICULTIES
+            )
+            for row in copies.values()
+        )
+        # Only what was replaced is stood down, and it really is off.
+        and stood_down
+        and all(
+            rows[key].split(',')[slot] == '0'
+            for key in stood_down for slot in TRIGGER_DIFFICULTIES
+        )
+        and len(stood_down) < len(sections.get(TRIGGER_TYPES) or {})
+        # A house that bought nothing takes nothing away.
+        and not ai_house_code([('Guild1', 4, {})], sections=sections)
+    )
+
+    with tempfile.TemporaryDirectory(prefix='mo-ai-') as directory:
+        target = Path(directory) / 'aimo.ini'
+        staged = stage_ai_file(code, path=target)
+        written = read_ini_sections(target) if staged else {}
+        first = (
+            target.read_text(encoding='utf-8', errors='ignore').splitlines()[:1]
+        )
+        stage_valid = bool(
+            staged
+            # A complete file, because the game folder outranks the archives.
+            and len(written) >= len(sections)
+            and first and first[0].startswith(RANDOMIZER_RULES_MARKER)
+            and all(
+                written[TRIGGER_TYPES][key].split(',')[slot] == '0'
+                for key in stood_down for slot in TRIGGER_DIFFICULTIES
+            )
+            # And it is ours to remove, which is why it carries the marker.
+            and remove_staged_ai_file(target)
+            and not target.exists()
+        )
+        stray = Path(directory) / 'someone else.ini'
+        stray.write_text('[General]\n', encoding='utf-8')
+        stage_valid = bool(
+            stage_valid and not remove_staged_ai_file(stray) and stray.exists()
+        )
+
+    return {
+        'skirmish_ai_file_read': read_valid,
+        'skirmish_ai_code_valid': code_valid,
+        'skirmish_ai_staging_valid': stage_valid,
+    }
+
+
 def _shop_checks():
     from .model import UpgradePurchase
     from .rules import unit_rules
@@ -1026,6 +1144,7 @@ def validate_skirmish_contract():
     report.update(_challenge_checks())
     report.update(_option_checks())
     report.update(_clone_checks())
+    report.update(_ai_checks())
     report.update(_shop_checks())
     report['skirmish_map_pools'] = (
         summarize_map_pools()

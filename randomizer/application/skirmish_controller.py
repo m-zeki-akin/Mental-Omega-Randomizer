@@ -51,7 +51,14 @@ from randomizer.skirmish.persistence import (
     SkirmishRepository,
 )
 from randomizer.skirmish.progression import describe_offer, offers_for
-from randomizer.skirmish.clones import apply_house_clones
+from randomizer.skirmish.ai import (
+    ai_house_code,
+    remove_staged_ai_file,
+    side_number,
+    stage_ai_file,
+)
+from randomizer.skirmish.clones import apply_house_clones, house_clone_code
+from randomizer.skirmish.mapfile import merge_into_map
 from randomizer.skirmish.seats import apply_seat, pick_seat
 from randomizer.skirmish.shop import (
     owned_stacks,
@@ -97,6 +104,9 @@ PREVIEW_BOX = (300, 210)
 # What a player's private copy of a unit is called. Short, so the ID still
 # fits inside the length Ares accepts.
 PLAYER_CLONE_PREFIX = 'MOP'
+# And what a computer player's is called. Distinct so two houses' copies of
+# the same unit never answer to the same ID.
+ALLY_CLONE_PREFIX = 'MOL'
 
 
 class SkirmishController:
@@ -293,13 +303,22 @@ class SkirmishController:
     def skirmish_enemy_pool(self, run):
         """Return the countries a battle may be fought against.
 
-        Every installed country. What keeps the run's upgrades out of enemy
-        hands is not which side they fight for: the player is seated on a
-        country nobody else in the battle plays, and their upgraded units
-        are copies gated to that seat. So Allies against Allies is a battle
-        this mode can offer again.
+        Every installed country but the ally's own. What keeps a run's
+        upgrades out of enemy hands is not which side they fight for: the
+        player is seated on a country nobody else plays, and both armies'
+        upgraded units are copies gated to a country. So Allies against
+        Allies is a battle this mode can offer again -- but not against the
+        very country standing beside the player, whose copies an enemy of
+        that country would be handed.
         """
-        return skirmish_countries()
+        ally = country_by_index(run.ally_country)
+        countries = skirmish_countries()
+        if ally is None:
+            return countries
+        eligible = tuple(
+            country for country in countries if country.index != ally.index
+        )
+        return eligible or countries
 
     def offer_skirmish_battles(self, run):
         """Put this battle's offers on the table, drawing them if needed."""
@@ -486,9 +505,8 @@ class SkirmishController:
             f'{side} upgrades only, and only upgrades -- a run fields what '
             'its country fields. What you buy becomes your own copy of the '
             'unit, which nobody else in the battle can build. The shelf '
-            'changes with every battle. Your ally is still saving up: an AI '
-            'builds what its task forces name, and teaching them to name '
-            'its copies is the next piece of work.'
+            'changes with every battle, and your ally spends its own Ore on '
+            'its own army the same way.'
         )
         bought = sum(purchase.stacks for purchase in run.purchases)
         ally_bought = sum(purchase.stacks for purchase in run.ally_purchases)
@@ -511,7 +529,7 @@ class SkirmishController:
         )
         lines = ['Yours:'] + [f'  {line}' for line in mine or ('nothing yet',)]
         lines += [
-            f'{ally.display if ally else "Ally"} (not in battle yet):'
+            f'{ally.display if ally else "Ally"}:'
         ] + [f'  {line}' for line in theirs or ('nothing yet',)]
         tooltip.text = '\n'.join(lines)
 
@@ -781,10 +799,18 @@ class SkirmishController:
             ),
             'seed': offer.seed,
             'player_name': SKIRMISH_PLAYER_NAME,
-            # The ally's purchases are not written here: an AI builds what
-            # its task forces name, and those name the original. Until that
-            # is wired, only the player's own copies reach the battle.
             'purchases': run.purchases,
+            # The ally's own, kept apart: they become its own copies, gated
+            # to its own country, and its task forces are rewritten to ask
+            # for them.
+            'ally_purchases': run.ally_purchases,
+            'ally': next(
+                (
+                    country_by_index(house.country) for house in houses
+                    if house.friendly
+                ),
+                None,
+            ),
             # Read here rather than in the worker: these come off Tk
             # variables, and Tk is not safe to touch from another thread.
             'difficulty': self.get_selected_difficulty_value(),
@@ -868,8 +894,48 @@ class SkirmishController:
             battle['seat'],
             prefix=PLAYER_CLONE_PREFIX,
         )
+        self.prepare_skirmish_ai(battle)
         self.write_launch_options(battle['difficulty'], battle['game_speed'])
         return True
+
+    def prepare_skirmish_ai(self, battle):
+        """Give the computer players their own copies, and the wish to build them.
+
+        A human builds what the sidebar offers, so a copy gated to their seat
+        is the whole of it. A computer player builds what its task forces
+        name, so the copies are useless until those name them -- which is
+        what the staged AI file is for.
+        """
+        remove_staged_ai_file()
+        ally = battle.get('ally')
+        purchases = battle.get('ally_purchases') or ()
+        clones = {}
+        if ally is not None and purchases:
+            sections, clones = house_clone_code(
+                purchases,
+                ally.country_id,
+                prefix=ALLY_CLONE_PREFIX,
+                # The original is shut out here too: an AI that can still
+                # build it would keep fielding the plain version through a
+                # task force this has not rewritten.
+                forbid_source=True,
+            )
+            if sections:
+                merge_into_map(SPAWN_MAP_INI, sections)
+        houses = []
+        for house in battle['houses']:
+            country = country_by_index(house.country)
+            if country is None:
+                continue
+            houses.append((
+                country.country_id,
+                side_number(country.side_id),
+                clones if ally is not None and country.index == ally.index
+                else {},
+            ))
+        if not houses or not clones:
+            return
+        stage_ai_file(ai_house_code(houses))
 
     def handle_skirmish_launch_error(self, exc, detail):
         self._skirmish_launch = None
@@ -953,6 +1019,10 @@ class SkirmishController:
             return super().finish_progression_launch_context()
         battle = self._skirmish_launch
         self._skirmish_launch = None
+        # The staged AI file belongs to the battle that just ended. Left in
+        # the game folder it would be what the client loads next time
+        # somebody plays Mental Omega without this launcher.
+        remove_staged_ai_file()
         entry = battle['map']
         result = self.skirmish_result(battle)
         message = self.apply_skirmish_result(battle, result)

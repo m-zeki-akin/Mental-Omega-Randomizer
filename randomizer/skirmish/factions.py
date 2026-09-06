@@ -44,6 +44,10 @@ class SkirmishCountry:
     country_id: str
     side: str
     label: str
+    # What the rules call the side, as against what Mental Omega calls it.
+    # The AI file numbers its sides by this list's order, so the engine's
+    # own id is what a lookup there has to start from.
+    side_id: str = ''
 
     @property
     def display(self):
@@ -92,6 +96,7 @@ def skirmish_countries():
             country_id=country_id,
             side=SKIRMISH_SIDES.get(side, side or 'Unknown'),
             label=_label(_section_value(section, 'uiname'), country_id),
+            side_id=side,
         ))
     return tuple(result)
 
