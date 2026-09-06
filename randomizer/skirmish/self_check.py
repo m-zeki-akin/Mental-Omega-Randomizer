@@ -1146,6 +1146,25 @@ def _shop_checks():
         and 'GGI' in united and 'GGI' in pacific
     )
 
+    # A hero is priced off its own cost here. The campaign shop sells the
+    # only Tanya a run will ever own, flat and with a premium on top; a
+    # skirmish builds one in a barracks, so what improving one costs is
+    # what improving anything of that cost costs.
+    from randomizer.shop.economy import run_buff_price
+    from randomizer.shop.unit_pricing import unit_pricing_traits
+    from .shop import upgrade_price
+
+    hero_valid = bool(
+        unit_pricing_traits('TANY').get('unique')
+        and upgrade_price('TANY') < run_buff_price('TANY')
+        # And within a few Ore of a unit that costs about the same and is
+        # nobody's hero.
+        and abs(upgrade_price('TANY') - upgrade_price('CARRIER')) <= 10
+        # Everything that was never special is untouched.
+        and upgrade_price('GGI') == run_buff_price('GGI')
+        and upgrade_price('FORTRESS') == run_buff_price('FORTRESS')
+    )
+
     # What an infiltration might bring is bought as one row, not as one row
     # per unit: a run cannot decide to build these and cannot choose which
     # of them it gets, so five separate price tags would be five lottery
@@ -1272,6 +1291,7 @@ def _shop_checks():
         'skirmish_shelf_valid': shelf_valid,
         'skirmish_shelf_is_one_country': country_valid,
         'skirmish_stolen_tech_is_one_row': stolen_valid,
+        'skirmish_hero_priced_by_cost': hero_valid,
         'skirmish_upgrade_effect_valid': effect_valid,
         'skirmish_upgrade_delivers_valid': delivers_valid,
         'skirmish_upgrade_rules_valid': rules_valid,

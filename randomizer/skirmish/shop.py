@@ -56,6 +56,20 @@ class Upgrade:
         return (self.unit, self.buff_type)
 
 
+def upgrade_price(unit):
+    """Return what one upgrade costs, off the unit's own credit cost.
+
+    The campaign shop prices a hero flat and charges a premium on top: it
+    is selling the only Tanya the run will ever have. A skirmish builds one
+    in a barracks like anything else, so the flat prices and the premium
+    have no claim here and the unit's own cost decides.
+    """
+    from randomizer.shop.config import SHOP_CONFIG
+    from randomizer.shop.unit_pricing import cost_derived_buff_price
+
+    return int(cost_derived_buff_price(unit, SHOP_CONFIG.price_scales['run_ore']))
+
+
 def battle_reward(battle, *, challenge=False):
     """Return the Ore a won battle pays."""
     tier = (max(1, int(battle)) - 1) // BATTLES_PER_TIER + 1
@@ -100,7 +114,6 @@ def country_upgrades(country):
     )
     from randomizer.rewards.display import buff_effect_lines
     from randomizer.rewards.roster import _installed_sections
-    from randomizer.shop.economy import run_buff_price
 
     from .clones import clonable
     from .ownership import (
@@ -156,7 +169,7 @@ def country_upgrades(country):
             buff_type=buff_type,
             name=str(reward.get('name') or f'{unit} {buff_type}'),
             description=str(reward.get('description') or ''),
-            price=int(run_buff_price(unit)),
+            price=upgrade_price(unit),
             limit=1,
             effect=effect[0] if effect else buff_type.replace('_', ' '),
         )

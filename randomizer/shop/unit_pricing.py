@@ -373,6 +373,39 @@ def unit_access_price(target_id, scale, *, config: ShopModeConfig = SHOP_CONFIG)
     return _access_value(target_id, scale, config)
 
 
+def cost_derived_access_price(
+    target_id, scale, *, config: ShopModeConfig = SHOP_CONFIG
+):
+    """Return what a unit is worth from its own credit cost and nothing else.
+
+    ``_access_value`` answers a campaign run's question: what is owning this
+    worth, for the rest of the run? A hero takes a flat price and a premium
+    on top, because there will only ever be the one and no skirmish game
+    offers it. A skirmish asks a different question -- Tanya is built in a
+    barracks there like anything else -- so this takes the tier band and
+    positions the unit in it by what the game charges for one.
+    """
+    from .catalogue import unit_access_tier
+
+    return _in_range(
+        scale.tier_prices.get(
+            unit_access_tier(target_id), scale.tier_prices['tier_1']
+        ),
+        target_id,
+        scale,
+        config,
+    )
+
+
+def cost_derived_buff_price(
+    target_id, scale, *, config: ShopModeConfig = SHOP_CONFIG
+):
+    """Return one upgrade's price, off the unit's own cost."""
+    return _buff_price(
+        cost_derived_access_price(target_id, scale, config=config), scale
+    )
+
+
 def _buff_price(access_price, scale):
     """Return one upgrade's price: a floor, plus a share of the target's.
 
