@@ -16,7 +16,6 @@ each other.
 
 from datetime import date
 from pathlib import Path
-import shutil
 import subprocess
 import sys
 import tkinter as tk
@@ -29,50 +28,30 @@ from randomizer.core.paths import (
     GAME_EXE,
     GAME_LAUNCHER_EXE,
     GAME_ROOT,
-    SPAWN_INI,
 )
 from randomizer.shop.model import RunStatus
-from randomizer.skirmish.challenges import (
-    challenge_for,
-    challenge_mode_for_level,
-    forced_options,
-    map_code_path,
-    merge_map_code,
-)
 from randomizer.skirmish.factions import country_by_index, skirmish_countries
-from randomizer.skirmish.maps import (
-    MAPS_DIR,
-    challenge_map_pool,
-    map_by_relative_path,
-    skirmish_map_pool,
+from randomizer.skirmish.launch import (
+    PLAYER_NAME as SKIRMISH_PLAYER_NAME,
+    build_battle,
+    houses_for,
+    prepare_battle,
 )
+from randomizer.skirmish.maps import map_by_relative_path
 from randomizer.skirmish.persistence import (
     SkirmishPersistenceError,
     SkirmishRepository,
 )
 from randomizer.skirmish.leaderboard import (
-    BoardEntry,
     board_row,
     load_board,
     reached_text,
-    record_run,
+    record_finished_run,
 )
-from randomizer.skirmish.progression import (
-    ALLY_DIFFICULTY,
-    describe_offer,
-    offers_for,
-)
-from randomizer.skirmish.ai import (
-    ai_house_code,
-    remove_staged_ai_file,
-    side_number,
-    stage_ai_file,
-)
-from randomizer.skirmish.clones import apply_house_clones
-from randomizer.skirmish.seats import apply_seat, pick_seat
-from randomizer.skirmish.speed import apply_locked_speed
+from randomizer.skirmish.progression import describe_offer
+from randomizer.skirmish.table import deal, enemy_pool
+from randomizer.skirmish.ai import remove_staged_ai_file
 from randomizer.skirmish.shop import (
-    draw_shelf,
     owned_stacks,
     purchase_labels,
     shelf_for,
@@ -81,20 +60,12 @@ from randomizer.skirmish.results import (
     last_game_result,
     read_debug_log_tail,
 )
-from randomizer.skirmish.options import merge_game_options
 from randomizer.skirmish.stats import stats_lines
-from randomizer.skirmish.spawn import (
-    SkirmishHouse,
-    match_settings,
-    skirmish_spawn_ini_text,
-    write_skirmish_spawn_ini,
-)
 from randomizer.skirmish.transitions import (
     SkirmishTransitionError,
     buy_upgrade,
     commit_offer,
     give_up,
-    offer_battles,
     record_defeat,
     record_victory,
     run_progress_text,
@@ -108,19 +79,12 @@ SKIRMISH_MODE = 'Skirmish Shop'
 # block the game writes at the end, which is how the launcher finds its own
 # result among the houses.
 SKIRMISH_PLAYER_NAME = 'Commander'
-SPAWN_MAP_INI = GAME_ROOT / 'spawnmap.ini'
 # Colours are indexes into the client's own list. The player takes the first
 # and every other house takes the next, so no two houses share one.
 HOUSE_COLORS = (0, 2, 4, 6, 8, 10, 12, 14)
 # What a card's preview is allowed to take up, in pixels. Tk subsamples by
 # whole factors and nothing else, so the image steps down until it fits.
 PREVIEW_BOX = (300, 210)
-# What a player's private copy of a unit is called. Short, so the ID still
-# fits inside the length Ares accepts.
-PLAYER_CLONE_PREFIX = 'MOP'
-# And what a computer player's is called. Distinct so two houses' copies of
-# the same unit never answer to the same ID.
-ALLY_CLONE_PREFIX = 'MOL'
 
 
 class SkirmishController:
@@ -321,46 +285,12 @@ class SkirmishController:
         self.refresh_skirmish_mode()
 
     def skirmish_enemy_pool(self, run):
-        """Return the countries a battle may be fought against.
-
-        Every installed country but the ally's own. What keeps a run's
-        upgrades out of enemy hands is not which side they fight for: the
-        player is seated on a country nobody else plays, and both armies'
-        upgraded units are copies gated to a country. So Allies against
-        Allies is a battle this mode can offer again -- but not against the
-        very country standing beside the player, whose copies an enemy of
-        that country would be handed.
-        """
-        ally = country_by_index(run.ally_country)
-        countries = skirmish_countries()
-        if ally is None:
-            return countries
-        eligible = tuple(
-            country for country in countries if country.index != ally.index
-        )
-        return eligible or countries
+        """Return the countries a battle may be fought against."""
+        return enemy_pool(run)
 
     def offer_skirmish_battles(self, run):
         """Put this battle's offers on the table, drawing them if needed."""
-        if run.offers:
-            return run
-        offers = offers_for(
-            run,
-            skirmish_map_pool(),
-            challenge_map_pool(),
-            MAPS_DIR,
-            self.skirmish_enemy_pool(run),
-        )
-        if not offers:
-            raise SkirmishTransitionError(
-                'No installed map can seat this battle. Check that '
-                'MapsMO/Standard and MapsMO/Challenge are present.'
-            )
-        # The shop's six are this battle's offers too, drawn once here so
-        # that buying one does not redraw the other five.
-        return offer_battles(
-            run, offers, shelf=draw_shelf(run, self.skirmish_country_id(run))
-        )
+        return deal(run)
 
     def skip_skirmish_warmup(self):
         """Step past the warmup without fighting it."""
@@ -418,22 +348,8 @@ class SkirmishController:
         A run that ends is deleted or left in the list as a dead row, and
         either way what it did would be gone.
         """
-        player = country_by_index(run.player_country)
-        ally = country_by_index(run.ally_country)
         try:
-            record_run(BoardEntry(
-                run_id=run.run_id,
-                seed=run.seed,
-                army=player.display if player else str(run.player_country),
-                ally=ally.display if ally else str(run.ally_country),
-                started=run.created,
-                ended=date.today().isoformat(),
-                outcome=outcome,
-                battle=run.battle,
-                tier=run.tier,
-                nightmare=run.nightmare,
-                stats=run.stats,
-            ))
+            record_finished_run(run, outcome)
         except OSError as exc:
             self.append_log(f'Could not write the skirmish board: {exc}', error=True)
             return
@@ -827,40 +743,7 @@ class SkirmishController:
 
     def skirmish_houses(self, run, offer):
         """Return the computer players, ally first, in seating order."""
-        described = challenge_for(offer.map_path) if offer.challenge else None
-        if described is not None and described.houses:
-            # A challenge is the map's fight: its armies, its colours, its
-            # starting points, and nobody standing beside the player.
-            return tuple(
-                SkirmishHouse(
-                    country=house.country,
-                    color=house.color,
-                    friendly=False,
-                    handicap=offer.handicap,
-                )
-                for house in described.houses
-            )
-        houses = []
-        if offer.ally:
-            houses.append(SkirmishHouse(
-                country=run.ally_country,
-                color=HOUSE_COLORS[1],
-                friendly=True,
-                # Not the tier's difficulty. An ally on Easy builds a base
-                # and stands in it; what a run is fought against is the
-                # dial, not who it is fought beside.
-                handicap=ALLY_DIFFICULTY,
-            ))
-        for country, handicap in zip(
-            offer.enemy_countries, offer.enemy_handicaps()
-        ):
-            houses.append(SkirmishHouse(
-                country=country,
-                color=HOUSE_COLORS[len(houses) + 1],
-                friendly=False,
-                handicap=handicap,
-            ))
-        return tuple(houses)
+        return houses_for(run, offer)
 
     def launch_skirmish_offer(self, index):
         if self.skirmish_launch_blocked():
@@ -901,60 +784,18 @@ class SkirmishController:
             )
             return
         self.skirmish_run = self.skirmish_repository.save_run(run)
-        described = challenge_for(offer.map_path) if offer.challenge else None
-        houses = self.skirmish_houses(run, offer)
-        battle = {
-            'run_id': run.run_id,
-            'battle': run.battle,
-            'offer': offer,
-            'challenge': described,
-            'map': entry,
-            'player': player,
-            # A challenge names a colour its own armies wear, and the client
-            # keeps the player out of it.
-            'player_color': next(
-                color for color in HOUSE_COLORS
-                if described is None
-                or color not in described.disallowed_colors
-            ),
-            'houses': houses,
-            # The country the player is seated on: one nobody else in this
-            # battle plays, wearing the country they chose. It is what makes
-            # their upgraded units theirs, and it is why the ally may now
-            # play the very country they picked.
-            'seat': pick_seat(
-                player.country_id,
-                [
-                    country.country_id for country in (
-                        country_by_index(house.country) for house in houses
-                    ) if country is not None
-                ],
-                [country.country_id for country in skirmish_countries()],
-                sides={
-                    country.country_id: country.side
-                    for country in skirmish_countries()
-                },
-                salt=f'{run.seed}:{run.battle}:seat',
-            ),
-            'seed': offer.seed,
-            'player_name': SKIRMISH_PLAYER_NAME,
-            'purchases': run.purchases,
-            # The ally's own, kept apart: they become its own copies, gated
-            # to its own country, and its task forces are rewritten to ask
-            # for them.
-            'ally_purchases': run.ally_purchases,
-            'ally': next(
-                (
-                    country_by_index(house.country) for house in houses
-                    if house.friendly
-                ),
-                None,
-            ),
-            # Read here rather than in the worker: these come off Tk
-            # variables, and Tk is not safe to touch from another thread.
-            'difficulty': self.get_selected_difficulty_value(),
-            'game_speed': self.get_selected_game_speed_value(),
-        }
+        try:
+            battle = build_battle(
+                run, offer, entry,
+                # Read here rather than in the worker: these come off Tk
+                # variables, and Tk is not safe to touch from another
+                # thread.
+                difficulty=self.get_selected_difficulty_value(),
+                game_speed=self.get_selected_game_speed_value(),
+            )
+        except LookupError as exc:
+            self.skirmish_message_var.set(f'{exc}.')
+            return
         self.run_in_background(
             'Starting battle, please wait…',
             'Copying the map and writing the battle setup.',
@@ -964,133 +805,25 @@ class SkirmishController:
         )
 
     def prepare_skirmish_launch_files(self, battle):
-        """Put the map and the battle setup where the spawner reads them."""
-        # A generated rulesmo.ini left enabled would be loaded by this match
-        # as well, so the campaign path's cleanup runs here too.
-        self.disable_generated_rules_for_client()
-        self.cleanup_generated_root_maps()
-        entry = battle['map']
-        shutil.copy2(entry.path, SPAWN_MAP_INI)
-        options = {'GameSpeed': str(battle['game_speed'])}
-        game_mode = 'Standard'
-        starts = None
-        described = battle['challenge']
-        if battle['offer'].mental_ai:
-            # The late tiers are fought against the boosted AI, and so are
-            # the battles that offer it as the price of a bonus.
-            options['MentalAI'] = 'True'
-        if described is not None:
-            game_mode = challenge_mode_for_level(battle['offer'].handicap)
-            # The mode forces its own match options and merges an INI of
-            # triggers into the map -- which is what makes a challenge one.
-            options.update(forced_options(
-                f'{game_mode}ForcedOptions', described.forced_options
-            ))
-            starts = {1: 0}
-            for index, house in enumerate(described.houses):
-                starts[index + 2] = house.start
-        # Half of a game option lives in the map: StolenTech is what puts
-        # Spyable=yes on every Construction Yard, and writing the flag
-        # without the file is a match whose spies cannot infiltrate. The
-        # settings are read after a challenge has forced its own, so the
-        # flag and the file can never disagree.
-        merge_game_options(SPAWN_MAP_INI, match_settings(options))
-        # The slider in the in-game menu is not ours to remove, but what
-        # its positions mean is: every step is given the locked speed's
-        # delay, so moving it changes nothing.
-        apply_locked_speed(SPAWN_MAP_INI, battle['game_speed'])
-        if described is not None:
-            code = map_code_path(game_mode)
-            if code is not None:
-                # Last, so a challenge's own code outranks an option's.
-                merge_map_code(SPAWN_MAP_INI, code)
-        # The seat first, and before either house's copies: the pass reads
-        # the map's own ownership, and a ForbiddenHouses the ally's copies
-        # wrote would be read as the unit's own and extended to the seat --
-        # shutting the player out of a unit only the ally had bought.
-        apply_seat(SPAWN_MAP_INI, battle['player'].country_id, battle['seat'])
-        seat_index = next(
-            (
-                country.index for country in skirmish_countries()
-                if country.country_id == battle['seat']
-            ),
-            battle['player'].index,
-        )
-        write_skirmish_spawn_ini(
-            SPAWN_INI,
-            skirmish_spawn_ini_text(
-                map_name=entry.name,
-                player_name=battle['player_name'],
-                player_country=seat_index,
-                player_color=battle['player_color'],
-                houses=battle['houses'],
-                seed=battle['seed'],
-                game_mode=game_mode,
-                starts=starts,
-                # The spawner takes the match speed from here, not from the
-                # option files, so a skirmish plays at the speed the
-                # launcher locks its missions to rather than the client's.
-                options=options,
-            ),
-        )
-        # What the run has bought becomes the player's own copies of those
-        # units, gated to the seat. Writing the buff onto the unit itself
-        # would hand it to every house fielding that unit, the enemy
-        # included -- a TechnoType is global, a type ID is not.
-        apply_house_clones(
-            SPAWN_MAP_INI,
-            battle['purchases'],
-            battle['seat'],
-            prefix=PLAYER_CLONE_PREFIX,
-            # Gated to the seat, but drawn from the army the player chose:
-            # a seat can fall on another side, and a shelf row standing for
-            # a set of units means that side's set.
-            roster=battle['player'].country_id,
-        )
-        self.prepare_skirmish_ai(battle)
-        self.write_launch_options(battle['difficulty'], battle['game_speed'])
-        return True
+        """Put the map and the battle setup where the spawner reads them.
 
-    def prepare_skirmish_ai(self, battle):
-        """Give the computer players their own copies, and the wish to build them.
-
-        A human builds what the sidebar offers, so a copy gated to their seat
-        is the whole of it. A computer player builds what its task forces
-        name, so the copies are useless until those name them -- which is
-        what the staged AI file is for.
+        What a launch writes is the same whichever window asked for it, so
+        it lives in the mode rather than here. What is still this
+        controller's is the two steps around it: a generated ruleset the
+        client would otherwise load has to be cleared first, and the
+        difficulty has to reach the game's own options file.
         """
-        remove_staged_ai_file()
-        ally = battle.get('ally')
-        purchases = battle.get('ally_purchases') or ()
-        clones = {}
-        if ally is not None and purchases:
-            clones = apply_house_clones(
-                SPAWN_MAP_INI,
-                purchases,
-                ally.country_id,
-                prefix=ALLY_CLONE_PREFIX,
-                # The original stays available to the ally. Shutting it out
-                # left the AI unable to fill any autocreate team that named
-                # it -- and a team carries no owner, so there is no way to
-                # stand one down for a single house. It built defences all
-                # match and attacked almost never. A mixture of plain and
-                # upgraded units is the price of an ally that plays.
-                forbid_source=False,
-            )
-        houses = []
-        for house in battle['houses']:
-            country = country_by_index(house.country)
-            if country is None:
-                continue
-            houses.append((
-                country.country_id,
-                side_number(country.side_id),
-                clones if ally is not None and country.index == ally.index
-                else {},
-            ))
-        if not houses or not clones:
-            return
-        stage_ai_file(ai_house_code(houses))
+        prepare_battle(
+            battle,
+            before=lambda: (
+                self.disable_generated_rules_for_client(),
+                self.cleanup_generated_root_maps(),
+            ),
+            after=lambda: self.write_launch_options(
+                battle['difficulty'], battle['game_speed']
+            ),
+        )
+        return True
 
     def handle_skirmish_launch_error(self, exc, detail):
         self._skirmish_launch = None
@@ -1108,7 +841,7 @@ class SkirmishController:
         self.refresh_skirmish_mode()
 
     def start_skirmish_process(self, battle):
-        from .launch_controller import windows_syringe_command_line
+        from randomizer.launch.syringe import windows_syringe_command_line
 
         command = self.build_command()
         popen_options = {}

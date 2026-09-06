@@ -18,6 +18,7 @@ from randomizer.shop.model import RunStatus
 
 from .factions import (
     SKIRMISH_SIDES,
+    country_by_index,
     skirmish_countries,
     validate_installed_countries,
 )
@@ -609,6 +610,62 @@ TeamDelays=500,1500,2500
 [Actions]
 MODEINT1=1,11,4,MISSION:AIDHARD,0,0,0,0,A
 """
+
+
+def _table_checks():
+    """A battle that has ended clears the table, and the next one deals it.
+
+    The window used to deal, so nothing else could: a screen that read a
+    won run found no offers and had no way to fight again. What is checked
+    is that dealing is now the mode's own, that it leaves a standing table
+    alone, and that it never seats the ally's country as the enemy.
+    """
+    from .maps import STANDARD_POOL_DIR
+    from .table import deal, enemy_pool
+    from .transitions import commit_offer, record_victory, start_run
+
+    countries = skirmish_countries()
+    if len(countries) < 2:
+        return {'skirmish_deals_next_table': False}
+    run = start_run(
+        run_id='table-check', seed='TABLE', created='2026-01-01',
+        player_country=countries[0].index,
+        ally_country=countries[1].index,
+    )
+    pool = enemy_pool(run)
+    # Every installed country but the ally's own, and never nothing.
+    pool_valid = bool(
+        pool
+        and all(country.index != run.ally_country for country in pool)
+        and len(pool) == len(countries) - 1
+    )
+    if not STANDARD_POOL_DIR.is_dir():
+        # No maps to deal from. What can be read without them still is.
+        return {'skirmish_deals_next_table': pool_valid}
+
+    dealt = deal(run)
+    standing = deal(dealt)
+    won = record_victory(commit_offer(dealt, 0))
+    again = deal(won)
+    return {
+        'skirmish_deals_next_table': bool(
+            pool_valid
+            and dealt.offers
+            and dealt.shelf
+            # Dealing twice into one battle leaves what the player is
+            # looking at exactly where it was.
+            and standing.offers == dealt.offers
+            and standing.shelf == dealt.shelf
+            # A victory clears the table and the next deal sets it again.
+            and not won.offers
+            and again.offers
+            and again.battle == dealt.battle + 1
+            and all(
+                run.ally_country not in offer.enemy_countries
+                for offer in again.offers
+            )
+        ),
+    }
 
 
 def _challenge_checks():
@@ -1212,7 +1269,13 @@ def _shop_checks():
     # A run that ends still exists on the board, with what it did.
     from tempfile import TemporaryDirectory as _TempDir
 
-    from .leaderboard import BoardEntry, board_row, load_board, record_run
+    from .leaderboard import (
+        BoardEntry,
+        board_row,
+        load_board,
+        record_finished_run,
+        record_run,
+    )
     from .results import HouseResult
     from .stats import RunStats, record_battle, stats_lines
 
@@ -1240,6 +1303,24 @@ def _shop_checks():
         further = record_run(
             replace(entry, run_id='r2', tier=5, nightmare=2), board_file
         )
+        # The two run-end paths -- giving up and running out of lives --
+        # both describe the run through one reading now, which is what
+        # keeps a run ended from a screen and a run ended from a window
+        # on the board as the same row.
+        described = record_finished_run(
+            replace(
+                start_run(
+                    run_id='ended-check', seed='ENDED', player_country=0,
+                    ally_country=3, created='2026-09-06',
+                ),
+                battle=7, stats=quit_early,
+            ),
+            'Gave up',
+            ended='2026-09-06',
+            path=board_file,
+        )
+        ended = next(item for item in described if item.run_id == 'ended-check')
+        player = country_by_index(0)
         board_valid = bool(
             # One battle in, and the totals are the game's own numbers.
             fresh.battles == 1 and fresh.won == 1
@@ -1258,6 +1339,12 @@ def _shop_checks():
             and load_board(board_file)[0].stats.kills == 120
             and len(board_row(entry)) == 8
             and len(stats_lines(quit_early)) == 8
+            # A run ended anywhere lands on the board wearing the country
+            # it fought as, not the number it was stored under.
+            and ended.outcome == 'Gave up'
+            and ended.battle == 7
+            and ended.army == (player.display if player else '0')
+            and ended.stats.battles == quit_early.battles
         )
 
     reward_valid = bool(
@@ -1598,6 +1685,7 @@ def validate_skirmish_contract():
     report.update(_map_reader_checks())
     report.update(_country_checks())
     report.update(_run_checks())
+    report.update(_table_checks())
     report.update(_challenge_checks())
     report.update(_option_checks())
     report.update(_clone_checks())

@@ -7,14 +7,24 @@ ended. Nothing in it knows what will draw it.
 
 from pathlib import Path
 
+from randomizer.core.paths import GAME_EXE, GAME_LAUNCHER_EXE
+from randomizer.launch.game import (
+    clear_generated_root_maps,
+    clear_generated_rules,
+    write_game_options,
+)
 from randomizer.skirmish.factions import country_by_index, skirmish_countries
 from randomizer.skirmish.leaderboard import board_row, load_board, reached_text
 from randomizer.skirmish.maps import map_by_relative_path
 from randomizer.skirmish.progression import SKILL_NAMES, describe_offer
 from randomizer.skirmish.shop import owned_stacks, shelf_for
+from randomizer.skirmish.table import deal
 from randomizer.skirmish.stats import stats_lines
 from randomizer.skirmish.transitions import run_progress_text
 
+from randomizer.ui.config import LOCKED_GAME_SPEED_VALUE
+
+from . import session
 from .contract import COMMAND, ApiError, action
 
 
@@ -45,6 +55,12 @@ def _data_uri(path):
         return ''
     encoded = base64.b64encode(raw).decode('ascii')
     return f'data:image/png;base64,{encoded}'
+
+
+# What a run is played at. The launcher locks both: a run whose pacing or
+# difficulty can be changed between battles is not the run its rewards
+# were tuned against.
+LOCKED_DIFFICULTY = 1
 
 
 def _country(index):
@@ -310,31 +326,129 @@ def skip_the_warmup():
     repository = _repository()
     current = _playing(repository)
     try:
-        saved = repository.save_run(skip_warmup(current))
+        # Stepping past the warmup clears its table, so the battle behind
+        # it is dealt in the same breath.
+        saved = repository.save_run(deal(skip_warmup(current)))
     except SkirmishTransitionError as exc:
         raise ApiError(str(exc)) from exc
-    return {'battle': saved.battle}
+    return {'battle': saved.battle, 'offers': len(saved.offers)}
 
 
 @action('skirmish.give_up', 'End the run being played', kind=COMMAND)
 def give_up_run():
+    from randomizer.skirmish.leaderboard import record_finished_run
     from randomizer.skirmish.transitions import give_up
 
     repository = _repository()
     current = _playing(repository)
+    if session.running():
+        raise ApiError('Wait for the running game to close')
     saved = repository.save_run(give_up(current))
-    return {'status': saved.status.value}
+    # A run that ends goes on the board, whatever ended it.
+    recorded = True
+    try:
+        record_finished_run(saved, 'Gave up')
+    except OSError:
+        recorded = False
+    return {'status': saved.status.value, 'recorded': recorded}
 
 
-@action('skirmish.launch', 'Start the battle behind one of the offers', kind=COMMAND)
+@action(
+    'skirmish.deal',
+    "Draw this battle's offers, if none stand",
+    kind=COMMAND,
+)
+def deal_table():
+    """Set the table a screen is about to read.
+
+    Reading is not allowed to write, so a screen that finds no offers asks
+    for them. Asking twice into one battle changes nothing: a table that
+    already stands is left alone.
+    """
+    from randomizer.skirmish.transitions import SkirmishTransitionError
+
+    repository = _repository()
+    current = _playing(repository)
+    if current.offers:
+        return {'battle': current.battle, 'offers': len(current.offers),
+                'dealt': False}
+    try:
+        saved = repository.save_run(deal(current))
+    except SkirmishTransitionError as exc:
+        raise ApiError(str(exc)) from exc
+    return {'battle': saved.battle, 'offers': len(saved.offers), 'dealt': True}
+
+
+@action(
+    'skirmish.launch',
+    'Start the battle behind one of the offers',
+    kind=COMMAND,
+)
 def launch(index=0):
-    # Copying the map, writing the spawn file and starting the process
-    # still live in the window's own controller. Until that moves across,
-    # saying so is better than a button that does nothing.
-    raise ApiError(
-        'Launching a battle is still wired to the old window. '
-        f'Offer {index} was not started.'
+    """Commit to one offer, write the files, and start the game.
+
+    Committing is what a launch does and it is final: a battle scouted and
+    put back is a battle chosen twice.
+    """
+    from randomizer.skirmish.launch import build_battle, prepare_battle
+    from randomizer.skirmish.transitions import (
+        SkirmishTransitionError,
+        commit_offer,
     )
+
+    repository = _repository()
+    current = _playing(repository)
+    if session.running():
+        raise ApiError('A battle is already being played')
+    try:
+        current = commit_offer(current, int(index))
+    except (SkirmishTransitionError, TypeError, ValueError) as exc:
+        raise ApiError(str(exc)) from exc
+    offer = current.committed()
+    entry = map_by_relative_path(offer.map_path)
+    if entry is None:
+        raise ApiError(f'{offer.map_name} is not installed any more')
+    for path in (GAME_LAUNCHER_EXE, GAME_EXE):
+        if not path.exists():
+            raise ApiError(f'The game is missing {path.name}')
+
+    saved = repository.save_run(current)
+    try:
+        battle = build_battle(
+            saved, offer, entry,
+            difficulty=LOCKED_DIFFICULTY,
+            game_speed=LOCKED_GAME_SPEED_VALUE,
+        )
+    except LookupError as exc:
+        raise ApiError(str(exc)) from exc
+    prepare_battle(
+        battle,
+        # The launcher's own two steps around a battle: a ruleset it
+        # generated for a campaign mission would otherwise still be sitting
+        # in the game folder for the client to load, and the game's own
+        # option file has to be told the pace this run is played at.
+        before=lambda: (clear_generated_rules(), clear_generated_root_maps()),
+        after=lambda: write_game_options(
+            battle['difficulty'], battle['game_speed']
+        ),
+    )
+    session.start(battle)
+    return {
+        'map_name': entry.name,
+        'battle': saved.battle,
+        'houses': len(battle['houses']),
+    }
+
+
+@action('skirmish.session', 'Whether a battle is being played, and how it ended')
+def battle_session():
+    """Read the game the launcher started, and record it once it has ended.
+
+    A screen asks this on a timer. While the game is up it says so; the
+    first read after it closes is the one that reads the score block and
+    writes the outcome into the run.
+    """
+    return session.poll(_repository())
 
 
 @action('skirmish.upgrades', "Everything one country's shelf can ever hold")

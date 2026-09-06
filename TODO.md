@@ -105,3 +105,12 @@ belongs in the code's own comments, not here.
   because the flag comes from the client's resources by country index rather
   than from the rules the map rewrites. Cosmetic, and it needs a client-side
   mapping to fix.
+
+- **A battle the launcher was not there to see.** Which battle is being
+  played is kept in memory. Close the launcher while a game is up -- not the
+  game, the launcher -- and nothing records the outcome: no life is charged
+  and the same offer can be fought again. It has always worked this way, but
+  the rule it breaks is the mode's own, that leaving a battle counts as
+  losing it. Writing the committed launch beside the run -- the run it
+  belongs to, its battle, and where the game's log stood when it began --
+  would let the next start finish it.

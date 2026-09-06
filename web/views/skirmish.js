@@ -1,6 +1,6 @@
 /* The Skirmish Shop mode: the run, what it is offered, what it can buy. */
 
-import { act, call, register } from '../app.js';
+import { act, call, refresh, register, status } from '../app.js';
 import {
   button, card, count, el, figure, grid, notice, pill, section, stats,
 } from '../components/index.js';
@@ -62,7 +62,12 @@ function offerCard(offer, run) {
       button(offer.challenge ? 'Fight challenge' : 'Fight', {
         variant: 'primary',
         disabled: blocked || !offer.installed || !run.active,
-        onClick: () => act('skirmish.launch', { index: offer.index }),
+        onClick: async () => {
+          // Only watch a battle that started. Watching one that did not
+          // would redraw two seconds later and wipe the refusal off the
+          // title bar, leaving a button that looks like it did nothing.
+          if (await act('skirmish.launch', { index: offer.index })) watch();
+        },
       }),
     ],
   });
@@ -106,13 +111,59 @@ function header(run) {
   ]);
 }
 
+/* While a battle is up there is nothing to decide, so the screen says so
+ * and asks again. The first read after the game closes is the one that
+ * records the outcome, which is why this keeps asking rather than waiting
+ * for the window to be clicked. */
+const POLL_MS = 2000;
+let polling = null;
+
+function watch() {
+  if (polling) return;
+  polling = setInterval(async () => {
+    let session;
+    try {
+      session = await call('skirmish.session');
+    } catch {
+      return;
+    }
+    if (session.playing) return;
+    clearInterval(polling);
+    polling = null;
+    // Redrawing clears the title bar, so how the battle ended is said
+    // after the screen comes back rather than before it.
+    await refresh();
+    if (session.finished) status(session.finished.message || '');
+  }, POLL_MS);
+}
+
+function playingNotice(session) {
+  return notice(
+    `${session.map_name} is being played. This screen comes back when `
+    + 'the game closes.',
+  );
+}
+
 async function render(root) {
-  const run = await call('skirmish.run');
+  const session = await call('skirmish.session');
+  if (session.playing) {
+    watch();
+    root.replaceChildren(playingNotice(session));
+    return;
+  }
+  let run = await call('skirmish.run');
   if (!run) {
     root.replaceChildren(
       notice('No run yet. Start one to begin the warmup.'),
     );
     return;
+  }
+  /* A battle that has just been won, skipped or walked into clears the
+   * table behind it. Reading is not allowed to deal a new one, so a screen
+   * that finds none asks for them and reads again. */
+  if (run.active && !run.offers.length) {
+    await call('skirmish.deal');
+    run = await call('skirmish.run');
   }
   await loadPreviews(run.offers);
   const parts = [section(null, header(run))];

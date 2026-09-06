@@ -136,6 +136,38 @@ def record_run(entry, path=None):
     return save_board(existing + [entry], path)
 
 
+def record_finished_run(run, outcome, *, ended='', path=None):
+    """Put a run that has ended on the board, whatever ended it.
+
+    Two things end a run -- giving up and running out of lives -- and
+    there is now more than one screen that can be looking when either
+    happens. Describing the run is the same work every time, so it is
+    done once here rather than wherever the news arrived.
+    """
+    from datetime import date
+
+    from .factions import country_by_index
+
+    player = country_by_index(run.player_country)
+    ally = country_by_index(run.ally_country)
+    return record_run(
+        BoardEntry(
+            run_id=run.run_id,
+            seed=run.seed,
+            army=player.display if player else str(run.player_country),
+            ally=ally.display if ally else str(run.ally_country),
+            started=run.created,
+            ended=ended or date.today().isoformat(),
+            outcome=outcome,
+            battle=run.battle,
+            tier=run.tier,
+            nightmare=run.nightmare,
+            stats=run.stats,
+        ),
+        path,
+    )
+
+
 BOARD_COLUMNS = (
     ('reached', 'Reached', 150),
     ('army', 'Army', 150),
