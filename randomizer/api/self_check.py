@@ -244,6 +244,77 @@ def _battle_outlives_the_launcher_valid():
     )
 
 
+def _finished_battle_settled_first_valid():
+    """A battle nobody recorded is settled before another one starts.
+
+    Nothing is being played once a battle's result is in the log -- which
+    is right, and is exactly the moment a launch would have written its
+    own ticket over the old one. The battle before it would then have been
+    fought for nothing: no life charged, no victory kept, and the run
+    quietly one battle behind where the player left it.
+
+    So a launch settles what it finds first, and having settled it,
+    refuses: the table it was about to commit an offer from has just been
+    dealt again underneath it.
+    """
+    from randomizer.api import session
+    from randomizer.api import skirmish as actions_module
+    from randomizer.skirmish.factions import skirmish_countries
+    from randomizer.skirmish.maps import STANDARD_POOL_DIR
+    from randomizer.skirmish.results import HouseResult
+    from randomizer.skirmish.table import deal
+    from randomizer.skirmish.transitions import (
+        commit_offer,
+        skip_warmup,
+        start_run,
+    )
+
+    countries = skirmish_countries()
+    if len(countries) < 2 or not STANDARD_POOL_DIR.is_dir():
+        # No maps to deal a battle from, so no battle to leave unsettled.
+        return True
+    with _store_of_its_own():
+        repository = actions_module._repository()
+        reading = session.read_debug_log_tail
+        scoring = session.last_game_result
+        try:
+            run = commit_offer(deal(skip_warmup(start_run(
+                run_id='settled-check', seed='SETTLED', created='2026-01-01',
+                player_country=countries[0].index,
+                ally_country=countries[1].index,
+            ))), 0)
+            repository.save_run(run)
+            # The game wrote a win and closed while nobody was watching.
+            session.read_debug_log_tail = lambda *_a, **_k: 'a battle that ended'
+            session.last_game_result = lambda *_a, **_k: HouseResult(
+                name='Commander', won=True, kills=7, built=12, lost=3,
+                score=900,
+            )
+            session._keep({
+                'run_id': run.run_id, 'battle': run.battle,
+                'map_name': 'Somewhere', 'map_file': 'somewhere.map',
+                'player_name': 'Commander', 'log_offset': 0, 'pid': 999999,
+            })
+            reply = call('skirmish.launch', index=0)
+            settled = repository.load_run()
+            left = session.SKIRMISH_LAUNCH_PATH.exists()
+        finally:
+            session.read_debug_log_tail = reading
+            session.last_game_result = scoring
+    return bool(
+        reply.get('ok') is False
+        and reply.get('kind') == 'ApiError'
+        and 'recorded' in (reply.get('error') or '')
+        # The win is the run's, the next table is dealt, and the ticket
+        # that was about to be written over is gone.
+        and settled is not None
+        and settled.battle == run.battle + 1
+        and settled.stats.won == 1
+        and settled.offers
+        and not left
+    )
+
+
 def _refuse_to_start(*_args, **_kwargs):
     raise ApiError('The self-check does not start games')
 
@@ -256,7 +327,7 @@ def _store_of_its_own():
     a command called for that reason must not be able to touch a run
     somebody is playing.
     """
-    from randomizer.skirmish import launch, leaderboard
+    from randomizer.skirmish import ai, launch, leaderboard
     from randomizer.skirmish.persistence import (
         SkirmishPersistencePaths,
         SkirmishRepository,
@@ -278,6 +349,14 @@ def _store_of_its_own():
     # in, and writing the battle is refused first because it comes first.
     starter = session.start
     preparer = launch.prepare_battle
+    # The other two things a command can now reach past its store. A
+    # battle the player is in the middle of leaves a ticket behind, and
+    # anything that settles a battle takes that ticket away and clears the
+    # AI file staged for it -- both in the player's own folders, neither
+    # belonging to a sweep. So the ticket is written somewhere temporary,
+    # and clearing the AI file is taken away for the length of the sweep.
+    ticket_path = session.SKIRMISH_LAUNCH_PATH
+    staged = ai.remove_staged_ai_file
     with TemporaryDirectory(prefix='mo-api-check-') as folder:
         paths = SkirmishPersistencePaths(
             runs=Path(folder) / 'runs.dat',
@@ -285,15 +364,19 @@ def _store_of_its_own():
         )
         actions_module._repository = lambda: SkirmishRepository(paths)
         leaderboard.LEADERBOARD_PATH = Path(folder) / 'board.dat'
+        session.SKIRMISH_LAUNCH_PATH = Path(folder) / 'launch.dat'
         session.start = _refuse_to_start
         launch.prepare_battle = _refuse_to_start
+        ai.remove_staged_ai_file = lambda *_a, **_k: None
         try:
             yield
         finally:
             actions_module._repository = original
             leaderboard.LEADERBOARD_PATH = board
+            session.SKIRMISH_LAUNCH_PATH = ticket_path
             session.start = starter
             launch.prepare_battle = preparer
+            ai.remove_staged_ai_file = staged
 
 
 def validate_api_contract():
@@ -333,6 +416,8 @@ def validate_api_contract():
                 replies[name] = {
                     'ok': False, 'error': repr(exc), 'kind': 'raised',
                 }
+    # Called once, not once per row that reads it: it deals a table.
+    settled_first = _finished_battle_settled_first_valid()
     after = _touched()
 
     json_safe = True
@@ -391,6 +476,7 @@ def validate_api_contract():
         'api_arguments_arrive_valid': _arguments_arrive_valid(),
         'api_battle_outlives_the_launcher_valid':
             _battle_outlives_the_launcher_valid(),
+        'api_finished_battle_settled_first_valid': settled_first,
         # Asking the launcher what it can do is not playing it. Every
         # command was called above; the runs, the board, the battle files
         # and the game itself are all where they were.
@@ -400,6 +486,7 @@ def validate_api_contract():
             and toolkit_free
             and _arguments_arrive_valid()
             and _battle_outlives_the_launcher_valid()
+            and settled_first
             and before == after
             and unknown.get('ok') is False
             and described

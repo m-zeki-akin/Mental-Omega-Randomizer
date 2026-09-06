@@ -490,6 +490,17 @@ def launch(index=0):
     )
 
     repository = _repository()
+    # A battle that finished while nobody was watching -- the launcher
+    # closed, or closed and opened again -- is settled before another one
+    # starts. Nothing is being played by then, so nothing above would have
+    # refused, and starting would write the new battle over the old one's
+    # ticket: a battle fought and never charged for.
+    settled = session.poll(repository)
+    if (settled.get('finished') or {}).get('recorded'):
+        raise ApiError(
+            'The battle before this one had just finished. It is recorded '
+            'now, and the table has changed.'
+        )
     current = _playing(repository)
     if session.running():
         raise ApiError('A battle is already being played')
