@@ -5,6 +5,11 @@ at how the launcher looks -- that is a person's job -- but these are the
 promises that keep looking at it worth doing: one place decides a value,
 components do not reach past themselves, and text from the game is never
 parsed as markup.
+
+And one promise about the other side of the glass, because a screen names
+the launcher's actions in strings: every name a screen asks for is a name
+the launcher answers to. Nothing else would notice a typo until a player
+pressed the button under it.
 """
 
 import re
@@ -31,6 +36,9 @@ MARKUP_WRITE = re.compile(r'\.(inner|outer)HTML\s*=')
 # that writes the title bar's is a screen reaching outside itself. The
 # components own their insides; the shell owns its bands.
 BORROWED = re.compile(r"class:\s*'[^']*(card__|titlebar__|panel__)")
+# What a screen asks the launcher for. Both spellings: a screen reads with
+# one and acts with the other, and both name an action.
+ASKED = re.compile(r"\b(?:call|act)\(\s*'([a-z_]+\.[a-z_]+)'")
 
 
 def _read(path):
@@ -72,6 +80,30 @@ def _views_register_their_own_name(root):
         if names != [path.stem]:
             wrong.append(f'{path.name}: {names or "registers nothing"}')
     return wrong
+
+
+def _actions_the_screens_ask_for(root):
+    """Return the actions the interface asks for that do not exist.
+
+    A name is the whole of the boundary. A screen asking for
+    ``skirmish.gve_up`` is not a syntax error and not a failed import; it
+    is a button that tells the player the launcher refused, and only when
+    they press it. The same goes for a name that was right until an action
+    was renamed on the other side.
+
+    So the names are read out of the screens and looked up. Statically,
+    because the alternative is pressing every button in every mode.
+    """
+    from randomizer.api import launcher, skirmish  # noqa: F401  -- register
+    from randomizer.api.contract import actions
+
+    known = set(actions())
+    missing = []
+    for path in sorted(root.rglob('*.js')):
+        for name in ASKED.findall(_read(path)):
+            if name not in known:
+                missing.append(f'{path.name}: {name}')
+    return missing
 
 
 def _choice_valid():
@@ -228,6 +260,7 @@ def validate_shell_contract():
 
     borrowing = _views_keep_to_themselves(root)
     misnamed = _views_register_their_own_name(root)
+    unanswered = _actions_the_screens_ask_for(root)
 
     return {
         'shell_pages_present_valid': present,
@@ -241,6 +274,7 @@ def validate_shell_contract():
         'shell_no_markup_parsing_valid': markup_free,
         'shell_components_are_pure_valid': bool(components and components_pure),
         'shell_every_screen_a_mode_names_exists_valid': screens_valid,
+        'shell_every_action_asked_for_exists_valid': not unanswered,
         'shell_contract_valid': bool(
             present
             and _choice_valid()
@@ -252,5 +286,6 @@ def validate_shell_contract():
             and screens_valid
             and not borrowing
             and not misnamed
+            and not unanswered
         ),
     }
