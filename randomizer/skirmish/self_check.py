@@ -1289,14 +1289,44 @@ def _shop_checks():
         )
         # And one purchase reaches every member.
         and set(expand_group(STOLEN_TECH_GROUP, 'UnitedStates')) == set(members)
-        and set(
+        # Every member, and the other forms of the ones that deploy: a
+        # copy that packs up has to become another copy.
+        and set(members) <= set(
             house_clone_code(
                 (UpgradePurchase(STOLEN_TECH_GROUP, 'range', 2),),
                 'UnitedStates', prefix='MOP',
             )[1]
-        ) == set(members)
+        )
         # A country's stolen tech is its own side's.
         and not (set(members) & set(stolen_tech_units('USSR')) - {'CYCOM'})
+    )
+
+    # A unit that deploys is two sections naming each other, and a copy
+    # has to name copies or deploying would hand back the original the
+    # buyer is shut out of.
+    from randomizer.rewards.catalogue import BUFF_TARGETS as _targets_now
+    from randomizer.rewards.roster import (
+        _installed_sections as _sections_now,
+    )
+    from .clones import clonable as _clonable, form_closure
+
+    installed_now = _sections_now()
+    pair = form_closure('AHVYBOT2', installed_now)
+    _pair_sections, pair_built = house_clone_code(
+        (UpgradePurchase('AHVYBOT2', 'speed', 3),), 'Pacific', prefix='MOP',
+    )
+    forms_valid = bool(
+        len(pair) == 2
+        and _clonable('AHVYBOT2', installed_now, _targets_now)
+        and set(pair) == set(pair_built)
+        # The copy deploys into the other copy, and both originals are shut
+        # out of the house that bought them.
+        and _pair_sections[pair_built['AHVYBOT2']]['Convert.Deploy']
+        == pair_built['AHVYBOT2B']
+        and all(
+            _pair_sections[form]['ForbiddenHouses'] == 'Pacific'
+            for form in pair
+        )
     )
 
     # A price tag is no use without what it buys, so every upgrade says
@@ -1377,6 +1407,7 @@ def _shop_checks():
         'skirmish_shelf_is_one_country': country_valid,
         'skirmish_stolen_tech_is_one_row': stolen_valid,
         'skirmish_hero_priced_by_cost': hero_valid,
+        'skirmish_linked_forms_copied': forms_valid,
         'skirmish_upgrade_effect_valid': effect_valid,
         'skirmish_upgrade_delivers_valid': delivers_valid,
         'skirmish_upgrade_rules_valid': rules_valid,

@@ -62,10 +62,11 @@ def _drop(values, *keys):
         values.pop(name)
 
 
-# A unit that names another form of itself by ID cannot be copied on its
-# own: the other form still names the original, and the buyer is shut out
-# of that. Copying the whole chain is work of its own.
-LINKED_FORM_KEYS = frozenset({
+# The keys by which a unit names another *form of itself*: what it becomes
+# when it deploys, and what that becomes when it packs up again. A copy has
+# to name copies here, or deploying would hand back the original -- which
+# the buyer is shut out of. So the whole cycle is copied together.
+FORM_KEYS = frozenset({
     'deploysinto',
     'undeploysinto',
     'convert.deploy',
@@ -73,25 +74,53 @@ LINKED_FORM_KEYS = frozenset({
     'convert.land',
     'convert.water',
     'reversedas',
-    'initialpayload.types',
-    'passengers.allowed',
 })
 # Buildings are what prerequisites are written against, and a copy of one
 # satisfies nothing the original satisfied.
 UNCLONABLE_CATEGORIES = frozenset({'defenses', 'special_buildings'})
+# How far a chain of forms is followed. Two is a deploying tank; more than
+# a handful would be a data error rather than a unit.
+MAX_FORMS = 6
+
+
+def form_closure(unit, installed):
+    """Return every form of a unit, itself included.
+
+    A deploying tank is two sections that name each other, so improving one
+    and not the other would make the same unit two different units halfway
+    through a deploy.
+    """
+    found = [str(unit).upper()]
+    index = 0
+    while index < len(found) and len(found) < MAX_FORMS:
+        body = installed.get(found[index]) or {}
+        index += 1
+        for key, value in body.items():
+            if str(key).lower() not in FORM_KEYS:
+                continue
+            for item in _items(value):
+                item = item.upper()
+                if item in installed and item not in found:
+                    found.append(item)
+    return tuple(found)
 
 
 def clonable(unit, installed, targets):
-    """Whether one house can be given a private copy of this unit."""
-    body = installed.get(unit) or {}
-    if not body:
+    """Whether one house can be given a private copy of this unit.
+
+    Every form of it has to be copyable too: a unit whose deployed form is
+    a building would need that building taught into every prerequisite the
+    original satisfies, which is work of its own.
+    """
+    if not (installed.get(unit) or {}):
         return False
-    category = str((targets.get(unit) or {}).get('category') or '')
-    if category in UNCLONABLE_CATEGORIES:
-        return False
-    return not any(
-        str(key).lower() in LINKED_FORM_KEYS for key in body
-    )
+    for form in form_closure(unit, installed):
+        category = str((targets.get(form) or {}).get('category') or '')
+        if category in UNCLONABLE_CATEGORIES:
+            return False
+        if form != unit and not (installed.get(form) or {}):
+            return False
+    return True
 
 
 def _weapon_keys(body):
@@ -125,7 +154,10 @@ def clone_id(prefix, unit, taken):
     return candidate
 
 
-def unit_clone(unit, purchases, country, *, prefix, installed, targets, taken):
+def unit_clone(
+    unit, purchases, country, *, prefix, installed, targets, taken,
+    always=False,
+):
     """Return the sections one house's copy of one unit needs.
 
     ``purchases`` are that unit's, in any order: stat buffs are applied to
@@ -139,7 +171,7 @@ def unit_clone(unit, purchases, country, *, prefix, installed, targets, taken):
 
     template = installed.get(unit) or {}
     target = dict(targets.get(unit) or {})
-    if not template or not target:
+    if not template or (not target and not always):
         return {}, None
     body = dict(template)
     changed = False
@@ -186,7 +218,7 @@ def unit_clone(unit, purchases, country, *, prefix, installed, targets, taken):
             if weapon_id in replacements:
                 body[key] = replacements[weapon_id]
 
-    if not changed:
+    if not changed and not always:
         return {}, None
 
     identifier = clone_id(prefix, unit, taken)
@@ -245,6 +277,16 @@ def house_clone_code(
 
     taken = {str(name).lower() for name in installed}
     taken.update(str(name).lower() for name in existing)
+    # Every form of every bought unit, so that a copy which deploys turns
+    # into another copy rather than back into the original.
+    forms = {}
+    for unit in list(by_unit):
+        for form in form_closure(unit, installed):
+            forms.setdefault(form, unit)
+            by_unit.setdefault(form, [
+                UpgradePurchase(form, purchase.buff_type, purchase.stacks)
+                for purchase in by_unit[unit]
+            ])
     sections = {}
     built = {}
     for unit, unit_purchases in sorted(by_unit.items()):
@@ -256,6 +298,9 @@ def house_clone_code(
             installed=installed,
             targets=BUFF_TARGETS,
             taken=taken,
+            # A form with no buff of its own still needs a copy, or the
+            # copy that deploys into it would deploy into the original.
+            always=unit in forms,
         )
         if not identifier:
             continue
@@ -283,6 +328,15 @@ def house_clone_code(
                 forbidden.append(country)
             sections.setdefault(unit, {})['ForbiddenHouses'] = (
                 ','.join(forbidden)
+            )
+    # Now that every form has an ID, the copies can name each other.
+    for unit, identifier in built.items():
+        body = sections.get(identifier) or {}
+        for key in list(body):
+            if str(key).lower() not in FORM_KEYS:
+                continue
+            body[key] = ','.join(
+                built.get(item.upper(), item) for item in _items(body[key])
             )
     return sections, built
 

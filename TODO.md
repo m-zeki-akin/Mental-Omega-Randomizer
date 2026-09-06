@@ -93,11 +93,12 @@ belongs in the code's own comments, not here.
   as well, the way task forces already are. This is the largest piece of the
   three and should not start until buildings are sold at all.
 
-- **Units the copy cannot cover.** A unit that deploys, converts or carries
-  a payload names its other form by ID, and buildings are what prerequisites
-  are written against, so neither is sold. 696 upgrades sit behind this.
-  Covering them means copying the whole chain of linked forms, and for
-  buildings, teaching prerequisites about the copy.
+- **Buildings the copy cannot cover.** A building is what prerequisites are
+  written against, so a copy of one satisfies nothing the original
+  satisfied and none are sold. Covering them means teaching every
+  prerequisite and generic group about the copy. The linked forms are done:
+  a unit that deploys is copied together with what it deploys into, and the
+  copies name each other.
 
 - **The seat's flag.** The player is seated on a spare country wearing the
   country they chose. The in-game diplomacy panel shows the seat's own flag,

@@ -137,12 +137,14 @@ def country_upgrades(country):
         # Ownership alone lets the stolen-tech units through: what gates
         # those is an infiltration, and a game option file rather than the
         # rules carries the country list that says so. The catalogue's own
-        # faction is the floor, and the country narrows it from there.
+        # faction is the floor for everything else -- but not for them. The
+        # Cyborg Commando is tagged Soviet and stolen by all four sides,
+        # and the floor was quietly keeping it off an Allied shelf.
         factions = [
             str(item).strip().lower()
             for item in (reward.get('factions') or ())
         ]
-        if faction and factions and faction not in factions:
+        if unit not in stolen and faction and factions and faction not in factions:
             continue
         buff_type = str(reward.get('buff_type') or '')
         if not unit or not buff_type:
@@ -183,6 +185,26 @@ def country_upgrades(country):
     return tuple(sorted(upgrades, key=lambda item: (item.price, item.name)))
 
 
+def _shared_effect(effects, label, count):
+    """Return one line for a row that improves several units at once.
+
+    When they all do the same thing it is that sentence. When they do not
+    -- one unit gains a point of speed and another two -- what is said is
+    the part they agree on, which is the stat in the game's own words. The
+    grouping label alone would not do: "Movement" is what the catalogue
+    files speed under, not what the player is buying.
+    """
+    if len(effects) == 1:
+        return next(iter(effects))
+    shared = []
+    for words in zip(*(line.split() for line in effects)):
+        if len(set(words)) != 1:
+            break
+        shared.append(words[0])
+    stat = ' '.join(shared).strip(' ,:') or label
+    return f'{stat}, on all {count}'
+
+
 def _stolen_tech_bundles(by_buff_type, members):
     """Return one row per buff type, standing for every stolen-tech unit.
 
@@ -209,26 +231,27 @@ def _stolen_tech_bundles(by_buff_type, members):
         # to fire faster, another carries nobody -- so a row names the ones
         # it actually improves rather than the whole set.
         reached = sorted({item.unit for item in found})
+        missing = sorted(set(members) - set(reached))
         bundles.append(Upgrade(
             unit=STOLEN_TECH_GROUP,
             buff_type=buff_type,
             name=f'Stolen Tech: {label}',
             description=(
-                'Stolen tech, raised on every unit it applies to: '
-                + ', '.join(reached)
+                'Raised on ' + ', '.join(reached)
+                + (
+                    '. Not on ' + ', '.join(missing)
+                    + ': that stat is not theirs to raise -- a unit with no '
+                    'weapon has no fire rate, and one that carries nobody '
+                    'has no room to spare.'
+                    if missing else ' -- every one of them.'
+                )
             ),
             price=int(round(
                 max(item.price for item in found)
                 * (1 + (len(reached) - 1) * STOLEN_TECH_PRICE_PER_UNIT)
             )),
             limit=1,
-            # One sentence when they all do the same thing, and the stat's
-            # own name when they do not -- a unit's own numbers would be a
-            # promise the other units in the bundle do not keep.
-            effect=(
-                effects.pop() if len(effects) == 1
-                else f'{label}, on {len(reached)} stolen tech units'
-            ),
+            effect=_shared_effect(effects, label, len(reached)),
         ))
     return bundles
 
