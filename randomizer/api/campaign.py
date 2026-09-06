@@ -121,6 +121,25 @@ def _mode(config):
     return current if 'campaign' in drawn else ''
 
 
+def _needed(config, row):
+    """Whether a row means anything as the other settings stand.
+
+    A row can name another setting it depends on: True for "holds
+    anything at all", or a value it has to hold. Hidden rather than
+    greyed out, because a control that cannot do anything is one more
+    thing on a screen to read past.
+    """
+    wanted = row.get('needs')
+    if not wanted:
+        return True
+    key, expected = wanted
+    other = BY_KEY.get(key)
+    if other is None:
+        return True
+    held = _value(config, other)
+    return bool(held) if expected is True else held == expected
+
+
 def _answer(config):
     mode = _mode(config)
     # A seed already generated is a run in progress, and a run in progress
@@ -133,9 +152,17 @@ def _answer(config):
         'sections': [
             {
                 'name': name,
-                'settings': [_shown(row, config, standing) for row in rows],
+                'settings': [
+                    _shown(row, config, standing) for row in shown
+                ],
             }
-            for name, rows in rows_for(mode)
+            for name, shown in (
+                (name, [row for row in rows if _needed(config, row)])
+                for name, rows in rows_for(mode)
+            )
+            # A section whose every row is about something turned off is
+            # a heading with nothing under it.
+            if shown
         ],
     }
 

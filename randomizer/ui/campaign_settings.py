@@ -12,8 +12,17 @@ it is, and what it may be. Nothing here draws anything: a screen turns a
 row into a control, and the boundary turns one into a reply.
 """
 
+from randomizer.rewards.arsenal import (
+    ARSENAL_COUNT_MAXIMUM,
+    ARSENAL_FACTIONS,
+    ARSENAL_MODE,
+    ARSENAL_POWER_TYPES,
+    ARSENAL_TIERS,
+    ARSENAL_UNIT_TYPES,
+)
 from randomizer.rewards.definitions import BUFF_TYPES, MAX_REWARDS_PER_CHECK
 from randomizer.rewards.power_buff_definitions import POWER_BUFF_TYPES
+from randomizer.rewards.starting import STARTING_REWARD_TYPE_DEFINITIONS
 
 from .config import CAMPAIGN_FILTERS, DIFFICULTIES, GAME_SPEEDS, REWARD_MODES
 
@@ -41,9 +50,18 @@ GENERATION = 'generation'
 # A block inside the generation block. Written as a path because that is
 # what it is; nothing here needs a deeper one yet.
 ACCESS_LIMITS = 'generation.access_limits'
+ARSENAL = 'generation.arsenal'
+ARSENAL_POWERS = 'generation.arsenal.power_counts'
+
+# How many starting rewards a control offers. The launcher itself allows
+# far more; a spinner that can reach four figures is a spinner nobody
+# reaches the end of, and a run that starts with thirty rewards has
+# already answered the question the setting was asking.
+MAXIMUM_STARTING_REWARDS = 30
 
 
-def _row(key, label, kind, help_text, *, where=TOP, mode=None, **rest):
+def _row(key, label, kind, help_text, *, where=TOP, mode=None, needs=None,
+         **rest):
     return {
         'key': key,
         'where': where,
@@ -53,6 +71,14 @@ def _row(key, label, kind, help_text, *, where=TOP, mode=None, **rest):
         # None means every campaign mode. A mode name means that one only,
         # which is how Grid's own three stay off the other two's screen.
         'mode': mode,
+        # What has to be true of another setting for this one to mean
+        # anything: that setting's full name, and either the value it has
+        # to hold or True for "anything at all". A setting that means
+        # nothing right now is a setting worth not showing -- the roster
+        # sizes are Randomizer Arsenal's alone, a limit's size says
+        # nothing while the limit is off, and neither does which kinds a
+        # starting reward may be when there are none.
+        'needs': needs,
         **rest,
     }
 
@@ -193,11 +219,13 @@ LIMIT_SETTINGS = (
         'units', 'Units per reward', NUMBER,
         'How many units one access reward hands over.',
         where=ACCESS_LIMITS, minimum=1, maximum=8, step=1,
+        needs=(f'{ACCESS_LIMITS}.enabled', True),
     ),
     _row(
         'powers', 'Powers per reward', NUMBER,
         'The same, for superweapons and support powers.',
         where=ACCESS_LIMITS, minimum=1, maximum=8, step=1,
+        needs=(f'{ACCESS_LIMITS}.enabled', True),
     ),
 )
 
@@ -224,6 +252,57 @@ BUFF_TYPE_SETTINGS = (
     ),
 )
 
+STARTING_SETTINGS = (
+    _row(
+        'starting_reward_count', 'Rewards to start with', NUMBER,
+        'Handed over before the first mission, drawn from the kinds below.',
+        where=GENERATION, minimum=0, maximum=MAXIMUM_STARTING_REWARDS, step=1,
+    ),
+    _row(
+        'starting_reward_types', 'Kinds a starting reward may be', SET,
+        'Turn one off and nothing of that kind is handed over at the start.',
+        where=GENERATION,
+        catalogue=[
+            {'id': str(entry['id']), 'label': str(entry['label'])}
+            for entry in STARTING_REWARD_TYPE_DEFINITIONS
+        ],
+        needs=(f'{GENERATION}.starting_reward_count', True),
+    ),
+)
+
+ARSENAL_SETTINGS = (
+    _row(
+        'factions', 'Sides an arsenal draws from', SET,
+        'Each mission gets a mixed roster; these are what it is mixed from.',
+        where=ARSENAL,
+        catalogue=[
+            {'id': faction, 'label': faction} for faction in ARSENAL_FACTIONS
+        ],
+        needs=(f'{GENERATION}.reward_mode', ARSENAL_MODE),
+    ),
+) + tuple(
+    _row(
+        unit_type,
+        f'{tier.replace("_", " ").title()} {unit_type}',
+        NUMBER,
+        f'How many {unit_type} of that tier one roster carries.',
+        where=f'{ARSENAL}.roster_sizes.{tier}',
+        minimum=0, maximum=ARSENAL_COUNT_MAXIMUM, step=1,
+        needs=(f'{GENERATION}.reward_mode', ARSENAL_MODE),
+    )
+    for tier in ARSENAL_TIERS
+    for unit_type in ARSENAL_UNIT_TYPES
+) + tuple(
+    _row(
+        power_type, f'{power_type.title()} powers', NUMBER,
+        'How many powers of that kind one roster carries.',
+        where=ARSENAL_POWERS,
+        minimum=0, maximum=ARSENAL_COUNT_MAXIMUM, step=1,
+        needs=(f'{GENERATION}.reward_mode', ARSENAL_MODE),
+    )
+    for power_type in ARSENAL_POWER_TYPES
+)
+
 GRID_SETTINGS = (
     _row(
         'grid_two_start_positions', 'Two starting positions', SWITCH,
@@ -248,6 +327,8 @@ SECTIONS = (
     ('Rewards', REWARD_SETTINGS),
     ('Reward pool', POOL_SETTINGS),
     ('Access limits', LIMIT_SETTINGS),
+    ('Starting rewards', STARTING_SETTINGS),
+    ('Arsenal', ARSENAL_SETTINGS),
     ('What a buff may be', BUFF_TYPE_SETTINGS),
     ('Grid', GRID_SETTINGS),
 )

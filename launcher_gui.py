@@ -1258,8 +1258,17 @@ def run_self_check():
         campaign_setting_rows = [
             row for _name, rows in SECTIONS for row in rows
         ]
+        # A row can be shown only while another setting holds a value. A
+        # condition naming a setting that no longer exists would hide the
+        # row for good, silently.
+        from randomizer.ui.campaign_settings import BY_KEY as CAMPAIGN_BY_KEY
+        campaign_conditions_named = all(
+            row['needs'] is None or row['needs'][0] in CAMPAIGN_BY_KEY
+            for row in campaign_setting_rows
+        )
         campaign_settings_exist = bool(
             campaign_setting_rows
+            and campaign_conditions_named
             and all(
                 row['label']
                 and row['help']
