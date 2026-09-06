@@ -36,11 +36,13 @@ LAUNCHER_SCREEN = ('launcher', 'Launcher')
 # both its file and the id of the panel it draws into -- and the word on
 # its tab.
 BY_MODE = {
-    # 'Mode' rather than 'Campaign' on the tab: the kind of game is named
-    # in the control above it now, and a tab repeating it says nothing.
-    'Classic': (('classic', 'Mode'),),
-    'Mission List': (('classic', 'Mode'),),
-    'Grid Mode': (('classic', 'Mode'),),
+    # One Setup screen for the three of them, because they are the same
+    # campaign in a different order and share all but three settings. The
+    # tab beside it is 'Mode' rather than 'Campaign': the kind of game is
+    # named in the control above, and a tab repeating it says nothing.
+    'Classic': (('campaign', 'Setup'), ('classic', 'Mode')),
+    'Mission List': (('campaign', 'Setup'), ('classic', 'Mode')),
+    'Grid Mode': (('campaign', 'Setup'), ('classic', 'Mode')),
     # Its setup is here and its run is not: what a run is started with
     # outlives the run, and both windows read it from one place. The
     # mode's own panel says where the run itself is played.

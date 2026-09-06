@@ -176,6 +176,50 @@ export function select(options, { value, onChange } = {}) {
   })));
 }
 
+/**
+ * A number with two presses, the way a launcher window spins one.
+ *
+ * The value is sent whole rather than as a step, so the caller decides
+ * how far a press moves and the launcher decides what is allowed. Both
+ * setup screens use this: a run's pacing and a campaign's length are the
+ * same control over different numbers.
+ */
+export function stepper({ value, minimum, maximum, step = 1, onChange }) {
+  const at = (wanted) => onChange(Math.max(minimum, Math.min(maximum, wanted)));
+  return row([
+    pill(String(value), 'accent'),
+    button('−', {
+      variant: 'quiet',
+      title: `Down ${step}`,
+      disabled: value <= minimum,
+      onClick: () => at(value - step),
+    }),
+    button('+', {
+      variant: 'quiet',
+      title: `Up ${step}`,
+      disabled: value >= maximum,
+      onClick: () => at(value + step),
+    }),
+  ]);
+}
+
+/**
+ * On or off, as a button rather than a box.
+ *
+ * A button says what pressing it will do; a checkbox says what is true and
+ * leaves the player to work out the rest. Both are here: the state is the
+ * pill, the action is the button.
+ */
+export function toggle({ value, onChange, on = 'Turn on', off = 'Turn off' }) {
+  return row([
+    pill(value ? 'on' : 'off', value ? 'accent' : null),
+    button(value ? off : on, {
+      variant: value ? 'quiet' : 'primary',
+      onClick: () => onChange(!value),
+    }),
+  ]);
+}
+
 /** A grid of cards. */
 export function grid(children, { wide } = {}) {
   return el('div', { class: wide ? 'grid grid--wide' : 'grid' }, children);

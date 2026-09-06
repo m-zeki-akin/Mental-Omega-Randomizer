@@ -181,10 +181,14 @@ Roguelike two are not (`shop_*` keys beside skirmish's own).
   Setup screen and an action beside `shop.use_pacing`; nothing has to be
   decided first.
 
-- **The Campaign kind's settings.** Classic, Mission List and Grid carry
-  none here yet. One screen for the three of them, by the map above:
-  everything shared on it, and Grid's three of its own shown only when
-  Grid is standing. They are all config-backed already.
+- **What the Campaign kind's Setup screen still leaves out.** The screen
+  is there, with the run, the reward rules, the reward pool and Grid's own
+  three. What it does not draw yet, because each is a list rather than a
+  switch: the seed name, the arsenal and roster sizes, the exclusion lists
+  (units, superweapons, buff types), the reward weights, the starting
+  unlocks, and enemy scaling. Each wants a control this interface does not
+  have -- a text field, a multi-select, a weight slider -- so each is a
+  component before it is a row.
 
 - **The classic window's mode control names the modes, not the labels.**
   It is two controls now, like the new interface, but its second one lists

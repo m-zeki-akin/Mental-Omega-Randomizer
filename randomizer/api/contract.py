@@ -123,7 +123,7 @@ def _load_actions():
     if _LOADED:
         return
     _LOADED = True
-    from . import launcher, shop, skirmish  # noqa: F401
+    from . import campaign, launcher, shop, skirmish  # noqa: F401
     # Importing is what registers. Nothing else in the package
     # imports these, so nothing else would.
 

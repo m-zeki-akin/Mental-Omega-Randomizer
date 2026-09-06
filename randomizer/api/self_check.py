@@ -318,6 +318,72 @@ def _finished_battle_settled_first_valid():
     )
 
 
+def _a_setting_kept_is_a_setting_read_back_valid():
+    """What a setting screen writes is what the next reading answers.
+
+    Both setup screens are the same shape -- a row says what kind of thing
+    a setting is, a control changes it, and the launcher keeps it -- so
+    what is checked is that shape rather than any one row: a switch comes
+    back switched, a number out of range comes back at the edge of it, and
+    a choice that is not a choice is refused rather than written.
+
+    Against settings this check owns, because writing the player's while
+    asking whether writing works is how a check becomes the thing it was
+    meant to catch.
+    """
+    from randomizer.ui.campaign_settings import NUMBER, SECTIONS, SWITCH
+
+    switch = next(
+        (row for _name, rows in SECTIONS for row in rows
+         if row['kind'] == SWITCH), None
+    )
+    number = next(
+        (row for _name, rows in SECTIONS for row in rows
+         if row['kind'] == NUMBER), None
+    )
+    if switch is None or number is None:
+        return False
+
+    def held(reply, key):
+        for part in reply.get('result', {}).get('sections', ()):
+            for setting in part['settings']:
+                if setting['key'] == key:
+                    return setting['value']
+        return None
+
+    with _store_of_its_own():
+        before = call('campaign.settings')
+        flipped = call(
+            'campaign.use_setting',
+            name=switch['key'],
+            value=not held(before, switch['key']),
+        )
+        over = call(
+            'campaign.use_setting',
+            name=number['key'],
+            value=number['maximum'] + 50,
+        )
+        under = call(
+            'campaign.use_setting', name=number['key'], value=-50,
+        )
+        refused = call(
+            'campaign.use_setting', name=switch['key'], value=None,
+        )
+        unknown = call('campaign.use_setting', name='no.such.setting', value=1)
+        after = call('campaign.settings')
+    return bool(
+        before.get('ok')
+        and held(flipped, switch['key']) is not held(before, switch['key'])
+        and held(over, number['key']) == number['maximum']
+        and held(under, number['key']) == number['minimum']
+        and refused.get('kind') == 'ApiError'
+        and unknown.get('kind') == 'ApiError'
+        # And the sweep's own settings are thrown away with it: what the
+        # player has is what they had.
+        and after.get('ok')
+    )
+
+
 def _refuse_to_start(*_args, **_kwargs):
     raise ApiError('The self-check does not start games')
 
@@ -436,6 +502,7 @@ def validate_api_contract():
                 }
     # Called once, not once per row that reads it: it deals a table.
     settled_first = _finished_battle_settled_first_valid()
+    settings_kept = _a_setting_kept_is_a_setting_read_back_valid()
     after = _touched()
 
     json_safe = True
@@ -495,6 +562,7 @@ def validate_api_contract():
         'api_battle_outlives_the_launcher_valid':
             _battle_outlives_the_launcher_valid(),
         'api_finished_battle_settled_first_valid': settled_first,
+        'api_settings_kept_are_read_back_valid': settings_kept,
         # Asking the launcher what it can do is not playing it. Every
         # command was called above; the runs, the board, the battle files
         # and the game itself are all where they were.
@@ -505,6 +573,7 @@ def validate_api_contract():
             and _arguments_arrive_valid()
             and _battle_outlives_the_launcher_valid()
             and settled_first
+            and settings_kept
             and before == after
             and unknown.get('ok') is False
             and described

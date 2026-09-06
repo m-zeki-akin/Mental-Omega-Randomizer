@@ -1232,6 +1232,40 @@ def run_self_check():
             ShopPolishController.refresh_permanent_purchase_buttons
             .__code__.co_names
         )
+        # Every campaign setting the new interface offers is a setting the
+        # launcher actually keeps. The table names them by key, and a key
+        # that has been renamed under it would draw a control that reads
+        # as off, writes somewhere nothing looks, and says nothing.
+        from randomizer.config.player import DEFAULT_CONFIG
+        from randomizer.ui.campaign_settings import (
+            CHOICE,
+            GENERATION,
+            NUMBER,
+            SECTIONS,
+            SWITCH,
+        )
+        campaign_setting_rows = [
+            row for _name, rows in SECTIONS for row in rows
+        ]
+        campaign_settings_exist = bool(
+            campaign_setting_rows
+            and all(
+                row['label']
+                and row['help']
+                and row['kind'] in {SWITCH, NUMBER, CHOICE}
+                and (
+                    row['key'] in DEFAULT_CONFIG.get(GENERATION, {})
+                    if row['where'] == GENERATION
+                    else row['key'] in DEFAULT_CONFIG
+                )
+                and (
+                    row['kind'] != NUMBER
+                    or 0 <= row['minimum'] < row['maximum']
+                )
+                and (row['kind'] != CHOICE or row['choices'])
+                for row in campaign_setting_rows
+            )
+        )
         # Two windows now draw one mode's setup, and a setting drawn twice
         # is a setting that can be read from two places. The classic
         # window's controls used to start at the configured baseline every
@@ -1490,6 +1524,7 @@ def run_self_check():
             'undefined_globals_scan_bites': scan_detects_missing_import(),
             'permanent_purchase_gate_shared': permanent_purchase_gate_shared,
             'shop_setup_read_once_valid': shop_setup_read_once,
+            'campaign_settings_exist_valid': campaign_settings_exist,
             'undefined_globals_valid': (
                 not undefined_global_names
                 and scanned_modules > 50
@@ -1521,6 +1556,7 @@ def run_self_check():
                 'player_data_contract_valid',
                 'permanent_purchase_gate_shared',
                 'shop_setup_read_once_valid',
+                'campaign_settings_exist_valid',
                 'undefined_globals_valid',
                 'archipelago_client_contract_valid',
                 'randomizer_unit_roster_valid',
