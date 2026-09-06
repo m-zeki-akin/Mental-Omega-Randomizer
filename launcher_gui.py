@@ -1239,12 +1239,22 @@ def run_self_check():
         from randomizer.config.player import DEFAULT_CONFIG
         from randomizer.ui.campaign_settings import (
             CHOICE,
-            GENERATION,
             NUMBER,
             SECTIONS,
+            SET,
             SWITCH,
             TEXT,
         )
+
+        def shipped(row):
+            """Whether the defaults have the setting a row names."""
+            block = DEFAULT_CONFIG
+            for step in filter(None, str(row['where']).split('.')):
+                block = block.get(step)
+                if not isinstance(block, dict):
+                    return False
+            return row['key'] in block
+
         campaign_setting_rows = [
             row for _name, rows in SECTIONS for row in rows
         ]
@@ -1253,18 +1263,21 @@ def run_self_check():
             and all(
                 row['label']
                 and row['help']
-                and row['kind'] in {SWITCH, NUMBER, CHOICE, TEXT}
-                and (
-                    row['key'] in DEFAULT_CONFIG.get(GENERATION, {})
-                    if row['where'] == GENERATION
-                    else row['key'] in DEFAULT_CONFIG
-                )
+                and row['kind'] in {SWITCH, NUMBER, CHOICE, TEXT, SET}
+                and shipped(row)
                 and (
                     row['kind'] != NUMBER
                     or 0 <= row['minimum'] < row['maximum']
                 )
                 and (row['kind'] != CHOICE or row['choices'])
                 and (row['kind'] != TEXT or row['maximum_length'] > 0)
+                and (
+                    row['kind'] != SET
+                    or all(
+                        entry['id'] and entry['label']
+                        for entry in row['catalogue']
+                    )
+                )
                 for row in campaign_setting_rows
             )
         )

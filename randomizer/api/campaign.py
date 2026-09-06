@@ -12,10 +12,11 @@ the next one, which is why they are settings rather than run state.
 from randomizer.ui.campaign_settings import (
     BY_KEY,
     CHOICE,
-    GENERATION,
     NUMBER,
+    SET,
     SWITCH,
     TEXT,
+    full_key,
     rows_for,
 )
 from .contract import COMMAND, ApiError, action
@@ -33,12 +34,23 @@ def _keep(config):
     save_config(config)
 
 
-def _where(config, row):
-    """Return the part of the settings a row lives in."""
-    if row['where'] == GENERATION:
-        block = config.get('generation')
-        return block if isinstance(block, dict) else {}
-    return config
+def _where(config, row, *, make=False):
+    """Return the block of the settings a row lives in.
+
+    A row says where it lives as a path, because some of them live in a
+    block inside a block. Reading a block that is not there answers an
+    empty one; writing makes it.
+    """
+    block = config
+    for step in filter(None, str(row['where']).split('.')):
+        held = block.get(step)
+        if not isinstance(held, dict):
+            if not make:
+                return {}
+            held = {}
+            block[step] = held
+        block = held
+    return block
 
 
 def _value(config, row):
@@ -54,6 +66,10 @@ def _value(config, row):
         return max(row['minimum'], min(row['maximum'], number))
     if row['kind'] == TEXT:
         return str(held or '').strip()[:row['maximum_length']]
+    if row['kind'] == SET:
+        known = [entry['id'] for entry in row['catalogue']]
+        chosen = set(held) if isinstance(held, (list, tuple)) else set(known)
+        return [item for item in known if item in chosen]
     wanted = str(held or '')
     return wanted if wanted in row['choices'] else row['choices'][0]
 
@@ -67,7 +83,7 @@ def _standing():
 
 def _shown(row, config, standing=''):
     shown = {
-        'key': row['key'],
+        'key': full_key(row),
         'label': row['label'],
         'kind': row['kind'],
         'help': row['help'],
@@ -84,6 +100,8 @@ def _shown(row, config, standing=''):
         shown['choices'] = list(row['choices'])
     elif row['kind'] == TEXT:
         shown['maximum_length'] = row['maximum_length']
+    elif row['kind'] == SET:
+        shown['catalogue'] = [dict(entry) for entry in row['catalogue']]
     return shown
 
 
@@ -156,13 +174,18 @@ def use_setting(name='', value=None):
         # Trimmed and capped rather than refused: what a player typed is
         # worth keeping even when they typed a space at the end of it.
         kept = str(value or '').strip()[:row['maximum_length']]
+    elif row['kind'] == SET:
+        if not isinstance(value, (list, tuple)):
+            raise ApiError(f'{row["label"]} needs a list of what is on')
+        wanted = {str(item) for item in value}
+        kept = [
+            entry['id'] for entry in row['catalogue']
+            if entry['id'] in wanted
+        ]
     else:
         kept = str(value or '')
         if kept not in row['choices']:
             raise ApiError(f'{row["label"]} has no {kept or "unnamed"} choice')
-    if row['where'] == GENERATION:
-        config.setdefault('generation', {})[key] = kept
-    else:
-        config[key] = kept
+    _where(config, row, make=True)[row['key']] = kept
     _keep(config)
     return _answer(config)

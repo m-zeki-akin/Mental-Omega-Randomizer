@@ -31,6 +31,26 @@ function control(setting) {
       onChange: change,
     });
   }
+  if (setting.kind === 'set') {
+    // Several at once, each its own on and off. The whole list is sent
+    // rather than the one that changed: what the launcher keeps is the
+    // list, and sending it whole is what makes a stale screen harmless.
+    const on = new Set(setting.value);
+    return grid(setting.catalogue.map((entry) => row([
+      el('span', { text: entry.label }),
+      toggle({
+        value: on.has(entry.id),
+        on: 'On',
+        off: 'Off',
+        onChange: (wanted) => {
+          const next = new Set(on);
+          if (wanted) next.add(entry.id);
+          else next.delete(entry.id);
+          return change([...next]);
+        },
+      }),
+    ], { spread: true })));
+  }
   if (setting.kind === 'number') {
     return stepper({
       value: setting.value,
@@ -58,12 +78,27 @@ function line(setting) {
   ], { spread: true });
 }
 
+/* A setting whose control is a list of its own gets the width of the
+ * panel: its name above it, and the catalogue under that. */
+function block(setting) {
+  return section(null, [
+    el('div', { text: setting.label }),
+    setting.help ? el('div', { class: 'faint', text: setting.help }) : null,
+    control(setting),
+  ]);
+}
+
 function settingsPanel(part) {
+  const listed = part.settings.filter((setting) => setting.kind === 'set');
+  const plain = part.settings.filter((setting) => setting.kind !== 'set');
   return panel(part.name, {
     // In columns rather than one row each: a label at one end of a wide
     // window and the control that changes it at the other is a setting
     // the player has to look for twice.
-    children: [grid(part.settings.map(line), { wide: true })],
+    children: [
+      plain.length ? grid(plain.map(line), { wide: true }) : null,
+      ...listed.map(block),
+    ].filter(Boolean),
   });
 }
 

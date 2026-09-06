@@ -12,9 +12,10 @@ it is, and what it may be. Nothing here draws anything: a screen turns a
 row into a control, and the boundary turns one into a reply.
 """
 
-from randomizer.rewards.definitions import MAX_REWARDS_PER_CHECK
+from randomizer.rewards.definitions import BUFF_TYPES, MAX_REWARDS_PER_CHECK
+from randomizer.rewards.power_buff_definitions import POWER_BUFF_TYPES
 
-from .config import CAMPAIGN_FILTERS, DIFFICULTIES, GAME_SPEEDS
+from .config import CAMPAIGN_FILTERS, DIFFICULTIES, GAME_SPEEDS, REWARD_MODES
 
 
 # A run cannot ask for more missions than the campaign has. The launcher
@@ -26,6 +27,9 @@ SWITCH = 'switch'
 NUMBER = 'number'
 CHOICE = 'choice'
 TEXT = 'text'
+# Several of one catalogue at once, each on or off. A list rather than a
+# choice: turning one off is not picking another.
+SET = 'set'
 # Long enough for any name a player would type, short enough that a
 # settings file cannot be filled with one.
 MAXIMUM_SEED_LENGTH = 64
@@ -34,6 +38,9 @@ MAXIMUM_SEED_LENGTH = 64
 # generation block that describes how a seed is made.
 TOP = ''
 GENERATION = 'generation'
+# A block inside the generation block. Written as a path because that is
+# what it is; nothing here needs a deeper one yet.
+ACCESS_LIMITS = 'generation.access_limits'
 
 
 def _row(key, label, kind, help_text, *, where=TOP, mode=None, **rest):
@@ -85,6 +92,13 @@ RUN_SETTINGS = (
 )
 
 REWARD_SETTINGS = (
+    _row(
+        'reward_mode', 'Reward mode', CHOICE,
+        'Standard keeps a unit behind its own faction. Chaos draws from '
+        'all four and lets any matching building make what is unlocked. '
+        'Randomizer Arsenal gives each mission a mixed roster of its own.',
+        where=GENERATION, choices=list(REWARD_MODES),
+    ),
     _row(
         'rewards_per_objective', 'Rewards per objective', NUMBER,
         'How many rewards each objective is worth.',
@@ -169,6 +183,47 @@ POOL_SETTINGS = (
     ),
 )
 
+LIMIT_SETTINGS = (
+    _row(
+        'enabled', 'Limit what one reward unlocks', SWITCH,
+        'On, a reward opens a few units rather than everything of its kind.',
+        where=ACCESS_LIMITS,
+    ),
+    _row(
+        'units', 'Units per reward', NUMBER,
+        'How many units one access reward hands over.',
+        where=ACCESS_LIMITS, minimum=1, maximum=8, step=1,
+    ),
+    _row(
+        'powers', 'Powers per reward', NUMBER,
+        'The same, for superweapons and support powers.',
+        where=ACCESS_LIMITS, minimum=1, maximum=8, step=1,
+    ),
+)
+
+BUFF_TYPE_SETTINGS = (
+    _row(
+        'enabled_buff_types', 'Unit buffs a reward may be', SET,
+        'Turn one off and no reward improves a unit that way.',
+        where=GENERATION,
+        catalogue=[
+            {'id': str(entry['id']),
+             'label': str(entry.get('setting_label') or entry['id'])}
+            for entry in BUFF_TYPES
+        ],
+    ),
+    _row(
+        'enabled_power_buff_types', 'Power buffs a reward may be', SET,
+        'The same, for what a reward can improve about a power.',
+        where=GENERATION,
+        catalogue=[
+            {'id': str(entry['id']),
+             'label': str(entry.get('setting_label') or entry['id'])}
+            for entry in POWER_BUFF_TYPES
+        ],
+    ),
+)
+
 GRID_SETTINGS = (
     _row(
         'grid_two_start_positions', 'Two starting positions', SWITCH,
@@ -192,10 +247,17 @@ SECTIONS = (
     ('Run', RUN_SETTINGS),
     ('Rewards', REWARD_SETTINGS),
     ('Reward pool', POOL_SETTINGS),
+    ('Access limits', LIMIT_SETTINGS),
+    ('What a buff may be', BUFF_TYPE_SETTINGS),
     ('Grid', GRID_SETTINGS),
 )
 
-BY_KEY = {row['key']: row for section, rows in SECTIONS for row in rows}
+def full_key(row):
+    """Return one name for a row, since two blocks both have 'units'."""
+    return f'{row["where"]}.{row["key"]}' if row['where'] else row['key']
+
+
+BY_KEY = {full_key(row): row for _section, rows in SECTIONS for row in rows}
 
 
 def rows_for(mode):

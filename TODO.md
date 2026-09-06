@@ -182,13 +182,13 @@ Roguelike two are not (`shop_*` keys beside skirmish's own).
   decided first.
 
 - **What the Campaign kind's Setup screen still leaves out.** The screen
-  is there, with the run, the reward rules, the reward pool and Grid's own
-  three. What it does not draw yet, because each is a list rather than a
-  switch: the arsenal and roster sizes, the exclusion lists
-  (units, superweapons, buff types), the reward weights, the starting
-  unlocks, and enemy scaling. Each wants a control this interface does not
-  have -- a text field, a multi-select, a weight slider -- so each is a
-  component before it is a row.
+  is there: the run, the reward rules and mode, the reward pool, the
+  access limits, which buff types a reward may be, and Grid's own three.
+  What it does not draw yet is what needs a control this interface still
+  lacks -- the exclusion lists (they name units and powers out of the
+  installed rules, so the control is a search rather than a catalogue),
+  the reward weights (a slider each, and twenty-odd of them), the arsenal
+  and its roster sizes, the starting unlocks, and enemy scaling.
 
 - **The classic window's mode control names the modes, not the labels.**
   It is two controls now, like the new interface, but its second one lists
