@@ -1010,6 +1010,20 @@ def _ai_checks():
     }
 
 
+def _offer():
+    from .model import BattleOffer
+
+    return BattleOffer(
+        map_path='self-check.map',
+        map_name='Self Check',
+        enemy_countries=(6,),
+        handicap=1,
+        seed='SELF-CHECK',
+        ally=True,
+        challenge=False,
+    )
+
+
 def _shop_checks():
     from .model import UpgradePurchase
     from .rules import unit_rules
@@ -1088,13 +1102,30 @@ def _shop_checks():
     )
 
     # The shelf is the run's own: same seed and battle, same shelf, and
-    # nothing on it belongs to another faction.
-    shelf = shelf_for(run, 'UnitedStates')
+    # nothing on it belongs to another faction. And it holds still when it
+    # is bought from -- a shelf that only held what you had not bought
+    # would deal six new offers the moment you took one.
+    from .shop import draw_shelf
+    from .transitions import offer_battles
+
+    offered = offer_battles(
+        run, run.offers or (_offer(),),
+        shelf=draw_shelf(run, 'UnitedStates'),
+    )
+    shelf = shelf_for(offered, 'UnitedStates')
+    taken = buy_upgrade(offered, shelf[0])
     shelf_valid = bool(
         shelf
-        and shelf == shelf_for(run, 'UnitedStates')
+        and shelf == shelf_for(offered, 'UnitedStates')
         and all(upgrade.key in allied for upgrade in shelf)
-        and shelf != shelf_for(replace(run, battle=2), 'UnitedStates')
+        and shelf != shelf_for(
+            replace(offered, battle=2, shelf=()), 'UnitedStates'
+        )
+        # Bought, and still exactly where it was.
+        and shelf_for(taken, 'UnitedStates') == shelf
+        and owned_stacks(taken.purchases, shelf[0].unit, shelf[0].buff_type)
+        # Won, and the six are drawn again.
+        and not replace(taken, shelf=()).shelf
     )
 
     # A side is not an army. The three Allied countries field different

@@ -115,6 +115,16 @@ def normalize_purchases(value, field):
     )
 
 
+def _shelf(value):
+    """Return the shop offers a stored run was in the middle of."""
+    if not isinstance(value, (list, tuple)):
+        return ()
+    return tuple(
+        str(item) for item in value
+        if isinstance(item, str) and ':' in item
+    )
+
+
 def normalize_skirmish_run(document):
     document = deepcopy(_object(strip_signature(document), 'run'))
     _version(document, SKIRMISH_RUN_SCHEMA_VERSION, 'Skirmish run')
@@ -160,6 +170,7 @@ def normalize_skirmish_run(document):
             document.get('ally_purchases'), 'ally_purchases'
         ),
         offers=parsed_offers,
+        shelf=_shelf(document.get('shelf')),
         committed_offer=committed,
         won_battles=_int(document.get('won_battles'), 'won_battles'),
         used_challenge_maps=tuple(

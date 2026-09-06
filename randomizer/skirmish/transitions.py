@@ -54,12 +54,22 @@ def start_run(
     )
 
 
-def offer_battles(run, offers):
-    """Put this battle's offers on the table, replacing what stood there."""
+def offer_battles(run, offers, *, shelf=None):
+    """Put this battle's offers on the table, replacing what stood there.
+
+    The shop's six are offers too, and are drawn at the same moment for the
+    same reason: what a battle offers should not change while the player is
+    looking at it.
+    """
     offers = tuple(offers)
     if not offers:
         raise SkirmishTransitionError('A battle needs at least one offer')
-    return replace(run, offers=offers, committed_offer=None)
+    return replace(
+        run,
+        offers=offers,
+        shelf=tuple(shelf) if shelf is not None else run.shelf,
+        committed_offer=None,
+    )
 
 
 def commit_offer(run, index):
@@ -104,6 +114,7 @@ def record_victory(run, *, ally_country=None):
         ally_coins=ally_coins,
         ally_purchases=ally_purchases,
         offers=(),
+        shelf=(),
         committed_offer=None,
         used_challenge_maps=used,
     )

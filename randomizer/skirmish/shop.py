@@ -249,11 +249,11 @@ def available_upgrades(upgrades, purchases):
     )
 
 
-def shelf_for(run, country, *, count=SHELF_SIZE, salt='shelf'):
-    """Return the upgrades standing on the shelf for this battle.
+def draw_shelf(run, country, *, count=SHELF_SIZE, salt='shelf'):
+    """Return the keys of the upgrades to offer for one battle.
 
-    Drawn from the run's seed and its battle number, so the shelf is the
-    same one every time the run is opened, and a new one each battle.
+    Drawn from the run's seed and its battle number, out of what the run
+    does not already own.
     """
     upgrades = available_upgrades(
         country_upgrades(country),
@@ -262,7 +262,34 @@ def shelf_for(run, country, *, count=SHELF_SIZE, salt='shelf'):
     if not upgrades:
         return ()
     generator = random.Random(f'{run.seed}:{run.battle}:{salt}')
-    return tuple(generator.sample(upgrades, min(count, len(upgrades))))
+    return tuple(
+        shelf_key(upgrade)
+        for upgrade in generator.sample(upgrades, min(count, len(upgrades)))
+    )
+
+
+def shelf_key(upgrade):
+    return f'{upgrade.unit}:{upgrade.buff_type}'
+
+
+def shelf_for(run, country, *, count=SHELF_SIZE, salt='shelf'):
+    """Return the upgrades standing on the shelf for this battle.
+
+    The six the battle was given, in the order it was given them --
+    including any already bought, which stay on the shelf marked as bought.
+    A shelf that held only what you have not bought would reshuffle itself
+    the moment you bought from it: six new names where the one you chose
+    used to be, and nothing to show that anything had happened.
+    """
+    stored = tuple(getattr(run, 'shelf', ()) or ())
+    if not stored:
+        stored = draw_shelf(run, country, count=count, salt=salt)
+    by_key = {
+        shelf_key(upgrade): upgrade for upgrade in country_upgrades(country)
+    }
+    return tuple(
+        by_key[key] for key in stored if key in by_key
+    )
 
 
 def purchase_stacks(purchases, upgrade, *, stacks=1):

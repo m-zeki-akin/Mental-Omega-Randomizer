@@ -98,6 +98,11 @@ class SkirmishRun:
     ally_coins: int = 0
     ally_purchases: tuple[UpgradePurchase, ...] = ()
     offers: tuple[BattleOffer, ...] = ()
+    # What the shop is offering this battle, as ``unit:buff_type`` keys.
+    # Stored rather than redrawn, so buying from the shelf does not
+    # reshuffle the shelf: the six stand for the whole battle and a bought
+    # one stays where it was, marked as bought.
+    shelf: tuple[str, ...] = ()
     committed_offer: int | None = None
     won_battles: int = 0
     # Relative paths, so a challenge is not offered twice until the pool has
@@ -144,6 +149,7 @@ class SkirmishRun:
                 item.to_dict() for item in self.ally_purchases
             ],
             'offers': [offer.to_dict() for offer in self.offers],
+            'shelf': list(self.shelf),
             'committed_offer': self.committed_offer,
             'won_battles': self.won_battles,
             'used_challenge_maps': list(self.used_challenge_maps),

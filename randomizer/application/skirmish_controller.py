@@ -60,6 +60,7 @@ from randomizer.skirmish.ai import (
 from randomizer.skirmish.clones import apply_house_clones
 from randomizer.skirmish.seats import apply_seat, pick_seat
 from randomizer.skirmish.shop import (
+    draw_shelf,
     owned_stacks,
     purchase_labels,
     shelf_for,
@@ -335,7 +336,11 @@ class SkirmishController:
                 'No installed map can seat this battle. Check that '
                 'MapsMO/Standard and MapsMO/Challenge are present.'
             )
-        return offer_battles(run, offers)
+        # The shop's six are this battle's offers too, drawn once here so
+        # that buying one does not redraw the other five.
+        return offer_battles(
+            run, offers, shelf=draw_shelf(run, self.skirmish_country_id(run))
+        )
 
     def give_up_skirmish_run(self):
         run = self.skirmish_run
@@ -486,40 +491,64 @@ class SkirmishController:
         return country.country_id if country else ''
 
     def refresh_skirmish_shop(self, run):
-        if not hasattr(self, 'skirmish_shop_tree'):
+        """Paint this battle's six offers, and what has been done with them."""
+        if not hasattr(self, 'skirmish_upgrade_cards'):
             return
         self.skirmish_ore_var.set(f'Ore: {run.coins}')
         side = self.skirmish_side(run)
         self._skirmish_shelf = shelf_for(run, self.skirmish_country_id(run))
-        tree = self.skirmish_shop_tree
-        selected = set(tree.selection())
-        tree.delete(*tree.get_children())
-        for index, upgrade in enumerate(self._skirmish_shelf):
-            owned = owned_stacks(run.purchases, upgrade.unit, upgrade.buff_type)
-            tree.insert('', 'end', iid=str(index), values=(
-                upgrade.name,
-                upgrade.effect,
-                f'{owned} / {upgrade.limit}',
-                upgrade.price,
-            ))
-        restored = [item for item in selected if item in set(tree.get_children())]
-        if restored:
-            tree.selection_set(restored)
+        blocked = self.skirmish_launch_blocked()
+        playable = run.status is RunStatus.ACTIVE
+        for index, card in enumerate(self.skirmish_upgrade_cards):
+            upgrade = (
+                self._skirmish_shelf[index]
+                if index < len(self._skirmish_shelf) else None
+            )
+            if upgrade is None:
+                card['frame'].grid_remove()
+                continue
+            card['frame'].grid()
+            owned = owned_stacks(
+                run.purchases, upgrade.unit, upgrade.buff_type
+            )
+            card['name'].set(
+                f'{"OWNED  " if owned else ""}{upgrade.name}'
+            )
+            card['effect'].set(upgrade.effect)
+            # A bought card keeps its place and says so. The six stand for
+            # the whole battle, so buying one is something the player can
+            # see happen rather than a list rearranging itself.
+            card['price'].set(
+                'Bought' if owned else f'{upgrade.price} Ore'
+            )
+            card['tooltip'].text = (
+                f'{upgrade.name}\n{upgrade.effect}\n{upgrade.description}'
+                if upgrade.description
+                else f'{upgrade.name}\n{upgrade.effect}'
+            )
+            affordable = run.coins >= upgrade.price
+            card['button'].configure(
+                text='Bought' if owned else 'Buy',
+                state=(
+                    'disabled'
+                    if owned or blocked or not playable or not affordable
+                    else 'normal'
+                ),
+            )
         self.skirmish_shop_help_var.set(
-            f'{side} upgrades only, and only upgrades -- a run fields what '
-            'its country fields. What you buy becomes your own copy of the '
-            'unit, which nobody else in the battle can build. The shelf '
-            'changes with every battle, and your ally spends its own Ore on '
-            'its own army the same way.'
+            f'{side} upgrades, and only for the units your country fields. '
+            'Six offers a battle, each bought once: what you buy becomes '
+            'your own copy of the unit, which nobody else in the battle can '
+            'build. Win a battle and six new ones are drawn -- your ally '
+            'spends its own Ore on its own army the same way.'
         )
         bought = sum(purchase.stacks for purchase in run.purchases)
         ally_bought = sum(purchase.stacks for purchase in run.ally_purchases)
         self.skirmish_owned_var.set(
-            f'Bought: {bought} upgrade{"" if bought == 1 else "s"}'
-            f'   ally: {ally_bought}'
+            f'Bought this run: {bought}'
+            f'   |   ally: {ally_bought}   (hover for the list)'
         )
         self.refresh_skirmish_owned_tooltip(run)
-        self.refresh_skirmish_shop_buttons()
 
     def refresh_skirmish_owned_tooltip(self, run):
         """Say what both armies have bought, since the ally shops unseen."""
@@ -537,39 +566,19 @@ class SkirmishController:
         ] + [f'  {line}' for line in theirs or ('nothing yet',)]
         tooltip.text = '\n'.join(lines)
 
-    def selected_skirmish_upgrade(self):
-        tree = getattr(self, 'skirmish_shop_tree', None)
-        if tree is None:
-            return None
-        selection = tree.selection()
-        if not selection:
-            return None
-        index = int(selection[0])
-        if index >= len(self._skirmish_shelf):
-            return None
-        return self._skirmish_shelf[index]
+    def skirmish_upgrade_at(self, index):
+        shelf = getattr(self, '_skirmish_shelf', ())
+        return shelf[index] if 0 <= index < len(shelf) else None
 
     def refresh_skirmish_shop_buttons(self, _event=None):
-        if not hasattr(self, 'skirmish_buy_button'):
-            return
+        """Kept for the callers that repaint after a launch or a save."""
         run = self.skirmish_run
-        upgrade = self.selected_skirmish_upgrade()
-        affordable = bool(
-            run is not None
-            and upgrade is not None
-            and run.status is RunStatus.ACTIVE
-            and run.coins >= upgrade.price
-            and owned_stacks(run.purchases, upgrade.unit, upgrade.buff_type)
-            < upgrade.limit
-            and not self.skirmish_launch_blocked()
-        )
-        self.skirmish_buy_button.configure(
-            state='normal' if affordable else 'disabled'
-        )
+        if run is not None and hasattr(self, 'skirmish_upgrade_cards'):
+            self.refresh_skirmish_shop(run)
 
-    def buy_selected_skirmish_upgrade(self):
+    def buy_skirmish_upgrade(self, index):
         run = self.skirmish_run
-        upgrade = self.selected_skirmish_upgrade()
+        upgrade = self.skirmish_upgrade_at(index)
         if run is None or upgrade is None:
             return
         if self.skirmish_launch_blocked():

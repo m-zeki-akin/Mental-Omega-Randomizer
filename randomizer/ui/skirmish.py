@@ -16,12 +16,12 @@ RUN_COLUMNS = (
     ('status', 'Status', 80),
     ('seed', 'Seed', 130),
 )
-SHELF_COLUMNS = (
-    ('name', 'Upgrade', 240),
-    ('effect', 'What one stack does', 250),
-    ('owned', 'Owned', 70),
-    ('price', 'Ore', 60),
-)
+# The shop's offers, laid out the way the battles are. A table with an
+# Owned column made sense when an upgrade could be bought many times; one
+# that is bought once needs to show what it does and what it costs, and to
+# stay put when it is bought.
+SHELF_COLUMNS = 3
+SHELF_ROWS = 2
 
 
 def _combo(parent, variable, values, width=26, on_change=None):
@@ -248,57 +248,79 @@ def _build_battle_cards(self, parent):
 
 
 def _build_shop(self, parent):
-    """The upgrades on the shelf between battles."""
+    """The upgrades on offer between battles, one card each."""
     shop = ttk.LabelFrame(parent, text='Upgrades', padding=8)
     self.skirmish_shop_frame = shop
-    shop.columnconfigure(0, weight=1)
-    shop.rowconfigure(1, weight=1)
     ttk.Label(
         shop,
         textvariable=self.skirmish_shop_help_var,
         style='Muted.TLabel',
         wraplength=620,
         justify='left',
-    ).grid(row=0, column=0, columnspan=2, sticky='ew', pady=(0, 6))
-    tree_frame = ttk.Frame(shop)
-    tree_frame.grid(row=1, column=0, columnspan=2, sticky='nsew')
-    tree = ttk.Treeview(
-        tree_frame,
-        columns=tuple(column for column, _heading, _width in SHELF_COLUMNS),
-        show='headings',
-        selectmode='browse',
-        height=6,
+    ).grid(row=0, column=0, columnspan=SHELF_COLUMNS, sticky='ew', pady=(0, 8))
+    for column in range(SHELF_COLUMNS):
+        shop.columnconfigure(column, weight=1, uniform='skirmish_upgrades')
+    self.skirmish_upgrade_cards = []
+    for index in range(SHELF_COLUMNS * SHELF_ROWS):
+        row, column = divmod(index, SHELF_COLUMNS)
+        card = ttk.Frame(shop, padding=8, relief='groove', borderwidth=1)
+        card.grid(
+            row=1 + row, column=column, sticky='nsew',
+            padx=(0 if column == 0 else 6, 0),
+            pady=(0 if row == 0 else 6, 0),
+        )
+        card.columnconfigure(0, weight=1)
+        name_var = tk.StringVar(value='')
+        effect_var = tk.StringVar(value='')
+        price_var = tk.StringVar(value='')
+        ttk.Label(
+            card,
+            textvariable=name_var,
+            font=('Segoe UI', 9, 'bold'),
+            wraplength=210,
+            justify='left',
+        ).grid(row=0, column=0, columnspan=2, sticky='ew')
+        ttk.Label(
+            card,
+            textvariable=effect_var,
+            style='Shop.Help.TLabel',
+            wraplength=210,
+            justify='left',
+        ).grid(row=1, column=0, columnspan=2, sticky='ew', pady=(2, 6))
+        ttk.Label(
+            card,
+            textvariable=price_var,
+            font=('Segoe UI', 9, 'bold'),
+            style='Shop.Ore.TLabel',
+        ).grid(row=2, column=0, sticky='w')
+        button = ttk.Button(
+            card,
+            text='Buy',
+            width=9,
+            command=lambda chosen=index: self.buy_skirmish_upgrade(chosen),
+        )
+        button.grid(row=2, column=1, sticky='e')
+        self.skirmish_upgrade_cards.append({
+            'frame': card,
+            'name': name_var,
+            'effect': effect_var,
+            'price': price_var,
+            'button': button,
+            'tooltip': WidgetTooltip(card, ''),
+        })
+    footer = ttk.Frame(shop)
+    footer.grid(
+        row=1 + SHELF_ROWS, column=0, columnspan=SHELF_COLUMNS,
+        sticky='ew', pady=(8, 0),
     )
-    for column, heading, width in SHELF_COLUMNS:
-        tree.heading(column, text=heading)
-        tree.column(column, width=width, minwidth=50, stretch=True)
-    scrollbar = ttk.Scrollbar(tree_frame, orient='vertical', command=tree.yview)
-    tree.configure(yscrollcommand=scrollbar.set)
-    tree.grid(row=0, column=0, sticky='nsew')
-    scrollbar.grid(row=0, column=1, sticky='ns')
-    tree_frame.columnconfigure(0, weight=1)
-    tree_frame.rowconfigure(0, weight=1)
-    scroll_owner(tree_frame, target=tree, units=3)
-    for widget in (tree, scrollbar):
-        claim_wheel(widget)
-    tree.bind('<Double-1>', lambda _event: self.buy_selected_skirmish_upgrade())
-    tree.bind('<<TreeviewSelect>>', self.refresh_skirmish_shop_buttons)
-    self.skirmish_shop_tree = tree
-    self.skirmish_buy_button = ttk.Button(
-        shop,
-        text='Buy Upgrade',
-        command=self.buy_selected_skirmish_upgrade,
-        state='disabled',
-    )
-    self.skirmish_buy_button.grid(row=2, column=0, sticky='w', pady=(6, 0))
+    footer.columnconfigure(0, weight=1)
     owned_label = ttk.Label(
-        shop,
+        footer,
         textvariable=self.skirmish_owned_var,
         style='Shop.Help.TLabel',
-        wraplength=420,
         justify='left',
     )
-    owned_label.grid(row=2, column=1, sticky='e', pady=(6, 0))
+    owned_label.grid(row=0, column=0, sticky='w')
     # The ally shops on its own, so what it bought is only visible here.
     self.skirmish_owned_tooltip = WidgetTooltip(owned_label, '')
     return shop
