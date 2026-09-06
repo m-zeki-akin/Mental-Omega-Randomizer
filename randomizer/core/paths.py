@@ -130,6 +130,10 @@ SHOP_TRANSACTION_PATH = APP_DIR / 'shop_transaction.dat'
 # does not touch another -- so the mode keeps a single file holding its
 # list of runs, and there is no second document to stay consistent with.
 SKIRMISH_RUNS_PATH = APP_DIR / 'skirmish_runs.dat'
+# The battle a launcher started and has not yet recorded. It outlives
+# the launcher on purpose: a game closed after the launcher was is a
+# game whose outcome nobody was left to write down.
+SKIRMISH_LAUNCH_PATH = APP_DIR / 'skirmish_launch.dat'
 BACKUP_DIR = APP_DIR / 'backups'
 EXTRACTED_MAP_DIR = APP_DIR / 'extracted_maps'
 GENERATED_MAP_DIR = APP_DIR / 'generated_maps'

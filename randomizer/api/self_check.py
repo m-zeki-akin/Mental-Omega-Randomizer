@@ -1,10 +1,11 @@
 """Assert the boundary is a boundary.
 
-Four things have to stay true or the interface it was drawn for will grow
+Some things have to stay true or the interface it was drawn for will grow
 through it again: what crosses it survives being written as JSON, a failure
-comes back as a reply rather than as an exception nobody catches, nothing on
-this side imports a widget toolkit, and asking every action what it does
-leaves the player's own runs exactly as they were.
+comes back as a reply rather than as an exception nobody catches, an
+action's own arguments reach it whatever they are called, nothing on this
+side imports a widget toolkit, and asking every action what it does leaves
+the player's own runs exactly as they were.
 
 That last one is here because it was not. Checking that a command refuses
 cleanly means calling it, and every command was being called against the
@@ -91,6 +92,7 @@ def _touched():
         session.running(),
         tuple(stamp(path) for path in (
             SPAWN_INI, SPAWN_MAP_INI, GAME_ROOT / 'aimo.ini',
+            session.SKIRMISH_LAUNCH_PATH,
         )),
         tuple(sorted(
             (key, repr(value)) for key, value in load_config().items()
@@ -138,6 +140,71 @@ def _arguments_arrive_valid():
         # The action's own refusal, not a dispatch error wearing its name.
         and all(reply.get('kind') == 'ApiError' for reply in echoes)
         and other.get('kind') == 'ApiError'
+    )
+
+
+def _battle_outlives_the_launcher_valid():
+    """A battle started by one launcher is recorded by the next.
+
+    It used to be remembered only in memory, so closing the launcher while
+    a game was up meant nothing recorded it: no life charged, and the same
+    offer there to fight again. What is checked is the whole of that path
+    -- a ticket written, a launcher that never saw the game finding it,
+    the game still being up meaning wait, and the game being gone meaning
+    the battle is recorded and the ticket taken away.
+    """
+    from randomizer.api import session
+
+    class Repository:
+        """A store with nothing in it. What is checked here is the path."""
+
+        def load_run(self):
+            return None
+
+    import randomizer.launch.running as machine
+
+    with _store_of_its_own():
+        kept = session.SKIRMISH_LAUNCH_PATH
+        playing, process = session._PLAYING, session._PROCESS
+        asked = machine.game_is_running
+        with TemporaryDirectory(prefix='mo-ticket-check-') as folder:
+            session.SKIRMISH_LAUNCH_PATH = Path(folder) / 'launch.dat'
+            session._PLAYING = session._PROCESS = None
+            try:
+                # Nothing left behind: nothing is being played.
+                empty = session.poll(Repository())
+                ticket = {
+                    'run_id': 'gone-with-the-launcher', 'battle': 3,
+                    'map_name': 'Somewhere', 'map_file': 'somewhere.map',
+                    'player_name': 'Commander', 'log_offset': 0,
+                }
+                session._keep(ticket)
+                read_back = session._kept()
+                # The game is still up: the battle is still being played,
+                # by a launcher that never started it.
+                machine.game_is_running = lambda name=None: True
+                waiting = session.poll(Repository())
+                held = session.running()
+                # The game is gone: the battle is recorded and the ticket
+                # taken away with it. This run belongs to nobody, which is
+                # the one outcome that needs no store behind it.
+                machine.game_is_running = lambda name=None: False
+                finished = session.poll(Repository())
+                left = session.SKIRMISH_LAUNCH_PATH.exists()
+            finally:
+                machine.game_is_running = asked
+                session.SKIRMISH_LAUNCH_PATH = kept
+                session._PLAYING, session._PROCESS = playing, process
+    return bool(
+        empty == {'playing': False, 'finished': None}
+        and read_back == ticket
+        and waiting.get('playing') is True
+        and waiting.get('adopted') is True
+        and waiting.get('battle') == 3
+        and held is True
+        and finished.get('playing') is False
+        and finished.get('finished', {}).get('recorded') is False
+        and not left
     )
 
 
@@ -286,6 +353,8 @@ def validate_api_contract():
         # is drawing them, and this side never learns either.
         'api_toolkit_free_valid': toolkit_free,
         'api_arguments_arrive_valid': _arguments_arrive_valid(),
+        'api_battle_outlives_the_launcher_valid':
+            _battle_outlives_the_launcher_valid(),
         # Asking the launcher what it can do is not playing it. Every
         # command was called above; the runs, the board, the battle files
         # and the game itself are all where they were.
@@ -294,6 +363,7 @@ def validate_api_contract():
             json_safe
             and toolkit_free
             and _arguments_arrive_valid()
+            and _battle_outlives_the_launcher_valid()
             and before == after
             and unknown.get('ok') is False
             and described
