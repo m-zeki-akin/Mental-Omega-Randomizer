@@ -801,32 +801,51 @@ def _clone_checks():
         'PsiCorps', 'ScorpionCell', 'Headquaters', 'Guild1', 'Guild2',
         'Guild3',
     ]
-    seat = pick_seat('UnitedStates', ['UnitedStates', 'Guild1'], countries,
-                     salt='x')
+    country_sides = {
+        name: str(_installed_country_side(name)) for name in countries
+    }
+    taken = ['UnitedStates', 'Guild1']
+    seat = pick_seat(
+        'UnitedStates', taken, countries, sides=country_sides, salt='x'
+    )
     code, counts = seat_map_code('UnitedStates', seat)
     sides = code.get('Sides') or {}
+    crossed = seat_map_code('UnitedStates', 'Guild3')[0].get('Sides') or {}
     seat_valid = bool(
         seat not in {'UnitedStates', 'Guild1'}
         and seat == pick_seat(
-            'UnitedStates', ['UnitedStates', 'Guild1'], countries, salt='x'
+            'UnitedStates', taken, countries, sides=country_sides, salt='x'
         )
+        # A sister country, so the side lists are left alone entirely and
+        # the ownership pass stays small.
+        and country_sides[seat] == country_sides['UnitedStates']
+        and not sides
         # The seat wears the chosen country and keeps its own place in the
         # country list, which is what the spawner counts with.
         and value(code.get(seat, {}), 'Side')
         == value(installed.get('UNITEDSTATES', {}), 'Side')
         and value(code.get(seat, {}), 'ListIndex')
         == value(installed.get(seat.upper(), {}), 'ListIndex')
-        # Every side is written, not only the two that change: a map naming
-        # two sides leaves the game with two sides.
-        and len(sides) == len(_installed_sides())
-        and seat in str(sides.get('GDI', ''))
         and counts['added'] > 0
-        and counts['removed'] > 0
+        # And when a seat does have to cross sides, every side is written:
+        # a map naming two sides leaves the game with two sides.
+        and len(crossed) == len(_installed_sides())
+        and 'Guild3' in str(crossed.get('GDI', ''))
     )
     return {
         'skirmish_unit_clone_valid': clone_valid,
         'skirmish_private_seat_valid': seat_valid,
     }
+
+
+def _installed_country_side(name):
+    from randomizer.ui.cameos import installed_rules_registry
+
+    _superweapons, sections = installed_rules_registry(synchronous=True)
+    values = (sections or {}).get(name) or {}
+    return next(
+        (values[key] for key in values if str(key).lower() == 'side'), ''
+    )
 
 
 def _installed_sides():

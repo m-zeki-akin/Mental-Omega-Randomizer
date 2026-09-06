@@ -67,9 +67,16 @@ def faction_upgrades(side):
 
     Nor is one this mode cannot deliver. The campaign grants veterancy on
     the house and raises a build limit by building a clone of the unit;
-    a skirmish has neither a house of its own nor clones, so those buffs
-    would take Ore and change nothing. An upgrade is sold here only if it
-    writes at least one key onto a unit in this installation.
+    a skirmish has neither, so those buffs would take Ore and change
+    nothing. An upgrade is sold here only if it writes at least one key
+    onto a unit in this installation.
+
+    Three more are held back because a purchase is a *copy* of the unit,
+    gated to the buyer alone. A unit that deploys, converts, or carries a
+    payload names its other form by ID, and the other form still names the
+    original -- which the buyer is shut out of, so the conversion would
+    hand back a unit they may not own. Buildings are worse: they are what
+    prerequisites are written against. Both wait for work of their own.
     """
     from randomizer.rewards.buff_reach import effective_stack_limit
     from randomizer.rewards.catalogue import (
@@ -81,6 +88,7 @@ def faction_upgrades(side):
     from randomizer.rewards.roster import _installed_sections
     from randomizer.shop.economy import run_buff_price
 
+    from .clones import clonable
     from .rules import unit_rules
 
     installed = _installed_sections()
@@ -104,6 +112,8 @@ def faction_upgrades(side):
         if limit <= 0:
             continue
         if not unit_rules(unit, buff_type, 1, installed, BUFF_TARGETS):
+            continue
+        if not clonable(unit, installed, BUFF_TARGETS):
             continue
         effect = buff_effect_lines(
             reward, 1, include_label=False, include_stack=False

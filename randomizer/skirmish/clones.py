@@ -61,6 +61,38 @@ def _drop(values, *keys):
         values.pop(name)
 
 
+# A unit that names another form of itself by ID cannot be copied on its
+# own: the other form still names the original, and the buyer is shut out
+# of that. Copying the whole chain is work of its own.
+LINKED_FORM_KEYS = frozenset({
+    'deploysinto',
+    'undeploysinto',
+    'convert.deploy',
+    'convert.deploy.reversedas',
+    'convert.land',
+    'convert.water',
+    'reversedas',
+    'initialpayload.types',
+    'passengers.allowed',
+})
+# Buildings are what prerequisites are written against, and a copy of one
+# satisfies nothing the original satisfied.
+UNCLONABLE_CATEGORIES = frozenset({'defenses', 'special_buildings'})
+
+
+def clonable(unit, installed, targets):
+    """Whether one house can be given a private copy of this unit."""
+    body = installed.get(unit) or {}
+    if not body:
+        return False
+    category = str((targets.get(unit) or {}).get('category') or '')
+    if category in UNCLONABLE_CATEGORIES:
+        return False
+    return not any(
+        str(key).lower() in LINKED_FORM_KEYS for key in body
+    )
+
+
 def _weapon_keys(body):
     """Return ``{key: weapon_id}`` for every weapon this body fires itself."""
     found = {}

@@ -79,6 +79,13 @@ def sides_section(rules, chosen, seat):
     sides = dict(rules.get('Sides') or {})
     if not sides:
         return {}
+    # A seat already on the chosen country's side needs no rewrite at all,
+    # which is the common case and the reason a sister country is
+    # preferred: the riskiest edit in the pass simply does not happen.
+    for value in sides.values():
+        members = [item.lower() for item in _items(value)]
+        if chosen.lower() in members and seat.lower() in members:
+            return {}
     updated = {}
     for side, value in sides.items():
         members = [
@@ -90,25 +97,43 @@ def sides_section(rules, chosen, seat):
     return updated
 
 
-def ownership_pass(rules, chosen, seat):
+def ownership_pass(rules, chosen, seat, *, map_sections=None):
     """Return the edits that make the seat a stand-in for the chosen country.
 
     One rule: in every list of countries, the seat appears exactly where the
     country it stands for appears. Both directions matter -- without the
     removals the player could build the faction whose slot the seat came
     from, which is not the army they chose.
+
+    The list read is the one the battle will actually play with. A challenge
+    map rewrites ``RequiredHouses`` on dozens of units -- shutting a country
+    out is how a challenge decides what its player may build -- and starting
+    from the stock value would hand that restriction back.
     """
+    map_sections = map_sections or {}
+    by_lower = {
+        str(name).lower(): values for name, values in map_sections.items()
+    }
     edits = {}
     counts = {'added': 0, 'removed': 0, 'forbidden': 0}
     for section, values in rules.items():
         forbid_instead = False
+        overrides = by_lower.get(str(section).lower()) or {}
         for key in HOUSE_LIST_KEYS:
             actual = next(
                 (name for name in values if name.lower() == key.lower()), None
             )
-            if actual is None:
+            override = next(
+                (name for name in overrides if name.lower() == key.lower()),
+                None,
+            )
+            if actual is None and override is None:
                 continue
-            names = _items(values[actual])
+            if override is not None:
+                actual = actual or override
+                names = _items(overrides[override])
+            else:
+                names = _items(values[actual])
             lowered = [name.lower() for name in names]
             has_chosen = chosen.lower() in lowered
             has_seat = seat.lower() in lowered
@@ -138,7 +163,8 @@ def ownership_pass(rules, chosen, seat):
         if existing is None:
             existing = next(
                 (
-                    values[name] for name in values
+                    source[name] for source in (overrides, values)
+                    for name in source
                     if name.lower() == 'forbiddenhouses'
                 ),
                 '',
@@ -154,7 +180,7 @@ def ownership_pass(rules, chosen, seat):
     return edits, counts
 
 
-def seat_map_code(chosen, seat, *, rules=None):
+def seat_map_code(chosen, seat, *, rules=None, map_sections=None):
     """Return everything the map needs for one house to sit on a spare seat."""
     rules = rules if rules is not None else _installed_rules()
     if not rules or chosen.lower() == seat.lower():
@@ -167,18 +193,27 @@ def seat_map_code(chosen, seat, *, rules=None):
     sides = sides_section(rules, chosen, seat)
     if sides:
         code['Sides'] = sides
-    edits, counts = ownership_pass(rules, chosen, seat)
+    edits, counts = ownership_pass(
+        rules, chosen, seat, map_sections=map_sections
+    )
     for section, values in edits.items():
         code.setdefault(section, {}).update(values)
     return code, counts
 
 
-def pick_seat(chosen, taken, countries, *, salt=''):
+def pick_seat(chosen, taken, countries, *, sides=None, salt=''):
     """Return a country nobody else is playing, for one house to sit on.
+
+    A spare country on the player's own side is preferred, and it is worth
+    a great deal: the seat is already in that side's list, so ``[Sides]``
+    comes out identical to stock and the ownership pass shrinks to the
+    handful of country-unique units. Moving a seat across sides works --
+    the spike played a Foehn seat as Allies -- but it rewrites far more of
+    the rules for no gain.
 
     Deterministic in ``salt`` so the same battle seats the same way twice.
     Falls back to the chosen country when a battle somehow uses them all,
-    which leaves the gate shared rather than leaving the battle unplayable.
+    which leaves the gate shared rather than the battle unplayable.
     """
     import random
 
@@ -190,12 +225,28 @@ def pick_seat(chosen, taken, countries, *, salt=''):
     ]
     if not free:
         return chosen
-    return random.Random(f'{salt}:{chosen}').choice(sorted(free))
+    sides = sides or {}
+    own = str(sides.get(chosen, '')).lower()
+    sisters = [
+        country for country in free
+        if own and str(sides.get(country, '')).lower() == own
+    ]
+    generator = random.Random(f'{salt}:{chosen}')
+    return generator.choice(sorted(sisters or free))
 
 
 def apply_seat(map_path, chosen, seat, *, rules=None):
-    """Write the seat into the map, and say how much of the rules it touched."""
-    code, counts = seat_map_code(chosen, seat, rules=rules)
+    """Write the seat into the map, and say how much of the rules it touched.
+
+    Read the map first: by this point it carries the game options and, for a
+    challenge, that mode's own code, and those are what the battle plays
+    with.
+    """
+    from .options import read_ini_sections
+
+    code, counts = seat_map_code(
+        chosen, seat, rules=rules, map_sections=read_ini_sections(map_path)
+    )
     if not code:
         return counts
     keys = merge_into_map(map_path, code)

@@ -773,6 +773,10 @@ class SkirmishController:
                     ) if country is not None
                 ],
                 [country.country_id for country in skirmish_countries()],
+                sides={
+                    country.country_id: country.side
+                    for country in skirmish_countries()
+                },
                 salt=f'{run.seed}:{run.battle}:seat',
             ),
             'seed': offer.seed,
