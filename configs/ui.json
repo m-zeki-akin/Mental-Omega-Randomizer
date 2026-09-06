@@ -18,15 +18,15 @@
     ],
     "game_speeds": [
       [
-        "0 - Slowest",
+        "6 - Fastest",
         0
       ],
       [
-        "1 - Slower",
+        "5 - Faster",
         1
       ],
       [
-        "2 - Slow",
+        "4 - Fast",
         2
       ],
       [
@@ -34,15 +34,15 @@
         3
       ],
       [
-        "4 - Fast",
+        "2 - Slow",
         4
       ],
       [
-        "5 - Faster",
+        "1 - Slower",
         5
       ],
       [
-        "6 - Fastest",
+        "0 - Slowest",
         6
       ]
     ],
@@ -67,16 +67,55 @@
     ],
     "default_progression_mode": "Mission List",
     "player_colors": [
-      "Default", "Gold", "Red", "DarkBlue", "Green", "Orange", "Sky",
-      "Purple", "Pink", "Teal", "Aqua", "Lime", "Magenta", "Crimson",
-      "Brown2", "DarkGreen", "DarkRed", "LightBlue", "NeonGreen", "Olive",
-      "Purple2", "Purple3", "Russet", "Yellow"
+      "Default",
+      "Gold",
+      "Red",
+      "DarkBlue",
+      "Green",
+      "Orange",
+      "Sky",
+      "Purple",
+      "Pink",
+      "Teal",
+      "Aqua",
+      "Lime",
+      "Magenta",
+      "Crimson",
+      "Brown2",
+      "DarkGreen",
+      "DarkRed",
+      "LightBlue",
+      "NeonGreen",
+      "Olive",
+      "Purple2",
+      "Purple3",
+      "Russet",
+      "Yellow"
     ],
     "rainbowizer_colors": [
-      "Gold", "Red", "DarkBlue", "Green", "Orange", "Sky", "Purple", "Pink",
-      "Teal", "Aqua", "Lime", "Magenta", "Crimson", "Brown2", "DarkGreen",
-      "DarkRed", "LightBlue", "NeonGreen", "Olive", "Purple2", "Purple3",
-      "Russet", "Yellow"
+      "Gold",
+      "Red",
+      "DarkBlue",
+      "Green",
+      "Orange",
+      "Sky",
+      "Purple",
+      "Pink",
+      "Teal",
+      "Aqua",
+      "Lime",
+      "Magenta",
+      "Crimson",
+      "Brown2",
+      "DarkGreen",
+      "DarkRed",
+      "LightBlue",
+      "NeonGreen",
+      "Olive",
+      "Purple2",
+      "Purple3",
+      "Russet",
+      "Yellow"
     ],
     "eva_voice_tags": {
       "Allied": "Allied",
@@ -109,8 +148,14 @@
     "rewards_per_check_messages": {
       "maximum": "Ok that is now enough...",
       "thresholds": [
-        [20, "So you don't feel powerful enough?"],
-        [10, "Wanting to feel good eh?"]
+        [
+          20,
+          "So you don't feel powerful enough?"
+        ],
+        [
+          10,
+          "Wanting to feel good eh?"
+        ]
       ]
     },
     "faction_tile_colors": {
@@ -148,6 +193,7 @@
       "busy_card": "#202a34",
       "busy_title": "#f2f7fb",
       "busy_detail": "#b9c7d4"
-    }
+    },
+    "locked_game_speed": 1
   }
 }

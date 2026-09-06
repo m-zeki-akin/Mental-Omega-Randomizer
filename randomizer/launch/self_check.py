@@ -13,7 +13,9 @@ from unittest.mock import Mock, patch
 from randomizer.application import launch_controller as launch
 
 
-FLAGS = ['-SPAWN', '-CD', '-SPEEDCONTROL', '-LOG']
+# -SPEEDCONTROL is deliberately absent: it is what lets the speed be
+# changed mid-match, and the launcher locks the speed a run is played at.
+FLAGS = ['-SPAWN', '-CD', '-LOG']
 
 
 class LaunchCommandTests(unittest.TestCase):

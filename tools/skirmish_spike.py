@@ -288,7 +288,7 @@ def main(argv=None):
     )
 
     launcher = game_root / 'Syringe.exe'
-    argv = [str(launcher), 'gamemd.exe', '-SPAWN', '-CD', '-SPEEDCONTROL', '-LOG']
+    argv = [str(launcher), 'gamemd.exe', '-SPAWN', '-CD', '-LOG']
     command = windows_syringe_command_line(argv)
     print('launching:', command)
     subprocess.Popen(command, cwd=str(game_root))

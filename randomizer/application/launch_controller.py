@@ -750,12 +750,16 @@ class LaunchController:
         remove_generated_unit_art()
 
     def build_command(self):
+        # No -SPEEDCONTROL. That flag is what lets a player change the game
+        # speed once the match is running, and a run whose pacing can be
+        # changed mid-battle is not the run its rewards were tuned against.
+        # The speed the launcher locks is written to spawn.ini and to the
+        # in-game options, and this is what stops it being moved afterwards.
         command = [
             str(GAME_LAUNCHER_EXE),
             GAME_EXE.name,
             '-SPAWN',
             '-CD',
-            '-SPEEDCONTROL',
             '-LOG',
         ]
         if sys.platform == 'win32':
