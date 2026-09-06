@@ -76,7 +76,7 @@ def commit_offer(run, index):
     return replace(run, committed_offer=index)
 
 
-def record_victory(run, *, ally_side=None):
+def record_victory(run, *, ally_country=None):
     """Advance to the next battle, paying for it and letting the ally shop.
 
     What a battle pays is decided by the tier it was fought in and nothing
@@ -93,8 +93,8 @@ def record_victory(run, *, ally_side=None):
         used = used + (offer.map_path,)
     reward = battle_reward(run.battle, challenge=offer.challenge)
     ally_purchases, ally_coins = (
-        (run.ally_purchases, run.ally_coins + reward) if not ally_side
-        else ally_shopping(run, ally_side, run.ally_coins + reward)
+        (run.ally_purchases, run.ally_coins + reward) if not ally_country
+        else ally_shopping(run, ally_country, run.ally_coins + reward)
     )
     return replace(
         run,

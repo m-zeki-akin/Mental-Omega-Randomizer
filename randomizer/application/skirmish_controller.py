@@ -480,12 +480,17 @@ class SkirmishController:
         country = country_by_index(run.player_country)
         return country.side if country else ''
 
+    def skirmish_country_id(self, run):
+        """The country the shelf is drawn for: an army, not a side."""
+        country = country_by_index(run.player_country)
+        return country.country_id if country else ''
+
     def refresh_skirmish_shop(self, run):
         if not hasattr(self, 'skirmish_shop_tree'):
             return
         self.skirmish_ore_var.set(f'Ore: {run.coins}')
         side = self.skirmish_side(run)
-        self._skirmish_shelf = shelf_for(run, side)
+        self._skirmish_shelf = shelf_for(run, self.skirmish_country_id(run))
         tree = self.skirmish_shop_tree
         selected = set(tree.selection())
         tree.delete(*tree.get_children())
@@ -522,9 +527,9 @@ class SkirmishController:
         if tooltip is None:
             return
         ally = country_by_index(run.ally_country)
-        mine = purchase_labels(run.purchases, self.skirmish_side(run))
+        mine = purchase_labels(run.purchases, self.skirmish_country_id(run))
         theirs = purchase_labels(
-            run.ally_purchases, ally.side if ally else ''
+            run.ally_purchases, ally.country_id if ally else ''
         )
         lines = ['Yours:'] + [f'  {line}' for line in mine or ('nothing yet',)]
         lines += [
@@ -1056,7 +1061,7 @@ class SkirmishController:
             if won:
                 ally = country_by_index(run.ally_country)
                 run = self.offer_skirmish_battles(record_victory(
-                    run, ally_side=ally.side if ally else None
+                    run, ally_country=ally.country_id if ally else None
                 ))
                 message = (
                     f'Victory on {entry.name} — {result.kills} kills, '

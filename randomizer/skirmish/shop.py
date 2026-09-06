@@ -1,9 +1,11 @@
 """What a run can buy between battles.
 
-Upgrades only, and only for the army the run plays: a Soviet run never sees
-an Allied unit on its shelf. The ally shops too, out of its own earnings and
-its own faction's list, so the two armies grow apart over a run without the
-player spending anything on it.
+Upgrades only, and only for the army the run plays -- the *country*, not the
+side. All three Allied countries share a side and field different rosters:
+a United States run has no Hailstorm to improve, because the Hailstorm
+needs the Pacific Front's own tier two building. The ally shops too, out of
+its own earnings and its own country's list, so the two armies grow apart
+over a run without the player spending anything on it.
 
 Nothing here unlocks a unit. A run fields what its country fields; what Ore
 buys is that army getting better at what it already does.
@@ -56,14 +58,17 @@ def battle_reward(battle, *, challenge=False):
     return reward * (CHALLENGE_REWARD_MULTIPLIER if challenge else 1)
 
 
-@lru_cache(maxsize=8)
-def faction_upgrades(side):
-    """Return every upgrade this faction can buy, cheapest first.
+@lru_cache(maxsize=16)
+def country_upgrades(country):
+    """Return every upgrade this country can buy, cheapest first.
 
-    Reads the campaign shop's own catalogue. An upgrade the installation
-    would not notice -- a speed buff on a unit a submod already has at the
-    ceiling -- is not offered, which is the same clamp the campaign shop
-    applies at its own offer time.
+    Reads the campaign shop's own catalogue, kept to what this country can
+    put on the field: ownership and the prerequisite chain both, so a unit
+    gated by another country's tier two building never reaches the shelf.
+
+    An upgrade the installation would not notice -- a speed buff on a unit a
+    submod already has at the ceiling -- is not offered either, which is the
+    same clamp the campaign shop applies at its own offer time.
 
     Nor is one this mode cannot deliver. The campaign grants veterancy on
     the house and raises a build limit by building a clone of the unit;
@@ -89,20 +94,27 @@ def faction_upgrades(side):
     from randomizer.shop.economy import run_buff_price
 
     from .clones import clonable
+    from .ownership import buildable_units, country_faction
     from .rules import unit_rules
 
     installed = _installed_sections()
-
-    wanted = str(side or '').strip().lower()
+    fielded = buildable_units(str(country or ''))
+    faction = str(country_faction(country) or '').lower()
     upgrades = []
     for reward in UNIT_BUFF_REWARDS:
-        factions = [
-            str(faction).strip().lower()
-            for faction in (reward.get('factions') or ())
-        ]
-        if wanted not in factions:
-            continue
         unit = str(reward.get('unit') or '').upper()
+        if unit not in fielded:
+            continue
+        # Ownership alone lets the stolen-tech units through: what gates
+        # those is an infiltration, and a game option file rather than the
+        # rules carries the country list that says so. The catalogue's own
+        # faction is the floor, and the country narrows it from there.
+        factions = [
+            str(item).strip().lower()
+            for item in (reward.get('factions') or ())
+        ]
+        if faction and factions and faction not in factions:
+            continue
         buff_type = str(reward.get('buff_type') or '')
         if not unit or not buff_type:
             continue
@@ -146,14 +158,14 @@ def available_upgrades(upgrades, purchases):
     )
 
 
-def shelf_for(run, side, *, count=SHELF_SIZE, salt='shelf'):
+def shelf_for(run, country, *, count=SHELF_SIZE, salt='shelf'):
     """Return the upgrades standing on the shelf for this battle.
 
     Drawn from the run's seed and its battle number, so the shelf is the
     same one every time the run is opened, and a new one each battle.
     """
     upgrades = available_upgrades(
-        faction_upgrades(side),
+        country_upgrades(country),
         run.purchases if salt == 'shelf' else run.ally_purchases,
     )
     if not upgrades:
@@ -183,15 +195,15 @@ def purchase_stacks(purchases, upgrade, *, stacks=1):
     return tuple(updated)
 
 
-def ally_shopping(run, side, coins):
+def ally_shopping(run, country, coins):
     """Return what the ally buys with what it has, and what is left.
 
-    The ally spends on its own, from its own faction's list, and it spends
+    The ally spends on its own, from its own country's list, and it spends
     what it has rather than saving: an ally that hoards is an ally that
     never gets better.
     """
     upgrades = available_upgrades(
-        faction_upgrades(side), run.ally_purchases
+        country_upgrades(country), run.ally_purchases
     )
     if not upgrades:
         return run.ally_purchases, coins
@@ -212,9 +224,9 @@ def ally_shopping(run, side, coins):
     return purchases, coins
 
 
-def purchase_labels(purchases, side):
+def purchase_labels(purchases, country):
     """Return one readable line per purchase, for showing what was bought."""
-    named = {upgrade.key: upgrade for upgrade in faction_upgrades(side)}
+    named = {upgrade.key: upgrade for upgrade in country_upgrades(country)}
     lines = []
     for purchase in purchases or ():
         upgrade = named.get(purchase.key)

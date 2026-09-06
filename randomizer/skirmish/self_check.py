@@ -1018,7 +1018,7 @@ def _shop_checks():
         Upgrade,
         ally_shopping,
         battle_reward,
-        faction_upgrades,
+        country_upgrades,
         owned_stacks,
         purchase_labels,
         purchase_stacks,
@@ -1073,9 +1073,9 @@ def _shop_checks():
 
     # An ally spends what it has, on its own faction's list, and stops when
     # nothing left is affordable.
-    ally_purchases, ally_left = ally_shopping(run, 'Soviets', 400)
-    soviet = {upgrade.key for upgrade in faction_upgrades('Soviets')}
-    allied = {upgrade.key for upgrade in faction_upgrades('Allies')}
+    ally_purchases, ally_left = ally_shopping(run, 'USSR', 400)
+    soviet = {upgrade.key for upgrade in country_upgrades('USSR')}
+    allied = {upgrade.key for upgrade in country_upgrades('UnitedStates')}
     ally_valid = bool(
         ally_purchases
         and all(purchase.key in soviet for purchase in ally_purchases)
@@ -1087,12 +1087,38 @@ def _shop_checks():
 
     # The shelf is the run's own: same seed and battle, same shelf, and
     # nothing on it belongs to another faction.
-    shelf = shelf_for(run, 'Allies')
+    shelf = shelf_for(run, 'UnitedStates')
     shelf_valid = bool(
         shelf
-        and shelf == shelf_for(run, 'Allies')
+        and shelf == shelf_for(run, 'UnitedStates')
         and all(upgrade.key in allied for upgrade in shelf)
-        and shelf != shelf_for(replace(run, battle=2), 'Allies')
+        and shelf != shelf_for(replace(run, battle=2), 'UnitedStates')
+    )
+
+    # A side is not an army. The three Allied countries field different
+    # rosters, and an upgrade for a unit the player's own country cannot
+    # build is Ore spent on nothing.
+    from .ownership import buildable_units, country_builds
+
+    united = {upgrade.unit for upgrade in country_upgrades('UnitedStates')}
+    pacific = {upgrade.unit for upgrade in country_upgrades('Pacific')}
+    soviet_units = {upgrade.unit for upgrade in country_upgrades('USSR')}
+    country_valid = bool(
+        united and pacific
+        # Ownership: the Stormchild is the United States', the tier two
+        # buildings are one per country.
+        and country_builds('STORM', 'UnitedStates')
+        and not country_builds('STORM', 'Pacific')
+        and country_builds('GASCPF', 'Pacific')
+        and not country_builds('GASCPF', 'UnitedStates')
+        # The prerequisite chain: a unit gated by another country's tier two
+        # building is not this country's, however the Owner list reads.
+        and country_builds('HOWI', 'Pacific')
+        and not country_builds('HOWI', 'UnitedStates')
+        and 'HOWI' in pacific and 'HOWI' not in united
+        # And the sides do not bleed into one another.
+        and not (united & soviet_units)
+        and 'GGI' in united and 'GGI' in pacific
     )
 
     # A price tag is no use without what it buys, so every upgrade says
@@ -1103,10 +1129,10 @@ def _shop_checks():
         and all(
             upgrade.effect
             and upgrade.effect != upgrade.buff_type.replace('_', ' ')
-            for upgrade in faction_upgrades('Allies')
+            for upgrade in country_upgrades('UnitedStates')
         )
         # And what an army owns can be named, for the ally that shops unseen.
-        and purchase_labels(bought.purchases, 'Allies')
+        and purchase_labels(bought.purchases, 'UnitedStates')
         == ('Guardian GI Mobility I x2',)
     )
 
@@ -1118,8 +1144,9 @@ def _shop_checks():
 
     sections = _installed_sections()
     sold = [
-        upgrade for side in ('Allies', 'Soviets', 'Epsilon', 'Foehn')
-        for upgrade in faction_upgrades(side)
+        upgrade
+        for country in ('UnitedStates', 'USSR', 'PsiCorps', 'Guild1')
+        for upgrade in country_upgrades(country)
     ]
     delivers_valid = bool(
         sold
@@ -1163,6 +1190,7 @@ def _shop_checks():
         'skirmish_purchase_valid': purchase_valid,
         'skirmish_ally_shops_alone_valid': ally_valid,
         'skirmish_shelf_valid': shelf_valid,
+        'skirmish_shelf_is_one_country': country_valid,
         'skirmish_upgrade_effect_valid': effect_valid,
         'skirmish_upgrade_delivers_valid': delivers_valid,
         'skirmish_upgrade_rules_valid': rules_valid,
