@@ -133,19 +133,44 @@ function buildScreens(screens) {
   }
 }
 
-function buildModeControl(modes, current, locked, lockedBy) {
-  const control = document.getElementById('mode');
+/** Fill one select with `{value, label, selected}` and say why it is off. */
+function fillControl(id, options, { locked, lockedBy, title }) {
+  const control = document.getElementById(id);
   if (!control) return;
   control.replaceChildren();
-  for (const mode of modes) {
-    const option = document.createElement('option');
-    option.value = mode.name;
-    option.textContent = mode.ported ? mode.name : `${mode.name} (classic)`;
-    option.selected = mode.name === current;
-    control.append(option);
+  for (const option of options) {
+    const node = document.createElement('option');
+    node.value = option.value;
+    node.textContent = option.label;
+    node.selected = Boolean(option.selected);
+    control.append(node);
   }
   control.disabled = Boolean(locked);
-  control.title = locked ? lockedBy : 'What the launcher is set to play';
+  control.title = locked ? lockedBy : title;
+}
+
+/**
+ * The mode, as two controls: which kind of game, then which one of it.
+ *
+ * The second is filled from the kind that is standing rather than from
+ * every mode there is -- five modes offered flat is a list to read, not a
+ * choice to make. Both send the same action: what the launcher is set to
+ * play is one decision however it is pointed at.
+ */
+function buildModeControl(answer) {
+  const { families = [], family, current, locked, locked_by: lockedBy } = answer;
+  const standing = families.find((entry) => entry.name === family)
+    || families[0] || { modes: [] };
+  fillControl('family', families.map((entry) => ({
+    value: entry.name,
+    label: entry.name,
+    selected: entry.name === standing.name,
+  })), { locked, lockedBy, title: 'Which kind of game' });
+  fillControl('mode', standing.modes.map((mode) => ({
+    value: mode.name,
+    label: mode.ported ? mode.label : `${mode.label} (classic)`,
+    selected: mode.name === current,
+  })), { locked, lockedBy, title: standing.description || 'Which one of it' });
 }
 
 /**
@@ -156,9 +181,7 @@ function buildModeControl(modes, current, locked, lockedBy) {
  */
 export async function showMode({ keep = null } = {}) {
   const answer = await call('launcher.modes');
-  buildModeControl(
-    answer.modes, answer.current, answer.locked, answer.locked_by,
-  );
+  buildModeControl(answer);
   buildScreens(answer.screens);
   const wanted = keep && panels.has(keep) ? keep : (answer.screens[0] || {}).name;
   await show(wanted);
@@ -173,14 +196,17 @@ export async function applyTheme(theme) {
 }
 
 async function start() {
-  const control = document.getElementById('mode');
-  if (control) {
+  // Both controls ask for the same thing: a kind of game means the first
+  // mode of that kind, a mode means itself.
+  for (const id of ['family', 'mode']) {
+    const control = document.getElementById(id);
+    if (!control) continue;
     control.addEventListener('change', async (event) => {
       const wanted = event.target.value;
       if (await act('launcher.use_mode', { name: wanted })) {
         await showMode();
       } else {
-        // Refused. The control has to go back to what is true rather
+        // Refused. The controls have to go back to what is true rather
         // than sit on a mode the launcher is not in.
         await showMode({ keep: showing });
       }

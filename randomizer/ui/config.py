@@ -35,6 +35,21 @@ CAMPAIGN_FILTERS = list(_UI_CONFIG['campaign_filters'])
 REWARD_MODES = list(_UI_CONFIG['reward_modes'])
 PROGRESSION_MODES = list(_UI_CONFIG['progression_modes'])
 DEFAULT_PROGRESSION_MODE = str(_UI_CONFIG['default_progression_mode'])
+# The five modes are two kinds of game. What is stored for a workspace is
+# still one of the five; the grouping is how they are offered, so that a
+# player picks a kind and then which one of it, rather than reading a list
+# of five things with nothing in common.
+MODE_FAMILIES = [
+    {
+        'name': str(family['name']),
+        'description': str(family['description']),
+        'modes': [
+            {'mode': str(entry['mode']), 'label': str(entry['label'])}
+            for entry in family['modes']
+        ],
+    }
+    for family in _UI_CONFIG['mode_families']
+]
 PLAYER_COLORS = list(_UI_CONFIG['player_colors'])
 RAINBOWIZER_COLORS = list(_UI_CONFIG['rainbowizer_colors'])
 

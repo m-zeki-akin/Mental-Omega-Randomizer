@@ -4,6 +4,12 @@ The launcher is five modes, and which one is being played decides what
 there is to look at. That used to be a dropdown among the settings of one
 of them; it belongs above everything, because everything below it changes.
 
+The five are two kinds of game, and offering them flat made a player read
+a list rather than make a choice. So the control is two: which kind --
+the campaign, or a roguelike run -- and then which one of that kind. The
+grouping is in configs/ui.json beside the modes themselves; what a
+workspace stores is still one of the five.
+
 One table, here, rather than a list of tabs written into the page. The page
 asks what the mode has and draws that, so a mode gains a screen by gaining
 a row here and nothing else needs to know.
@@ -15,6 +21,7 @@ then shows an empty panel is worse than one that says where the mode is.
 
 from randomizer.ui.config import (
     DEFAULT_PROGRESSION_MODE,
+    MODE_FAMILIES,
     PROGRESSION_MODES,
 )
 
@@ -26,9 +33,11 @@ LAUNCHER_SCREEN = ('launcher', 'Launcher')
 # both its file and the id of the panel it draws into -- and the word on
 # its tab.
 BY_MODE = {
-    'Classic': (('classic', 'Campaign'),),
-    'Mission List': (('classic', 'Campaign'),),
-    'Grid Mode': (('classic', 'Campaign'),),
+    # 'Mode' rather than 'Campaign' on the tab: the kind of game is named
+    # in the control above it now, and a tab repeating it says nothing.
+    'Classic': (('classic', 'Mode'),),
+    'Mission List': (('classic', 'Mode'),),
+    'Grid Mode': (('classic', 'Mode'),),
     # Its setup is here and its run is not: what a run is started with
     # outlives the run, and both windows read it from one place. The
     # mode's own panel says where the run itself is played.
@@ -47,6 +56,50 @@ BY_MODE = {
 # and a mode control that called that ported would be telling a player
 # they can play it in this window.
 PORTED = frozenset({'Skirmish Shop'})
+
+
+def families():
+    """Return the kinds of game, each with the modes that are one of it."""
+    return [
+        {
+            'name': family['name'],
+            'description': family['description'],
+            'modes': [
+                {'mode': entry['mode'], 'label': entry['label']}
+                for entry in family['modes'] if entry['mode'] in BY_MODE
+            ],
+        }
+        for family in MODE_FAMILIES
+    ]
+
+
+def family(mode):
+    """Return the name of the kind of game a mode is, or the first kind."""
+    wanted = known(mode)
+    for entry in MODE_FAMILIES:
+        if any(item['mode'] == wanted for item in entry['modes']):
+            return entry['name']
+    return MODE_FAMILIES[0]['name']
+
+
+def label(mode):
+    """Return what a mode is called inside its own kind of game."""
+    wanted = known(mode)
+    for entry in MODE_FAMILIES:
+        for item in entry['modes']:
+            if item['mode'] == wanted:
+                return item['label']
+    return wanted
+
+
+def modes_in(name):
+    """Return the modes of one kind of game, in the order it lists them."""
+    for entry in MODE_FAMILIES:
+        if entry['name'] == str(name or ''):
+            return [
+                item['mode'] for item in entry['modes'] if item['mode'] in BY_MODE
+            ]
+    return []
 
 
 def known(mode):

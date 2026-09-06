@@ -108,6 +108,7 @@ REQUIRED_SECTIONS = {
         'reward_modes': list,
         'progression_modes': list,
         'default_progression_mode': str,
+        'mode_families': list,
         'player_colors': list,
         'rainbowizer_colors': list,
         'eva_voice_tags': dict,
@@ -756,6 +757,36 @@ def _validate_ui(sections, path):
         or sections['default_progression_mode'] not in progression_modes
     ):
         _invalid('Invalid progression mode choices', path)
+
+    # The modes are five, and a player choosing among five things that
+    # are really two kinds of game is a player reading a list instead of
+    # making a choice. So they are grouped, and what is checked is that
+    # the grouping covers exactly the modes there are: every mode in one
+    # family, no mode in two, no family empty, and every name filled in.
+    families = sections['mode_families']
+    grouped = [
+        entry['mode']
+        for family in families if isinstance(family, dict)
+        for entry in family.get('modes', []) if isinstance(entry, dict)
+    ]
+    if (
+        not families
+        or not all(
+            isinstance(family, dict)
+            and _is_nonempty_string(family.get('name'))
+            and _is_nonempty_string(family.get('description'))
+            and family.get('modes')
+            and all(
+                isinstance(entry, dict)
+                and _is_nonempty_string(entry.get('label'))
+                for entry in family['modes']
+            )
+            for family in families
+        )
+        or sorted(grouped) != sorted(progression_modes)
+        or len({family['name'] for family in families}) != len(families)
+    ):
+        _invalid('Invalid mode families', path)
 
     messages = sections['rewards_per_check_messages']
     if (

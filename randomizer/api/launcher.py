@@ -66,11 +66,36 @@ def modes():
     """
     current = screen_table.known(_settings().get(MODE_KEY))
     playing = session.running()
+    standing = screen_table.family(current)
     return {
         'current': current,
+        'label': screen_table.label(current),
+        'family': standing,
+        # Two levels, because five modes are two kinds of game: which kind
+        # is being played, and which one of that kind. What is stored is
+        # still one of the five.
+        'families': [
+            {
+                'name': family['name'],
+                'description': family['description'],
+                'current': family['name'] == standing,
+                'modes': [
+                    {
+                        'name': entry['mode'],
+                        'label': entry['label'],
+                        'ported': entry['mode'] in screen_table.PORTED,
+                        'current': entry['mode'] == current,
+                    }
+                    for entry in family['modes']
+                ],
+            }
+            for family in screen_table.families()
+        ],
         'modes': [
             {
                 'name': mode,
+                'label': screen_table.label(mode),
+                'family': screen_table.family(mode),
                 'ported': mode in screen_table.PORTED,
                 'current': mode == current,
             }
@@ -90,17 +115,30 @@ def modes():
 
 @action('launcher.use_mode', 'Look at another mode', kind=COMMAND)
 def use_mode(name=''):
+    """Take either a mode or the kind of game one belongs to.
+
+    The control is two, so this answers to both: a kind of game means the
+    first of that kind unless what is being played is already one of them,
+    and a mode means that mode. One action rather than two, because it is
+    one decision -- what the launcher is set to play.
+    """
     wanted = str(name or '').strip()
+    config = _settings()
+    current = screen_table.known(config.get(MODE_KEY))
     if wanted not in screen_table.BY_MODE:
-        raise ApiError(f'There is no {wanted or "unnamed"} mode')
+        within = screen_table.modes_in(wanted)
+        if not within:
+            raise ApiError(f'There is no {wanted or "unnamed"} mode')
+        wanted = current if current in within else within[0]
     if session.running():
         raise ApiError('Wait for the running game to close')
-    config = _settings()
-    if screen_table.known(config.get(MODE_KEY)) != wanted:
+    if current != wanted:
         config[MODE_KEY] = wanted
         _keep(config)
     return {
         'current': wanted,
+        'label': screen_table.label(wanted),
+        'family': screen_table.family(wanted),
         'ported': wanted in screen_table.PORTED,
         'screens': [
             {'name': screen, 'label': label}

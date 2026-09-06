@@ -25,7 +25,7 @@ const ABOUT = {
     + 'between missions.',
 };
 
-function modePanel(mode, seed, screens) {
+function modePanel(mode, seed, screens, kind) {
   const standing = seed && seed.seed && seed.mode === mode;
   // A mode with a screen of its own here has had part of it drawn, and
   // saying the classic window has everything would be false the moment
@@ -35,6 +35,11 @@ function modePanel(mode, seed, screens) {
   );
   return panel(mode, {
     body: [
+      // What the mode has in common with its siblings, then what makes it
+      // this one. The control above offers them as one kind of game, so
+      // the panel says what that kind is rather than leaving the grouping
+      // to be guessed from a dropdown.
+      kind && kind.description ? `${kind.name}: ${kind.description}` : '',
       ABOUT[mode] || '',
       elsewhere
         ? 'Its setup is on the tab beside this one; the run itself is '
@@ -58,6 +63,7 @@ async function render(root) {
   root.replaceChildren(
     section('Mode', modePanel(
       modes.current, modes.campaign_seed, modes.screens,
+      (modes.families || []).find((kind) => kind.name === modes.family),
     )),
     section('Meanwhile', notice(
       'The Skirmish Shop mode is drawn here. Switch to it above to play '

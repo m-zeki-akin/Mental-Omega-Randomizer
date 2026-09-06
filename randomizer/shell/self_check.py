@@ -258,6 +258,26 @@ def validate_shell_contract():
         and loaded == named
     )
 
+    # The control is two: a kind of game, then one of that kind. Which
+    # means every mode has to be one kind exactly -- a mode in neither
+    # cannot be reached from the control at all, and a mode in two would
+    # be reachable under a kind it is not.
+    from .screens import families, family, label, modes, modes_in
+
+    grouped = [
+        entry['mode'] for kind in families() for entry in kind['modes']
+    ]
+    families_valid = bool(
+        families()
+        and all(kind['modes'] and kind['description'] for kind in families())
+        and sorted(grouped) == sorted(modes())
+        and len(grouped) == len(set(grouped))
+        and all(
+            label(mode) and mode in modes_in(family(mode))
+            for mode in modes()
+        )
+    )
+
     borrowing = _views_keep_to_themselves(root)
     misnamed = _views_register_their_own_name(root)
     unanswered = _actions_the_screens_ask_for(root)
@@ -275,6 +295,7 @@ def validate_shell_contract():
         'shell_components_are_pure_valid': bool(components and components_pure),
         'shell_every_screen_a_mode_names_exists_valid': screens_valid,
         'shell_every_action_asked_for_exists_valid': not unanswered,
+        'shell_every_mode_is_one_kind_of_game_valid': families_valid,
         'shell_contract_valid': bool(
             present
             and _choice_valid()
@@ -287,5 +308,6 @@ def validate_shell_contract():
             and not borrowing
             and not misnamed
             and not unanswered
+            and families_valid
         ),
     }

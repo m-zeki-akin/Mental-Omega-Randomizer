@@ -66,6 +66,25 @@
       "Skirmish Shop"
     ],
     "default_progression_mode": "Mission List",
+    "mode_families": [
+      {
+        "name": "Campaign",
+        "description": "The installed campaign, in one order or another.",
+        "modes": [
+          {"mode": "Classic", "label": "Classic"},
+          {"mode": "Mission List", "label": "Mission List"},
+          {"mode": "Grid Mode", "label": "Grid"}
+        ]
+      },
+      {
+        "name": "Roguelike",
+        "description": "A run with lives, a shop between battles, and a board when it ends.",
+        "modes": [
+          {"mode": "Shop Mode", "label": "Campaign"},
+          {"mode": "Skirmish Shop", "label": "Skirmish"}
+        ]
+      }
+    ],
     "player_colors": [
       "Default",
       "Gold",

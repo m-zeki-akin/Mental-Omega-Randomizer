@@ -137,10 +137,40 @@ is whether the game does what they ask. Each names what to look at.
 
 ## The new interface
 
-The mode control offers all five modes and the screens follow it. Only
-Skirmish Shop is *played* here; Shop Mode has its setup here and its run
-in the classic window, and the other three get one panel saying what the
-mode is and one press to open the classic window at the next start.
+The mode control offers the five modes as two kinds of game -- Campaign
+(Classic, Mission List, Grid) and Roguelike (Campaign, Skirmish) -- and
+the screens follow whichever is standing. Only Skirmish is *played* here;
+Roguelike/Campaign has its setup here and its run in the classic window,
+and the three Campaign modes get one panel saying what the mode is and one
+press to open the classic window at the next start.
+
+### Which settings belong to a kind, and which to one mode
+
+The grouping is worth having only if it decides where a setting goes.
+What follows is that decision; it is not built yet, and each line is a
+row on a screen when it is.
+
+**Campaign** -- shared by Classic, Mission List and Grid, because all
+three are the installed campaign in some order: the campaign filter, the
+seed, the mission goal, rewards per objective, rewards on victory only,
+act-based multipliers, the arsenal and reward-pool settings, the
+exclusion lists, enemy scaling, failure assistance. Only Grid has its own
+-- two start positions, hiding locked missions, releasing what is left
+when the goal is reached -- and Classic has none of its own at all: it is
+Mission List without the shuffle.
+
+**Roguelike** -- shared by its Campaign and its Skirmish, because both
+are a run with lives and a shop: which rewards may appear at all, the
+starting loadout, the run difficulty readout and the board a finished run
+lands on. Each has its own too: Campaign has the pacing (already drawn)
+and the mission pool; Skirmish has the country pair, the map pool, and
+the locked difficulty and speed a battle is played at.
+
+Two consequences worth writing down. The Roguelike pair should share one
+Records screen rather than growing a second board -- today only Skirmish
+has one. And a setting that is shared has to be stored where both modes
+read it: the Campaign three already are (one `generation` block), the
+Roguelike two are not (`shop_*` keys beside skirmish's own).
 
 - **The rest of Shop Mode's settings.** Its pacing and its optional
   modifiers are drawn here now, and are settings rather than window state:
@@ -151,9 +181,15 @@ mode is and one press to open the classic window at the next start.
   Setup screen and an action beside `shop.use_pacing`; nothing has to be
   decided first.
 
-- **Where the other three modes' settings go.** Classic, Mission List and
-  Grid Mode carry none. Each is a smaller version of the same job, and
-  their settings are all config-backed already.
+- **The Campaign kind's settings.** Classic, Mission List and Grid carry
+  none here yet. One screen for the three of them, by the map above:
+  everything shared on it, and Grid's three of its own shown only when
+  Grid is standing. They are all config-backed already.
+
+- **The classic window still offers five flat modes.** Its dropdown is
+  the old list, so the two windows describe the same choice differently.
+  Making it two controls is a Tk change of its own; nothing is broken
+  until then, because what is stored is the same five names.
 
 - **The screens for the four modes themselves.** A mode drawn here needs
   what Skirmish Shop has: the play loop, not only the settings. Until a
