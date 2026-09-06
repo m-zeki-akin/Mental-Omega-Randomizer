@@ -198,6 +198,7 @@ def load_shop_mode_config() -> ShopModeConfig:
                         'unique_unit',
                         'flagged_power_price',
                         'buff_percent_of_access',
+                        'buff_flat_price',
                         'cost_window_trim_percent',
                         'rounding_step',
                         'premium_target_multiplier',

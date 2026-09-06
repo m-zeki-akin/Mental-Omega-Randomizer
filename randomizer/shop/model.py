@@ -174,6 +174,7 @@ class ShopPriceScale:
     power_tier_prices: Mapping[str, int]
     flagged_power_price: int
     buff_percent_of_access: int
+    buff_flat_price: int
     cost_window_trim_percent: int
     rounding_step: int
     premium_target_multiplier: int

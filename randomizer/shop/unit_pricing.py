@@ -374,8 +374,19 @@ def unit_access_price(target_id, scale, *, config: ShopModeConfig = SHOP_CONFIG)
 
 
 def _buff_price(access_price, scale):
-    """Return one upgrade stack as a fraction of what its target costs."""
-    return max(1, int(round(access_price * scale.buff_percent_of_access / 100)))
+    """Return one upgrade's price: a floor, plus a share of the target's.
+
+    A pure share of what the unit is worth made the early shelf almost
+    free -- a Humvee's optics at 18 Ore against a Barracuda's at 60, when
+    both are one upgrade and one shelf slot to the player buying them. The
+    floor is what an upgrade costs at all; the share is what improving an
+    expensive thing costs on top. Together they compress the range without
+    flattening it.
+    """
+    return max(1, int(round(
+        scale.buff_flat_price
+        + access_price * scale.buff_percent_of_access / 100
+    )))
 
 
 def unit_buff_price(target_id, scale, *, config: ShopModeConfig = SHOP_CONFIG):

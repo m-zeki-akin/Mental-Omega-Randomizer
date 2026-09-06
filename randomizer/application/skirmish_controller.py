@@ -926,10 +926,13 @@ class SkirmishController:
                 purchases,
                 ally.country_id,
                 prefix=ALLY_CLONE_PREFIX,
-                # The original is shut out here too: an AI that can still
-                # build it would keep fielding the plain version through a
-                # task force this has not rewritten.
-                forbid_source=True,
+                # The original stays available to the ally. Shutting it out
+                # left the AI unable to fill any autocreate team that named
+                # it -- and a team carries no owner, so there is no way to
+                # stand one down for a single house. It built defences all
+                # match and attacked almost never. A mixture of plain and
+                # upgraded units is the price of an ally that plays.
+                forbid_source=False,
             )
         houses = []
         for house in battle['houses']:

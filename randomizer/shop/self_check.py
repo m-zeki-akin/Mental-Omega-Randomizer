@@ -1640,7 +1640,7 @@ def _phase_seven_checks():
             len(hidden) == len(offers)
             and hidden == hidden_offer_codes(run)
             and set(hidden) == {offer.mission_code for offer in offers}
-            and adjusted.run_coins == 420
+            and adjusted.run_coins == 294
             and adjusted.meta_coins == 61
             # Greedy's empty wallet outranks a bought capital ladder, a
             # modifier that hands out starting Ore, and carried salvage.
@@ -1653,7 +1653,7 @@ def _phase_seven_checks():
                 'generous_command'
             ].effects
             and any('Permanent Victory Bonus: +50' in line for line in breakdown)
-            and any('Total: +470 Ore' in line for line in breakdown)
+            and any('Total: +344 Ore' in line for line in breakdown)
             and 'Persistent Gems: 42' in completion_summary
             and restored == run
         ),
@@ -2065,19 +2065,41 @@ def _gem_pricing_checks():
         and _flat_override('NACLON', live_gem, SHOP_CONFIG)
         == live_gem.build_limited_building
     )
-    # Upgrades are a fixed fraction of what their target costs, on whichever
-    # scale is being asked. The Ore side floors at minimum_shop_price, so it
-    # is compared before the discount path rather than after.
+    # An upgrade costs a floor plus a share of what its target costs, on
+    # whichever scale is being asked. The floor is what stopped the early
+    # shelf being nearly free: a share alone priced a cheap unit's upgrade
+    # at a fraction of an expensive one's, when both are one shelf slot to
+    # whoever is buying. The Ore side floors at minimum_shop_price, so it is
+    # compared before the discount path rather than after.
     buff_ratio_valid = all(
         unit_buff_price(target, scale) == max(
             1,
             round(
-                unit_access_price(target, scale)
+                scale.buff_flat_price
+                + unit_access_price(target, scale)
                 * scale.buff_percent_of_access / 100
             ),
         )
         for scale in (ore, pricing)
         for target in sorted(ore_report)[:40]
+    )
+    # And the range really is compressed: the dearest upgrade is no longer
+    # many times the cheapest one.
+    # Only the targets that have an upgrade offer: some units are sold and
+    # never improved.
+    ore_buffs = []
+    for target in sorted(ore_report):
+        try:
+            ore_buffs.append(unit_buff_price(target, ore))
+        except ValueError:
+            continue
+    buff_ratio_valid = bool(
+        buff_ratio_valid
+        and ore_buffs
+        # Sevenfold between the cheapest upgrade and the dearest. Without
+        # the floor it was more than twelvefold, and the early shelf was
+        # bought out rather than chosen from.
+        and max(ore_buffs) <= min(ore_buffs) * 7
     )
     # Powers have no cost, so tier decides outright and the flagged ones --
     # superweapons and campaign-only powers -- are flat and steep.
@@ -2225,9 +2247,12 @@ def validate_shop_domain():
             unavailable_price_valid = False
         except ValueError:
             pass
+    # A mission pays 30% less Ore than it did. What it pays in the permanent
+    # currency is untouched: that ladder is a different pace and was not
+    # what made a run's shopping feel like a list rather than a choice.
     economy_valid = bool(
-        (act_one.run_coins, act_one.meta_coins) == (75, 20)
-        and operation.run_coins == 250
+        (act_one.run_coins, act_one.meta_coins) == (52, 20)
+        and operation.run_coins == 197
         and operation.meta_coins == 50
         and operation.victory_bonus_run_coins == 75
         and capped_bonus.victory_bonus_run_coins == 125

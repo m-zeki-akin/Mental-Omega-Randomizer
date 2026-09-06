@@ -17,15 +17,14 @@ belongs in the code's own comments, not here.
   passed, so it cannot be moved mid-match; what is missing is the per
   difficulty value and the wiring from the difficulty to it.
 
-- **Watch the ally play with what it bought.** The task force, team and
-  trigger copies are written and the staged `aimo.ini` is in place, but no
-  battle has been played with them. The design rests on one inference: that
-  the engine picks autocreate teams by what a house can build, which is why
-  a copy gated with `RequiredHouses` is its house's alone and why the
-  original can be shut out. If that is wrong the ally stops building, the
-  way the allied AI did when `[Sides]` was rewritten. The fallback is one
-  flag -- `forbid_source=False` for AI houses, accepting a mixture of plain
-  and upgraded units.
+- **An ally that fields only its upgraded units.** The copies are written
+  and the staged `aimo.ini` is in place, but they are offered *alongside*
+  the originals: a house cannot be stopped from autocreating a team, teams
+  carry no owner, and shutting the original out of the house left an ally
+  that built defences all match and attacked almost never. So the ally
+  fields a mixture, and how much of it is upgraded is luck. Making it
+  exclusive needs a lever this AI file does not have --
+  `STAND_DOWN_ORIGINALS` and `forbid_source` are where it would go.
 
 - **The ally's shelf still offers units its AI never fields.** Only 212 of
   the units in the catalogue appear in a task force; an upgrade on one of

@@ -14,15 +14,19 @@ What decides who builds a copy is not the copy: it is ownership. Of the
 every one of them says ``House=<none>`` -- teams for all four sides, with
 nothing in them naming a side. An Allied computer player does not spend the
 match failing to build Foehn teams, so the engine is choosing autocreate
-teams by what the house can actually build. That is the lever: a copy is
-gated to one country, so only that house takes it, and the original is shut
-out of that country, so that house stops taking the original.
+teams by what the house can actually build. A copy gated to one country is
+therefore that house's alone, and it needs no trigger to be reached.
 
-Triggers are the second path to a team and are handled the same way: a copy
-per house on that side, owned by its country, and the original stood down
-once every house that could have used it has one. Left alone, a trigger
-would keep asking for the plain version of a unit the house had paid to
-improve, or point a house at a team it can no longer build.
+**Everything here is additive, and that is a correction.** The first
+version also shut the original out of the house and stood the original
+triggers down, so that a house would field only its upgraded units. Played,
+it produced an ally that built defence teams all match and attacked almost
+never: an autocreate team naming a unit the house may no longer build
+cannot be filled, and there is no way to stand an autocreate team down for
+one house -- teams carry no owner. So the copies are offered alongside the
+originals, the house fields a mixture, and nothing it used to do is taken
+away. Exclusivity for a computer player needs a lever this file does not
+have; ``STAND_DOWN_ORIGINALS`` is where it would go.
 
 Three measurements from the installed AI file made this cheap:
 
@@ -70,6 +74,12 @@ TRIGGER_TEAM_TWO = 14
 # per-house copies that replace it.
 TRIGGER_DIFFICULTIES = (15, 16, 17)
 TRIGGER_FIELDS = 18
+# Whether a replaced trigger is switched off. It is not, and a match said
+# why: a house cannot be stopped from autocreating the original team, so
+# switching off the trigger only removes an attack the house was making.
+# Left here as the one line to change if a way to do it exclusively turns
+# up.
+STAND_DOWN_ORIGINALS = False
 
 _AI_SECTIONS = None
 
@@ -260,15 +270,12 @@ def ai_house_code(houses, *, sections=None, prefix='MOA'):
             made_triggers.append(identifier)
             replaced_triggers.add(key)
 
-    # The originals stand down -- but only the ones that were replaced. A
-    # trigger nobody in this battle could have used keeps its own flags:
-    # switching it off would take away behaviour without giving any back,
-    # and the point of the copies is that nothing is lost.
-    for key in sorted(replaced_triggers):
-        row = list(triggers[key])
-        for slot in TRIGGER_DIFFICULTIES:
-            row[slot] = '0'
-        code.setdefault(TRIGGER_TYPES, {})[key] = ','.join(row)
+    if STAND_DOWN_ORIGINALS:
+        for key in sorted(replaced_triggers):
+            row = list(triggers[key])
+            for slot in TRIGGER_DIFFICULTIES:
+                row[slot] = '0'
+            code.setdefault(TRIGGER_TYPES, {})[key] = ','.join(row)
 
     for list_section, made in (
         (TASK_FORCES, made_forces),

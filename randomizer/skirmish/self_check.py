@@ -925,7 +925,9 @@ def _ai_checks():
         [('Europeans', 1, clones), ('Guild1', 4, {})], sections=sections
     )
     rows = code.get(TRIGGER_TYPES) or {}
-    stood_down = {key for key in rows if key in (sections.get(TRIGGER_TYPES) or {})}
+    stood_down = {
+        key for key in rows if key in (sections.get(TRIGGER_TYPES) or {})
+    }
     copies = {key: rows[key] for key in rows if key not in stood_down}
     forces = [
         values for name, values in code.items()
@@ -959,13 +961,12 @@ def _ai_checks():
             )
             for row in copies.values()
         )
-        # Only what was replaced is stood down, and it really is off.
-        and stood_down
-        and all(
-            rows[key].split(',')[slot] == '0'
-            for key in stood_down for slot in TRIGGER_DIFFICULTIES
-        )
-        and len(stood_down) < len(sections.get(TRIGGER_TYPES) or {})
+        # Nothing the file already had is touched. Standing a trigger down
+        # only removed an attack the house was still making: a team carries
+        # no owner, so its original cannot be stood down for one house, and
+        # a match played that way produced an ally that built defences and
+        # attacked almost never.
+        and not stood_down
         # A house that bought nothing takes nothing away.
         and not ai_house_code([('Guild1', 4, {})], sections=sections)
     )
@@ -982,9 +983,10 @@ def _ai_checks():
             # A complete file, because the game folder outranks the archives.
             and len(written) >= len(sections)
             and first and first[0].startswith(RANDOMIZER_RULES_MARKER)
+            # Every trigger the file had, still exactly as it had it.
             and all(
-                written[TRIGGER_TYPES][key].split(',')[slot] == '0'
-                for key in stood_down for slot in TRIGGER_DIFFICULTIES
+                written[TRIGGER_TYPES][key] == row
+                for key, row in (sections.get(TRIGGER_TYPES) or {}).items()
             )
             # And it is ours to remove, which is why it carries the marker.
             and remove_staged_ai_file(target)

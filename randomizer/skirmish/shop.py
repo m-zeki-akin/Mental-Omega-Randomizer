@@ -26,10 +26,10 @@ from .model import BATTLES_PER_TIER, UpgradePurchase
 # What a battle pays, by the tier it was fought in. Fixed rather than scaled
 # by the score: a score can be farmed by dragging a won battle out, and a
 # run's difficulty should not be something a player can grind around.
-BATTLE_REWARD = 150
+BATTLE_REWARD = 125
 REWARD_PER_TIER = 75
 CHALLENGE_REWARD_MULTIPLIER = 2
-STARTING_ORE = 200
+STARTING_ORE = 125
 # How many upgrades stand on the shelf between battles. The shelf is drawn
 # from the run's seed, so it is the same shelf every time the run is opened.
 SHELF_SIZE = 6
@@ -134,11 +134,16 @@ def country_upgrades(country):
         buff_type = str(reward.get('buff_type') or '')
         if not unit or not buff_type:
             continue
-        limit = effective_stack_limit(
+        # The catalogue's stack limit says how far a buff could be pushed;
+        # what is asked here is only whether this installation would notice
+        # it at all. A shelf row is bought once -- the campaign shop sells a
+        # reward once too, and an upgrade that can be bought again until the
+        # Ore runs out is not a choice between upgrades.
+        if effective_stack_limit(
             unit, buff_type, buff_stack_limit(reward) or 1
-        )
-        if limit <= 0:
+        ) <= 0:
             continue
+        limit = 1
         if not unit_rules(unit, buff_type, 1, installed, BUFF_TARGETS):
             continue
         if not clonable(unit, installed, BUFF_TARGETS):
@@ -152,7 +157,7 @@ def country_upgrades(country):
             name=str(reward.get('name') or f'{unit} {buff_type}'),
             description=str(reward.get('description') or ''),
             price=int(run_buff_price(unit)),
-            limit=int(limit),
+            limit=1,
             effect=effect[0] if effect else buff_type.replace('_', ' '),
         )
         if unit in stolen:
@@ -171,8 +176,7 @@ def _stolen_tech_bundles(by_buff_type, members):
     A run does not choose which of these it fields, or whether it fields any
     -- an infiltration decides that -- so buying them one at a time is
     buying a lottery ticket several times over. One row raises the stat on
-    all of them, and its limit is the smallest any member allows so no unit
-    is taken past its own ceiling.
+    all of them, once, like every other row.
     """
     from randomizer.rewards.weights import (
         ECONOMY_WEIGHT_TYPES,
@@ -184,8 +188,7 @@ def _stolen_tech_bundles(by_buff_type, members):
     labels = dict(UNIT_BUFF_WEIGHT_TYPES) | dict(ECONOMY_WEIGHT_TYPES)
     bundles = []
     for buff_type, found in sorted(by_buff_type.items()):
-        limit = min(item.limit for item in found)
-        if limit <= 0:
+        if not found:
             continue
         label = labels.get(buff_type, buff_type.replace('_', ' ').title())
         effects = {item.effect for item in found}
@@ -205,7 +208,7 @@ def _stolen_tech_bundles(by_buff_type, members):
                 max(item.price for item in found)
                 * (1 + (len(reached) - 1) * STOLEN_TECH_PRICE_PER_UNIT)
             )),
-            limit=int(limit),
+            limit=1,
             # One sentence when they all do the same thing, and the stat's
             # own name when they do not -- a unit's own numbers would be a
             # promise the other units in the bundle do not keep.

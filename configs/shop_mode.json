@@ -6,7 +6,7 @@
       "run_length": 10,
       "stage_length": 5,
       "starting_lives": 3,
-      "stage_income_percent_per_stage": 40,
+      "stage_income_percent_per_stage": 25,
       "stage_gem_income_percent_per_stage": 15,
       "challenge_reward_multiplier_percent": 250,
       "permanent_enemy_buffs_per_challenge": 2,
@@ -36,25 +36,25 @@
       "act_1": {
         "display_name": "Act 1",
         "difficulty": 1,
-        "run_coins": 75,
+        "run_coins": 52,
         "meta_coins": 20
       },
       "act_2": {
         "display_name": "Act 2",
         "difficulty": 2,
-        "run_coins": 125,
+        "run_coins": 88,
         "meta_coins": 30
       },
       "operation": {
         "display_name": "Operation",
         "difficulty": 3,
-        "run_coins": 175,
+        "run_coins": 122,
         "meta_coins": 50
       },
       "finale": {
         "display_name": "Finale",
         "difficulty": 4,
-        "run_coins": 250,
+        "run_coins": 175,
         "meta_coins": 70
       }
     },
@@ -375,11 +375,12 @@
           "tier_3": 250
         },
         "flagged_power_price": 750,
-        "buff_percent_of_access": 25,
+        "buff_percent_of_access": 20,
         "cost_window_trim_percent": 5,
         "rounding_step": 10,
         "premium_target_multiplier": 2,
-        "reward_pool_multiplier": 1
+        "reward_pool_multiplier": 1,
+        "buff_flat_price": 14
       },
       "permanent_gem": {
         "name": "permanent_gem",
@@ -417,7 +418,8 @@
         "cost_window_trim_percent": 5,
         "rounding_step": 10,
         "premium_target_multiplier": 1,
-        "reward_pool_multiplier": 4
+        "reward_pool_multiplier": 4,
+        "buff_flat_price": 0
       }
     },
     "permanent_upgrades": {
