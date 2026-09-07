@@ -994,6 +994,12 @@ def _a_mission_is_recorded_from_what_the_game_said_valid():
         config['mission_goal'] = 4
         config['progression_mode'] = 'Mission List'
         config['seed'] = 'SELF-CHECK-RECORD'
+        # Said rather than inherited. The sweep starts from whatever
+        # settings it finds, and a run that only pays out on victory has
+        # one check on a mission -- which is a fine way to play and no
+        # way to check that part of the way through is part of the way.
+        config['rewards_on_victory_only'] = False
+        config['rewards_per_objective'] = 4
         missions = generator.installed_missions()
         if not missions:
             return False
@@ -1078,9 +1084,11 @@ def _a_mission_is_recorded_from_what_the_game_said_valid():
         # because there is no timer here to close the game on.
         and playing.active_hook.get('won') is True
         and playing.active_hook.get('won_at')
-        # One tile to start from, that tile finished, and the board
-        # opened around it -- with nothing drawn and nobody watching.
-        and len(open_tiles) == 1
+        # Somewhere to start, that tile finished, and the board opened
+        # around it -- with nothing drawn and nobody watching. How many
+        # tiles a board starts open is a setting, so it is not counted
+        # here: the sweep runs on whatever settings it finds.
+        and open_tiles
         and tiles_after.get(open_tiles[0]) == 'completed'
         and sum(
             1 for tile, standing in tiles_after.items()
