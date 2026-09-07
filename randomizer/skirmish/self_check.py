@@ -1054,9 +1054,66 @@ def _clone_checks():
         and len(crossed) == len(_installed_sides())
         and 'Guild3' in str(crossed.get('GDI', ''))
     )
+    # What holds a stolen-tech unit behind an infiltration is not in the
+    # rules the copy is made from -- it is in the Stolen Tech option's own
+    # file, and that file names the original. So a copy arrived with no
+    # prerequisite at all, and buying one upgrade on the stolen-tech row
+    # handed the buyer buildable stolen units in a mode whose own shop
+    # says a run cannot decide to build them.
+    from .ownership import STOLEN_TECH_GROUP, stolen_tech_gate
+
+    stolen_buy = (UpgradePurchase(STOLEN_TECH_GROUP, 'sight', 1),)
+    held_sections, held = house_clone_code(
+        stolen_buy, 'UnitedStates', prefix='MOP',
+    )
+    given_sections, given = house_clone_code(
+        stolen_buy, 'UnitedStates', prefix='MOP', gated=False,
+    )
+
+    def _gates(sections, built):
+        return {
+            unit: {
+                key: value
+                for key, value in (sections.get(name) or {}).items()
+                if str(key).lower().startswith('prerequisite')
+            }
+            for unit, name in (built or {}).items()
+        }
+
+    held_gates = _gates(held_sections, held)
+    given_gates = _gates(given_sections, given)
+    stolen_gate_valid = bool(
+        held
+        and held.keys() == given.keys()
+        # Every copy carries the infiltration gate the option file holds
+        # the original behind.
+        and all(
+            gate.get('Prerequisite.StolenTechs')
+            == stolen_tech_gate(unit).get('Prerequisite.StolenTechs')
+            and gate.get('Prerequisite.StolenTechs')
+            for unit, gate in held_gates.items()
+        )
+        # And none carries it when handing the unit over is the point.
+        and not any(given_gates.values())
+        # A unit nobody has to infiltrate for keeps whatever the rules
+        # gave it, gate or no gate, either way.
+        and stolen_tech_gate('GGI') == {}
+        and (
+            _gates(*house_clone_code(
+                (UpgradePurchase('GGI', 'speed', 1),),
+                'UnitedStates', prefix='MOP',
+            ))
+            == _gates(*house_clone_code(
+                (UpgradePurchase('GGI', 'speed', 1),),
+                'UnitedStates', prefix='MOP', gated=False,
+            ))
+        )
+    )
+
     return {
         'skirmish_unit_clone_valid': clone_valid,
         'skirmish_two_houses_share_the_map': shared_valid,
+        'skirmish_stolen_tech_stays_gated': stolen_gate_valid,
         'skirmish_private_seat_valid': seat_valid,
     }
 

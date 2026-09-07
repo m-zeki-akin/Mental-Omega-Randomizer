@@ -156,12 +156,15 @@ def clone_id(prefix, unit, taken):
 
 def unit_clone(
     unit, purchases, country, *, prefix, installed, targets, taken,
-    always=False,
+    always=False, gated=True,
 ):
     """Return the sections one house's copy of one unit needs.
 
     ``purchases`` are that unit's, in any order: stat buffs are applied to
     the copied body and weapon buffs to copies of the weapons it fires.
+
+    ``gated`` carries an infiltration gate across to the copy. Pass it
+    false only where handing the unit over is the point.
     """
     from randomizer.maps.buff_values import (
         apply_unit_buff_value,
@@ -231,13 +234,25 @@ def unit_clone(
     body['Owner'] = ','.join(owners)
     # The positive gate. Everything else about the copy is the unit's own.
     body['RequiredHouses'] = country
+    if gated:
+        # Except one thing that is not the unit's own and had been going
+        # missing. What holds a stolen-tech unit behind an infiltration is
+        # written in the Stolen Tech option's file, not in the rules the
+        # body is copied from, and that file names the original. So the
+        # copy arrived with no prerequisite at all: buying one upgrade on
+        # the stolen-tech row handed the buyer three buildable stolen
+        # units, in a mode whose own shop says a run cannot decide to
+        # build them.
+        from .ownership import stolen_tech_gate
+
+        body.update(stolen_tech_gate(unit))
     sections[identifier] = body
     return sections, identifier
 
 
 def house_clone_code(
     purchases, country, *, prefix, forbid_source=True, existing=None,
-    roster=None,
+    roster=None, gated=True,
 ):
     """Return the map code that gives one house its own upgraded units.
 
@@ -301,6 +316,7 @@ def house_clone_code(
             # A form with no buff of its own still needs a copy, or the
             # copy that deploys into it would deploy into the original.
             always=unit in forms,
+            gated=gated,
         )
         if not identifier:
             continue
@@ -351,6 +367,7 @@ def _section(sections, name):
 
 def apply_house_clones(
     map_path, purchases, country, *, prefix, forbid_source=True, roster=None,
+    gated=True,
 ):
     """Write one house's private copies into the map, and say what was made.
 
@@ -366,6 +383,7 @@ def apply_house_clones(
         forbid_source=forbid_source,
         existing=read_ini_sections(map_path),
         roster=roster,
+        gated=gated,
     )
     if not sections:
         return {}

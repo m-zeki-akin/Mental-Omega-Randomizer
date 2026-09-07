@@ -256,6 +256,21 @@ def expand_group(unit, country):
     return (str(unit).upper(),)
 
 
+def stolen_tech_gate(unit):
+    """Return the keys that hold one unit behind an infiltration.
+
+    These live in the Stolen Tech option's own file rather than in the
+    rules, and that file names the original. A copy is a section the file
+    has never heard of, so unless the gate is carried across by hand the
+    copy is a stolen-tech unit anyone may build.
+    """
+    body = stolen_tech_sections().get(str(unit or '').upper()) or {}
+    return {
+        str(key): str(value) for key, value in body.items()
+        if str(key).lower().startswith('prerequisite')
+    }
+
+
 @lru_cache(maxsize=16)
 def country_faction(country):
     """Return what Mental Omega calls this country's faction."""
