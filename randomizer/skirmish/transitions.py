@@ -27,6 +27,7 @@ from .shop import (
     ally_shopping,
     battle_reward,
     owned_stacks,
+    price_for,
     purchase_stacks,
     STARTING_ORE,
 )
@@ -199,13 +200,14 @@ def buy_upgrade(run, upgrade):
         raise SkirmishTransitionError(
             f'{upgrade.name} is already at its limit'
         )
-    if run.coins < upgrade.price:
+    asking = price_for(upgrade, run.purchases)
+    if run.coins < asking:
         raise SkirmishTransitionError(
-            f'{upgrade.name} costs {upgrade.price} Ore; you have {run.coins}'
+            f'{upgrade.name} costs {asking} Ore; you have {run.coins}'
         )
     return replace(
         run,
-        coins=run.coins - upgrade.price,
+        coins=run.coins - asking,
         purchases=purchase_stacks(run.purchases, upgrade),
         stats=record_purchase(run.stats),
     )

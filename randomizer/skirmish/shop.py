@@ -38,6 +38,18 @@ SHELF_SIZE = 6
 # more than one that raises it on one, and some stats reach only one of
 # them -- a unit with no weapon has no fire rate. Reach is what is paid for.
 STOLEN_TECH_PRICE_PER_UNIT = 0.5
+# What a skirmish charges over the campaign shop's list price, and what
+# every upgrade already owned adds to the next one.
+#
+# The list is the campaign's and the two economies are not the same. A
+# United States shelf holds 364 upgrades and buying every one of them came
+# to 16,847 Ore, while a walk through the nine tiers pays 18,675 before a
+# single bonus or challenge is counted: a run could own the entire
+# catalogue and still have change. The rise is the other half of it --
+# what a battle pays climbs with the tier and a fixed price does not, so
+# the late shelf was bought whole every time it was drawn.
+PRICE_SCALE = 2
+PRICE_RISE_PER_OWNED = 0.15
 
 
 @dataclass(frozen=True)
@@ -67,7 +79,23 @@ def upgrade_price(unit):
     from randomizer.shop.config import SHOP_CONFIG
     from randomizer.shop.unit_pricing import cost_derived_buff_price
 
-    return int(cost_derived_buff_price(unit, SHOP_CONFIG.price_scales['run_ore']))
+    return PRICE_SCALE * int(
+        cost_derived_buff_price(unit, SHOP_CONFIG.price_scales['run_ore'])
+    )
+
+
+def price_for(upgrade, purchases=()):
+    """Return what one upgrade costs an army that already owns those.
+
+    The list price is what the first one costs. Every upgrade an army has
+    already bought raises what the next one asks, so a run that is winning
+    is a run whose next improvement is dearer than its last -- which is
+    what stops the late tiers buying the whole shelf every battle.
+    """
+    owned = sum(max(1, int(one.stacks)) for one in purchases or ())
+    return max(1, int(round(
+        upgrade.price * (1 + PRICE_RISE_PER_OWNED * owned)
+    )))
 
 
 def battle_reward(battle, *, challenge=False, bonus_percent=0):
@@ -366,14 +394,14 @@ def ally_shopping(run, country, coins):
     while affordable:
         choices = [
             upgrade for upgrade in available_upgrades(upgrades, purchases)
-            if upgrade.price <= coins
+            if price_for(upgrade, purchases) <= coins
         ]
         if not choices:
             affordable = False
             continue
         chosen = generator.choice(choices)
+        coins -= price_for(chosen, purchases)
         purchases = purchase_stacks(purchases, chosen)
-        coins -= chosen.price
     return purchases, coins
 
 

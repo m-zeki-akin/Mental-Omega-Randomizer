@@ -18,7 +18,7 @@ from randomizer.skirmish.factions import country_by_index, skirmish_countries
 from randomizer.skirmish.leaderboard import board_row, load_board, reached_text
 from randomizer.skirmish.maps import map_by_relative_path
 from randomizer.skirmish.progression import SKILL_NAMES, describe_offer
-from randomizer.skirmish.shop import owned_stacks, shelf_for
+from randomizer.skirmish.shop import owned_stacks, price_for, shelf_for
 from randomizer.skirmish.table import deal
 from randomizer.skirmish.stats import stats_lines
 from randomizer.skirmish.transitions import run_progress_text
@@ -110,7 +110,7 @@ def upgrade_view(upgrade, purchases):
         'name': upgrade.name,
         'effect': upgrade.effect,
         'description': upgrade.description,
-        'price': upgrade.price,
+        'price': price_for(upgrade, purchases),
         'owned': bool(
             owned_stacks(purchases, upgrade.unit, upgrade.buff_type)
         ),

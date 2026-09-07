@@ -1500,8 +1500,19 @@ def _shop_checks():
         price_refused = False
     except SkirmishTransitionError:
         price_refused = True
+    from .shop import PRICE_RISE_PER_OWNED, price_for
+
     purchase_valid = bool(
-        bought.coins == STARTING_ORE - 2 * cheap.price
+        # The first costs the list price and the second costs more,
+        # because an army that already owns one is buying its second.
+        bought.coins
+        == STARTING_ORE - cheap.price - price_for(cheap, (
+            UpgradePurchase('GGI', 'speed', 1),
+        ))
+        and price_for(cheap, ()) == cheap.price
+        and price_for(cheap, (UpgradePurchase('GGI', 'speed', 1),))
+        > cheap.price
+        and PRICE_RISE_PER_OWNED > 0
         and owned_stacks(bought.purchases, 'GGI', 'speed') == 2
         and limit_refused
         and price_refused
@@ -1608,15 +1619,21 @@ def _shop_checks():
     from randomizer.shop.unit_pricing import unit_pricing_traits
     from .shop import upgrade_price
 
+    from .shop import PRICE_SCALE
+
     hero_valid = bool(
         unit_pricing_traits('TANY').get('unique')
-        and upgrade_price('TANY') < run_buff_price('TANY')
+        and upgrade_price('TANY') < PRICE_SCALE * run_buff_price('TANY')
         # And within a few Ore of a unit that costs about the same and is
         # nobody's hero.
-        and abs(upgrade_price('TANY') - upgrade_price('CARRIER')) <= 10
-        # Everything that was never special is untouched.
-        and upgrade_price('GGI') == run_buff_price('GGI')
-        and upgrade_price('FORTRESS') == run_buff_price('FORTRESS')
+        and abs(upgrade_price('TANY') - upgrade_price('CARRIER'))
+        <= 10 * PRICE_SCALE
+        # Everything that was never special takes the campaign shop's own
+        # price, at this mode's own scale.
+        and upgrade_price('GGI') == PRICE_SCALE * run_buff_price('GGI')
+        and upgrade_price('FORTRESS')
+        == PRICE_SCALE * run_buff_price('FORTRESS')
+        and PRICE_SCALE > 1
     )
 
     # What an infiltration might bring is bought as one row, not as one row
