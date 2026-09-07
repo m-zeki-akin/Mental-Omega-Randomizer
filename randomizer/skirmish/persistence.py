@@ -42,9 +42,17 @@ DEFAULT_SKIRMISH_PATHS = SkirmishPersistencePaths(
 
 
 class SkirmishRepository:
+    # One lock for the store, not one for each way of reaching it.
+    #
+    # A repository is built where it is needed -- every reading and every
+    # command makes its own -- so a lock held on the instance was a lock
+    # each caller had to itself, which is no lock at all. There is one
+    # store on the disk, and this is the one thing that holds it.
+    _LOCK = threading.RLock()
+
     def __init__(self, paths=DEFAULT_SKIRMISH_PATHS):
         self.paths = paths
-        self._lock = threading.RLock()
+        self._lock = self._LOCK
         self.integrity_modified = False
 
     def _read_collection(self):

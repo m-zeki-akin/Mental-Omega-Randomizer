@@ -15,6 +15,7 @@ from randomizer.ui.settings_rows import (
     CHOICE,
     GROUPS,
     LIMITS,
+    MAP,
     NUMBER,
     SEARCH,
     SET,
@@ -110,6 +111,8 @@ class Settings:
             if not isinstance(held, (list, tuple)):
                 return []
             return [entry['id'] for entry in self._named(row, held)]
+        if row['kind'] == MAP:
+            return self._mapped(row, held)
         if row['kind'] == CHOICE:
             wanted = str(held or '')
             return wanted if wanted in row['choices'] else row['choices'][0]
@@ -134,6 +137,26 @@ class Settings:
         if other is None:
             return number
         return number if row['key'] in self.value(config, other) else 0
+
+    def _mapped(self, row, held):
+        """Return what is turned off for each thing named, in order.
+
+        A subject with nothing turned off is not a subject: it says the
+        same as not being here at all, and two ways of saying one thing
+        is a setting that can disagree with itself.
+        """
+        if not isinstance(held, dict):
+            return {}
+        known = [entry['id'] for entry in row['catalogue']]
+        mapped = {}
+        for subject, turned_off in held.items():
+            if not isinstance(turned_off, (list, tuple, set)):
+                continue
+            wanted = {str(item) for item in turned_off}
+            kept = [item for item in known if item in wanted]
+            if kept:
+                mapped[str(subject)] = kept
+        return mapped
 
     def _named(self, row, ids):
         if self.catalogues is None:
@@ -204,6 +227,21 @@ class Settings:
             seen['maximum_length'] = row['maximum_length']
         elif row['kind'] == SET:
             seen['catalogue'] = [dict(entry) for entry in row['catalogue']]
+        elif row['kind'] == MAP:
+            # The subjects by name, each with what is turned off for it,
+            # and the whole list of what may be turned off. The names the
+            # subjects are picked from are asked for the way a search
+            # asks: by name, once.
+            seen['catalogue'] = [dict(entry) for entry in row['catalogue']]
+            seen['catalogue_name'] = row['catalogue_name']
+            seen['catalogue_size'] = len(
+                self.catalogues.catalogue(row['catalogue_name'])
+                if self.catalogues else ()
+            )
+            seen['chosen'] = [
+                dict(entry, types=seen['value'][entry['id']])
+                for entry in self._named(row, list(seen['value']))
+            ]
         elif row['kind'] == SEARCH:
             # The list itself does not come with the settings: it is a
             # few hundred entries, it is the same on every reading, and a
@@ -312,6 +350,17 @@ class Settings:
                 entry['id'] for entry in self._named(row, value)
                 if len(entry['id']) <= MAXIMUM_NAME_LENGTH
             ][:MAXIMUM_NAMED]
+        if row['kind'] == MAP:
+            if not isinstance(value, dict):
+                raise ApiError(
+                    f'{row["label"]} needs what is turned off, by name'
+                )
+            named = {
+                str(subject): turned_off
+                for subject, turned_off in list(value.items())[:MAXIMUM_NAMED]
+                if len(str(subject)) <= MAXIMUM_NAME_LENGTH
+            }
+            return self._mapped(row, named)
         if row['kind'] == CHOICE:
             kept = str(value or '')
             if kept not in row['choices']:

@@ -43,6 +43,7 @@ from .settings_rows import (  # noqa: F401  (the table's own vocabulary)
     GROUPS,
     KINDS,
     LIMITS,
+    MAP,
     NUMBER,
     SEARCH,
     SET,
@@ -233,26 +234,47 @@ LIMIT_SETTINGS = (
     ),
 )
 
+UNIT_BUFF_CATALOGUE = [
+    {'id': str(entry['id']),
+     'label': str(entry.get('setting_label') or entry['id'])}
+    for entry in BUFF_TYPES
+]
+POWER_BUFF_CATALOGUE = [
+    {'id': str(entry['id']),
+     'label': str(entry.get('setting_label') or entry['id'])}
+    for entry in POWER_BUFF_TYPES
+]
+
 BUFF_TYPE_SETTINGS = (
     _row(
         'enabled_buff_types', 'Unit buffs a reward may be', SET,
         'Turn one off and no reward improves a unit that way.',
         where=GENERATION,
-        catalogue=[
-            {'id': str(entry['id']),
-             'label': str(entry.get('setting_label') or entry['id'])}
-            for entry in BUFF_TYPES
-        ],
+        catalogue=UNIT_BUFF_CATALOGUE,
     ),
     _row(
         'enabled_power_buff_types', 'Power buffs a reward may be', SET,
         'The same, for what a reward can improve about a power.',
         where=GENERATION,
-        catalogue=[
-            {'id': str(entry['id']),
-             'label': str(entry.get('setting_label') or entry['id'])}
-            for entry in POWER_BUFF_TYPES
-        ],
+        catalogue=POWER_BUFF_CATALOGUE,
+    ),
+    # The same question asked of one thing rather than of all of them.
+    # Turning cloaking off everywhere is a different run from turning it
+    # off for the one unit that made a mission unwinnable with it.
+    _row(
+        'excluded_unit_buff_types', 'Upgrades one unit may never get', MAP,
+        'Name a unit, then turn off the upgrades it is never offered. '
+        'Everything else about that unit stays as it is.',
+        where=GENERATION,
+        catalogue=UNIT_BUFF_CATALOGUE,
+        catalogue_name=UNIT_ACCESS,
+    ),
+    _row(
+        'excluded_power_buff_types', 'Upgrades one power may never get', MAP,
+        'The same, for what a superweapon or support power is offered.',
+        where=GENERATION,
+        catalogue=POWER_BUFF_CATALOGUE,
+        catalogue_name=SUPERWEAPON,
     ),
 )
 

@@ -725,6 +725,53 @@ def _a_battle_that_cannot_be_fought_is_not_committed_to_valid():
     )
 
 
+def _a_setting_about_one_thing_keeps_both_halves_valid():
+    """What is turned off for one thing is kept for that thing only.
+
+    A unit barred from one kind of upgrade is a sentence with two
+    subjects, and the setting holds both: which units, and what each of
+    them is never offered. What is checked is that both halves survive
+    the round trip -- and that a unit with nothing turned off is not
+    kept at all, because "here with nothing barred" and "not here" would
+    otherwise be two ways of saying one thing.
+    """
+    from randomizer.ui.campaign_settings import MAP, SECTIONS
+
+    row = next(
+        (row for _name, rows in SECTIONS for row in rows
+         if row['kind'] == MAP), None
+    )
+    if row is None or not row['catalogue']:
+        return False
+    key = f"{row['where']}.{row['key']}" if row['where'] else row['key']
+    kind = row['catalogue'][0]['id']
+
+    with _store_of_its_own():
+        listed = call('campaign.catalogue', name=row['catalogue_name'])
+        entries = (listed.get('result') or {}).get('entries') or []
+        if not entries:
+            return False
+        first = entries[0]['id']
+        kept = call('campaign.use_setting', name=key, value={
+            first: [kind, 'no-such-upgrade'],
+            'nothing-barred': [],
+        })
+        refused = call('campaign.use_setting', name=key, value=[first])
+        emptied = call('campaign.use_setting', name=key, value={})
+    chosen = (_held(kept, key) or {}).get('chosen') or []
+    return bool(
+        len(chosen) == 1
+        and chosen[0]['id'] == first
+        # Named out of the installed rules, like any other search.
+        and chosen[0]['label'] == entries[0]['label']
+        # The upgrade it is barred from, and not the one that does not
+        # exist.
+        and chosen[0]['types'] == [kind]
+        and refused.get('kind') == 'ApiError'
+        and ((_held(emptied, key) or {}).get('chosen') or []) == []
+    )
+
+
 def _refuse_to_start(*_args, **_kwargs):
     raise ApiError('The self-check does not start games')
 
@@ -856,6 +903,9 @@ def validate_api_contract():
         _a_battle_that_cannot_be_fought_is_not_committed_to_valid()
     )
     named_lists_kept = _a_named_list_keeps_what_it_was_given_valid()
+    both_halves_kept = (
+        _a_setting_about_one_thing_keeps_both_halves_valid()
+    )
     all_of_them_kept = _all_of_them_is_kept_as_all_of_them_valid()
     after = _touched()
 
@@ -922,6 +972,7 @@ def validate_api_contract():
         'api_ceilings_answer_the_settings_valid': ceilings_answer,
         'api_failed_launch_commits_to_nothing_valid': nothing_committed,
         'api_named_lists_keep_their_names_valid': named_lists_kept,
+        'api_settings_about_one_thing_keep_both_valid': both_halves_kept,
         'api_all_of_them_stays_all_of_them_valid': all_of_them_kept,
         # Asking the launcher what it can do is not playing it. Every
         # command was called above; the runs, the board, the battle files
@@ -939,6 +990,7 @@ def validate_api_contract():
             and ceilings_answer
             and nothing_committed
             and named_lists_kept
+            and both_halves_kept
             and all_of_them_kept
             and before == after
             and unknown.get('ok') is False

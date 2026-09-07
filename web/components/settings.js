@@ -11,16 +11,16 @@
  * of what a screen has to hand it. */
 
 import {
-  el, grid, limits, panel, picker, row, section, select, stepper, textField,
-  toggle, weights,
+  button, el, grid, limits, panel, picker, row, section, select, stepper,
+  textField, toggle, weights,
 } from './index.js';
 
 /* The kinds whose control is a list of its own. They get the width of the
  * panel: a name above, and the list under it. */
-const WIDE = new Set(['set', 'search', 'weights', 'limits']);
+const WIDE = new Set(['set', 'search', 'weights', 'limits', 'map']);
 
 /** One setting, whatever kind it is: what it is, and what changes it. */
-function control(setting, { onChange, catalogues, queries }) {
+function control(setting, { onChange, catalogues, queries, pending, refresh }) {
   const change = (value) => onChange(setting.key, value);
   if (setting.kind === 'switch') {
     return toggle({ value: setting.value, onChange: change });
@@ -54,6 +54,87 @@ function control(setting, { onChange, catalogues, queries }) {
       onQuery: (text) => queries && queries.set(setting.key, text),
       onChange: change,
     });
+  }
+  if (setting.kind === 'map') {
+    // Two questions in one control: which things this is about, and what
+    // is turned off for each. A thing with nothing turned off says the
+    // same as not being here at all, so the launcher does not keep one
+    // -- which is why a thing just named is remembered by the screen
+    // until something is turned off for it.
+    const waiting = (pending && pending.get(setting.key)) || new Set();
+    const off = new Map(
+      (setting.chosen || []).map((entry) => [entry.id, new Set(entry.types)]),
+    );
+    const named = (setting.chosen || []).map((entry) => entry.label);
+    const listed = [
+      ...(setting.chosen || []),
+      ...[...waiting]
+        .filter((id) => !off.has(id))
+        .map((id) => ({ id, label: id, types: [] })),
+    ];
+    const send = () => change(Object.fromEntries(
+      [...off].map(([id, types]) => [id, [...types]]),
+    ));
+    const subject = (entry) => {
+      const turned = off.get(entry.id) || new Set();
+      return panel(entry.label, {
+        children: [grid(setting.catalogue.map((type) => row([
+          el('span', { text: type.label }),
+          toggle({
+            value: !turned.has(type.id),
+            on: 'Allow',
+            off: 'Never',
+            onChange: (allowed) => {
+              const next = new Set(turned);
+              if (allowed) next.delete(type.id);
+              else next.add(type.id);
+              off.set(entry.id, next);
+              if (!next.size) off.delete(entry.id);
+              return send();
+            },
+          }),
+        ], { spread: true })), { wide: true })],
+        footer: [
+          el('span', {
+            class: 'muted',
+            text: turned.size
+              ? `${turned.size} never offered`
+              : 'nothing turned off yet',
+          }),
+          button('Take out', {
+            variant: 'quiet',
+            onClick: () => {
+              off.delete(entry.id);
+              if (waiting.has(entry.id)) waiting.delete(entry.id);
+              return send();
+            },
+          }),
+        ],
+      });
+    };
+    return el('div', { class: 'stack' }, [
+      ...listed.map(subject),
+      picker({
+        chosen: listed.map((entry) => ({ id: entry.id, label: entry.label })),
+        catalogue: (catalogues && catalogues.get(setting.catalogue_name)) || [],
+        query: (queries && queries.get(setting.key)) || '',
+        placeholder: `Search ${setting.catalogue_size} of them`,
+        pills: false,
+        onQuery: (text) => queries && queries.set(setting.key, text),
+        onChange: (ids) => {
+          const added = ids[ids.length - 1];
+          if (!added) return null;
+          // Nothing is turned off for it yet, so the launcher has
+          // nothing to keep. The screen remembers it until there is.
+          waiting.add(added);
+          if (pending) pending.set(setting.key, waiting);
+          return refresh ? refresh() : null;
+        },
+      }),
+      named.length
+        ? null
+        : el('div', { class: 'faint', text: 'Nothing named yet.' }),
+    ]);
   }
   if (setting.kind === 'set') {
     // Several at once, each its own on and off. The whole list is sent

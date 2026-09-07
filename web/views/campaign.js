@@ -9,7 +9,7 @@
  * Generating the seed is still the classic window's, and the panel on the
  * tab beside this one says so. */
 
-import { act, call, register } from '../app.js';
+import { act, call, refresh, register } from '../app.js';
 import { notice, section } from '../components/index.js';
 import { searchesIn, settingsSections } from '../components/settings.js';
 
@@ -32,10 +32,18 @@ async function fetchCatalogue(name) {
   return catalogues.get(name);
 }
 
+/* Things named on a screen that the launcher has nothing to keep for
+ * yet: a unit picked out to bar an upgrade from, before any upgrade has
+ * been barred. Kept here so that naming one and turning something off
+ * for it are two presses rather than one impossible one. */
+const pending = new Map();
+
 const tools = {
   onChange: (name, value) => act('campaign.use_setting', { name, value }),
   catalogues,
   queries,
+  pending,
+  refresh,
 };
 
 async function render(root) {

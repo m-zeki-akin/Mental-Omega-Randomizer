@@ -265,7 +265,7 @@ export function stats(lines) {
  */
 export function picker({
   chosen = [], catalogue = [], query = '', limit = 20,
-  placeholder, onQuery, onChange,
+  placeholder, pills = true, onQuery, onChange,
 } = {}) {
   const ids = chosen.map((entry) => entry.id);
   const taken = new Set(ids);
@@ -297,7 +297,10 @@ export function picker({
   };
   show(query);
   return el('div', { class: 'picker' }, [
-    chosen.length
+    // What is picked is drawn here unless the screen is drawing it
+    // itself -- which it does when each pick is a block of its own
+    // rather than a name.
+    !pills ? null : chosen.length
       ? row(chosen.map((entry) => el('span', {
         class: 'pill pill--accent picker__taken',
       }, [

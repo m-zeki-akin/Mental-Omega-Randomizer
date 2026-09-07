@@ -31,8 +31,15 @@ WEIGHTS = 'weights'
 # together because they are one question asked of a list: how far each of
 # these may go, with nought meaning never.
 LIMITS = 'limits'
+# A search and a set at once: which things this is about, and what is
+# turned off for each of them. One unit may be barred from one kind of
+# upgrade without barring the kind or the unit, which is a sentence with
+# two subjects and no single control for it.
+MAP = 'map'
 
-KINDS = frozenset({SWITCH, NUMBER, CHOICE, TEXT, SET, SEARCH, WEIGHTS, LIMITS})
+KINDS = frozenset({
+    SWITCH, NUMBER, CHOICE, TEXT, SET, SEARCH, WEIGHTS, LIMITS, MAP,
+})
 # The kinds that hold no value of their own: what they have is the
 # settings they draw, each of which is written by its own name.
 GROUPS = frozenset({WEIGHTS, LIMITS})

@@ -1277,6 +1277,7 @@ def run_self_check():
             CHOICE,
             GROUPS,
             KINDS,
+            MAP,
             NUMBER,
             SEARCH,
             SECTIONS,
@@ -1354,7 +1355,7 @@ def run_self_check():
                 and (row['kind'] != CHOICE or row['choices'])
                 and (row['kind'] != TEXT or row['maximum_length'] > 0)
                 and (
-                    row['kind'] != SET
+                    row['kind'] not in (SET, MAP)
                     or all(
                         entry['id'] and entry['label']
                         for entry in row['catalogue']
@@ -1363,7 +1364,7 @@ def run_self_check():
                 # A search names a list rather than carrying one, and a
                 # name nothing answers to is a box with nothing in it.
                 and (
-                    row['kind'] != SEARCH
+                    row['kind'] not in (SEARCH, MAP)
                     or row['catalogue_name'] in CATALOGUE_NAMES
                 )
                 # A group of weights draws settings it does not hold.
