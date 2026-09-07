@@ -1,4 +1,4 @@
-"""A thing that can generate a run without a window in front of it.
+"""A thing that can generate and record a run without a window.
 
 Generating a campaign run is not one function: it is a dozen that read
 each other -- which rewards the pool may hold, what a mission is checked
@@ -22,7 +22,12 @@ and it is a narrow one.
 
 
 def build(config, missions, state=None):
-    """Return something that can generate a run from these settings."""
+    """Return something that can generate and record a run."""
+    from randomizer.application.archipelago_controller import (
+        ArchipelagoController,
+    )
+    from randomizer.application.enemy_scaling import EnemyScalingController
+    from randomizer.application.launch_controller import LaunchController
     from randomizer.application.progression_controller import (
         ProgressionController,
     )
@@ -33,6 +38,7 @@ def build(config, missions, state=None):
     )
     from randomizer.application.state_controller import StateController
     from randomizer.application.unlock_data import UnlockDataController
+    from randomizer.core.diagnostics import event as log_event
 
     class Generator(
         SeedController,
@@ -41,8 +47,25 @@ def build(config, missions, state=None):
         StartingUnlocksController,
         UnlockDataController,
         ProgressionController,
+        LaunchController,
+        EnemyScalingController,
+        # Composed rather than stubbed: every question the recording path
+        # asks it -- what the server sent, which locations a mission has
+        # -- it already answers with "there is no session" when the run
+        # has no Archipelago on it, which is the only kind of run that
+        # reaches here. Stubbing them would have been writing that answer
+        # out a second time.
+        ArchipelagoController,
     ):
-        """The generation half of the launcher, with nothing drawn."""
+        """The launcher with nothing drawn.
+
+        Everything it inherits either never wanted a window or asks
+        whether there is one first. What is overridden below is the
+        handful that did: drawing, logging, and the timer a window uses
+        to watch a game. Each is answered the way it would be answered
+        with no window there -- which is not nothing, because the run
+        still has to be written down.
+        """
 
         def __init__(self, config, missions, state):
             self.config = config
@@ -62,9 +85,63 @@ def build(config, missions, state=None):
                     if str(value).strip()
                 })
 
+            # What a window keeps about the game it started. Nothing is
+            # running when one of these is built; a poll fills them in.
+            self.active_hook = None
+            self.active_game_process = None
+            self.active_mission_attempt = None
+
         def queue_busy_progress(self, *_args, **_kwargs):
             """Say nothing while it works. There is no bar to move."""
             return None
+
+        # --- what a window would have done -------------------------------
+        def append_log(self, text, error=False):
+            """The launcher's log, where there is no log to write in.
+
+            Kept rather than dropped: these lines are how a player finds
+            out what a mission paid out, and the diagnostics file is
+            where they are read from when the window is not there.
+            """
+            log_event(
+                'campaign_note', text=str(text), error=bool(error),
+            )
+
+        def clear_log(self, *_args, **_kwargs):
+            return None
+
+        def redraw_mission_tree(self, *_args, **_kwargs):
+            return None
+
+        def refresh_progress_view(self, *_args, **_kwargs):
+            return None
+
+        def refresh_grid_tiles(self, *_args, **_kwargs):
+            return None
+
+        def update_header_summary(self, *_args, **_kwargs):
+            return None
+
+        def schedule_game_close_after_victory(self):
+            """Note that the game may be closed, and leave it open.
+
+            A window closes the game as a courtesy a couple of seconds
+            after victory, on its own timer. There is no timer here and
+            it was never part of recording the win -- so the fact is
+            written on the ticket and the game is left alone.
+            """
+            if isinstance(self.active_hook, dict):
+                self.active_hook['won'] = True
+
+        def after(self, _delay, callback=None, *args):
+            """There is no event loop to schedule against.
+
+            Nothing here may quietly become a no-op instead: a caller
+            that needed a timer needs to be looked at, not silenced.
+            """
+            raise RuntimeError(
+                'The headless launcher has no timer to schedule on'
+            )
 
     return Generator(config, missions, state)
 

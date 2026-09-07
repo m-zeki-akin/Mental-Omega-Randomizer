@@ -25,6 +25,7 @@ where they were.
 """
 
 import json
+import os
 import threading
 import time
 from contextlib import contextmanager
@@ -961,6 +962,85 @@ def _the_same_settings_make_the_same_run_valid():
     )
 
 
+def _a_mission_is_recorded_from_what_the_game_said_valid():
+    """What the game wrote in its log becomes the run getting further.
+
+    A campaign mission is watched rather than reported: the launcher
+    plants markers in the map and reads them back out of the game's own
+    log. That reading was a method on a controller a window owned, and
+    the window's timer was what drove it -- so a page could start a
+    mission and then have no way of ever learning it was won.
+
+    It reads them here instead, from the same method, on a launcher with
+    nothing drawn. Fed one objective marker and then the victory one,
+    the run has to go from nothing to a mission finished, its rewards in
+    hand, and the mission after it open -- which is the whole of what
+    finishing a mission means.
+    """
+    from randomizer.campaign import generation, generator, progress
+    from randomizer.config import player as settings_file
+
+    with _store_of_its_own():
+        config = settings_file.load_config()
+        config['campaign_filter'] = 'All Campaigns'
+        config['mission_goal'] = 4
+        config['progression_mode'] = 'Mission List'
+        config['seed'] = 'SELF-CHECK-RECORD'
+        missions = generator.installed_missions()
+        if not missions:
+            return False
+        maker = generator.build(config, missions)
+        options = generation.options_from(
+            maker,
+            generation.controls_from_config(config),
+            missions=missions,
+            reward_settings=maker.config_reward_settings(),
+        )
+        state = maker.build_seed_generation(options)['state']
+        code = (state.get('mission_order') or [None])[0]
+        checks = (state.get('mission_checks') or {}).get(code) or []
+        if not code or len(checks) < 2:
+            return False
+        playing = generator.build(config, missions, state=state)
+        playing.active_hook = {
+            'mission_code': code,
+            'scenario': 'self-check',
+            'markers': {
+                'MO-SELF-CHECK-OBJECTIVE': checks[0]['id'],
+                'MO-SELF-CHECK-VICTORY': 'victory',
+            },
+            'seen': set(),
+            'completed_objective_checks': 0,
+            'objective_events_seen': 0,
+            'offset': 0,
+        }
+        opened_before = len(progress.unlocked_codes(playing.state))
+        # The two lines a real log would have around it: the game says it
+        # is interactive, and then the marker planted in the map goes by.
+        playing.process_hook_log_text(os.linesep.join((
+            'Capture_Mouse()',
+            'something MO-SELF-CHECK-OBJECTIVE happened',
+        )))
+        part_way = progress.check_counts(playing.state, code)
+        mid_complete = progress.is_complete(playing.state, code)
+        playing.process_hook_log_text('and then MO-SELF-CHECK-VICTORY')
+        done, total = progress.check_counts(playing.state, code)
+    return bool(
+        # One objective is some of the way, not all of it and not none.
+        0 < part_way[0] < part_way[1]
+        and not mid_complete
+        # And victory is the whole of it, paid out and written down.
+        and done == total > 0
+        and progress.is_complete(playing.state, code)
+        and len(playing.state.get('earned_rewards') or ()) == done
+        # The mission after it is open, which is what finishing one is for.
+        and len(progress.unlocked_codes(playing.state)) == opened_before + 1
+        # And the window's courtesy is noted rather than attempted: there
+        # is no timer here to close the game on.
+        and playing.active_hook.get('won') is True
+    )
+
+
 def _refuse_to_start(*_args, **_kwargs):
     raise ApiError('The self-check does not start games')
 
@@ -1121,6 +1201,9 @@ def validate_api_contract():
     one_rule = _one_rule_says_how_far_a_run_got_valid()
     run_generated = _a_run_is_generated_from_the_settings_valid()
     same_run = _the_same_settings_make_the_same_run_valid()
+    mission_recorded = (
+        _a_mission_is_recorded_from_what_the_game_said_valid()
+    )
     after = _touched()
 
     json_safe = True
@@ -1191,6 +1274,7 @@ def validate_api_contract():
         'api_one_rule_says_how_far_a_run_got_valid': one_rule,
         'api_a_run_is_generated_from_the_settings_valid': run_generated,
         'api_the_same_settings_make_the_same_run_valid': same_run,
+        'api_a_mission_is_recorded_from_the_log_valid': mission_recorded,
         # Asking the launcher what it can do is not playing it. Every
         # command was called above; the runs, the board, the battle files
         # and the game itself are all where they were.
@@ -1212,6 +1296,7 @@ def validate_api_contract():
             and one_rule
             and run_generated
             and same_run
+            and mission_recorded
             and before == after
             and unknown.get('ok') is False
             and described
