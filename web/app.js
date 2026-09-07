@@ -184,7 +184,7 @@ function buildModeControl(answer) {
   })), { locked, lockedBy, title: 'Which kind of game' });
   fillControl('mode', standing.modes.map((mode) => ({
     value: mode.name,
-    label: mode.ported ? mode.label : `${mode.label} (classic)`,
+    label: mode.label,
     selected: mode.name === current,
   })), { locked, lockedBy, title: standing.description || 'Which one of it' });
 }
