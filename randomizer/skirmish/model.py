@@ -110,6 +110,10 @@ class BattleOffer:
     # the offer was, so the battle that is played is the one that was
     # offered rather than a fresh roll at launch.
     enemy_upgrades: tuple[tuple[str, ...], ...] = ()
+    # One unit the player's country can otherwise only field by
+    # infiltrating somebody, theirs for this battle. Empty on every
+    # battle that is not handing one over.
+    player_stolen: str = ''
 
     @property
     def houses(self):
@@ -147,6 +151,7 @@ class BattleOffer:
             'bonus_percent': self.bonus_percent,
             'modifiers': list(self.modifiers),
             'enemy_upgrades': [list(one) for one in self.enemy_upgrades],
+            'player_stolen': self.player_stolen,
             'seed': self.seed,
             'ally': self.ally,
             'challenge': self.challenge,

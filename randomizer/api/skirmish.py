@@ -17,7 +17,11 @@ from randomizer.launch.game import (
 from randomizer.skirmish.factions import country_by_index, skirmish_countries
 from randomizer.skirmish.leaderboard import board_row, load_board, reached_text
 from randomizer.skirmish.maps import map_by_relative_path
-from randomizer.skirmish.progression import SKILL_NAMES, describe_offer
+from randomizer.skirmish.progression import (
+    SKILL_NAMES,
+    describe_offer,
+    stolen_label,
+)
 from randomizer.skirmish.shop import owned_stacks, price_for, shelf_for
 from randomizer.skirmish.table import deal
 from randomizer.skirmish.stats import stats_lines
@@ -103,6 +107,10 @@ def offer_view(offer, index):
         # What the offer asked for, by name, so a card can say it without
         # working it back out of the flags.
         'modifiers': list(offer.modifiers),
+        # The unit this battle hands over, by the name the game gives it.
+        'player_stolen': (
+            stolen_label(offer.player_stolen) if offer.player_stolen else ''
+        ),
         'enemy_upgrades': max(
             (len(bought) for bought in offer.enemy_bought()), default=0,
         ),

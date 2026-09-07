@@ -252,7 +252,7 @@ def unit_clone(
 
 def house_clone_code(
     purchases, country, *, prefix, forbid_source=True, existing=None,
-    roster=None, gated=True,
+    roster=None, gated=True, grant=(),
 ):
     """Return the map code that gives one house its own upgraded units.
 
@@ -268,13 +268,17 @@ def house_clone_code(
     is not the country the copies are gated to. A player is seated on a
     spare country and that seat can fall on another side, so a row standing
     for a set of units has to be opened against the army they chose.
+
+    ``grant`` are units copied whether or not anything was bought for
+    them, which is how a house is handed a unit rather than an
+    improvement to one.
     """
     from randomizer.rewards.catalogue import BUFF_TARGETS
     from randomizer.rewards.roster import _installed_sections
 
     installed = _installed_sections()
     existing = existing or {}
-    if not installed or not purchases:
+    if not installed or not (purchases or grant):
         return {}, {}
     # A shelf row can stand for more than one unit. The stolen-tech row
     # raises a stat on everything an infiltration might bring, because a run
@@ -289,6 +293,12 @@ def house_clone_code(
                 purchase if unit == purchase.unit
                 else UpgradePurchase(unit, purchase.buff_type, purchase.stacks)
             )
+    # A unit handed over is one with nothing bought for it, which is the
+    # same shape as a form nobody bought: an entry with an empty purchase
+    # list. The loop below closes over its forms like any other.
+    for unit in grant:
+        for form in expand_group(unit, roster or country):
+            by_unit.setdefault(form, [])
 
     taken = {str(name).lower() for name in installed}
     taken.update(str(name).lower() for name in existing)
@@ -367,7 +377,7 @@ def _section(sections, name):
 
 def apply_house_clones(
     map_path, purchases, country, *, prefix, forbid_source=True, roster=None,
-    gated=True,
+    gated=True, grant=(),
 ):
     """Write one house's private copies into the map, and say what was made.
 
@@ -384,6 +394,7 @@ def apply_house_clones(
         existing=read_ini_sections(map_path),
         roster=roster,
         gated=gated,
+        grant=grant,
     )
     if not sections:
         return {}

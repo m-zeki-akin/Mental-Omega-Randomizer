@@ -28,7 +28,13 @@ function offerPills(offer) {
       'danger',
     ));
   }
+  if (offer.modifiers && offer.modifiers.includes('stolen')) {
+    marks.push(pill('enemy has infiltrated', 'danger'));
+  }
   if (offer.challenge) marks.push(pill('challenge', 'accent'));
+  if (offer.player_stolen) {
+    marks.push(pill(`you field a ${offer.player_stolen}`, 'accent'));
+  }
   if (offer.bonus_percent) {
     marks.push(pill(`+${offer.bonus_percent}% Ore`, 'ore'));
   }

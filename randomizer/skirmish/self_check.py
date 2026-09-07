@@ -1110,10 +1110,71 @@ def _clone_checks():
         )
     )
 
+    # A unit handed over rather than improved. The player's prototype and
+    # an infiltrated enemy's army are the same machinery: a copy written
+    # without the gate, registered in its type list so the sidebar and the
+    # AI can both reach it. And the AI needs no script of its own for
+    # them -- every stolen-tech unit is already named by Mental Omega's
+    # own task forces, which is why it has teams it could never fill.
+    from .ai import (
+        installed_ai_sections as _ai_now,
+        taskforce_units as _force_units,
+        ai_house_code as _ai_code,
+        TASK_FORCES as _forces,
+    )
+    from .ownership import stolen_tech_units
+
+    prototypes = stolen_tech_units('UnitedStates')
+    gift_sections, gift = house_clone_code(
+        (), 'Guild3', prefix='MOG', gated=False, roster='UnitedStates',
+        grant=(STOLEN_TECH_GROUP,), forbid_source=False,
+    )
+    ai_now = _ai_now()
+    named_by_ai = {
+        unit
+        for force in (ai_now.get(_forces) or {}).values()
+        for _count, unit in _force_units(ai_now.get(force)).values()
+    }
+    enemy_code = _ai_code(
+        [('UnitedStates', 1, dict(gift))], sections=ai_now,
+    )
+    asked_for = {
+        unit
+        for name, values in enemy_code.items()
+        if name not in {'AITriggerTypes', 'TASKFORCES', _forces, 'TeamTypes'}
+        for _count, unit in _force_units(values).values()
+    }
+    handed_over_valid = bool(
+        prototypes
+        # The group hands over every stolen unit the country may own.
+        and set(gift) == set(prototypes)
+        # Each one is a copy the buyer can build: gated to their house,
+        # and without the infiltration the original is named for.
+        and all(
+            value(gift_sections.get(name) or {}, 'RequiredHouses') == 'Guild3'
+            and not any(
+                str(key).lower().startswith('prerequisite')
+                for key in (gift_sections.get(name) or {})
+            )
+            for name in gift.values()
+        )
+        # Registered where the sidebar and the AI both look.
+        and any(
+            section in gift_sections
+            for section in ('VehicleTypes', 'InfantryTypes', 'AircraftTypes')
+        )
+        # The AI has teams for these already -- that is the whole reason
+        # this costs no new script. If a submod ever stops naming them,
+        # this is where it shows.
+        and set(prototypes) <= named_by_ai
+        and any(name in asked_for for name in gift.values())
+    )
+
     return {
         'skirmish_unit_clone_valid': clone_valid,
         'skirmish_two_houses_share_the_map': shared_valid,
         'skirmish_stolen_tech_stays_gated': stolen_gate_valid,
+        'skirmish_unit_handed_over_valid': handed_over_valid,
         'skirmish_private_seat_valid': seat_valid,
     }
 
@@ -1357,7 +1418,6 @@ def _shop_checks():
         return offer_modifiers(battle, OFFER_COUNT, seed=seed)
 
     early = _asked(1)
-    late = _asked(18)
     percents = [
         sum(one.percent for one in ask) for ask in early
     ]
@@ -1388,7 +1448,24 @@ def _shop_checks():
         and 'boost' in {one.key for one in allowed_modifiers(18)}
         and MODIFIERS_BY_KEY['extra_enemy'].percent
         > MODIFIERS_BY_KEY['alone'].percent
-        and any('boost' in {one.key for one in ask} for ask in late)
+        # Nor is an enemy that has infiltrated asked of an opening tier.
+        and 'stolen' not in {one.key for one in allowed_modifiers(1)}
+        and 'stolen' in {one.key for one in allowed_modifiers(12)}
+        # What a late tier is allowed to ask, it does ask -- read across
+        # a run rather than one draw, because there are more combinations
+        # than there are offers and no single battle sees them all.
+        and {'boost', 'stolen'} <= {
+            one.key
+            for battle in range(18, 31)
+            for ask in _asked(battle)
+            for one in ask
+        }
+        and not any(
+            one.key in {'boost', 'stolen'}
+            for battle in range(1, 4)
+            for ask in _asked(battle)
+            for one in ask
+        )
         # Two runs at the same tier are not handed the same list.
         and _asked(1, seed='OTHER') != early
         # The warmup asks for nothing.
@@ -1836,7 +1913,8 @@ def _shop_checks():
 
     from .launch import ai_houses, enemy_purchases
     from .maps import read_map_pool
-    from .progression import battle_offers
+    from .ownership import stolen_tech_units
+    from .progression import battle_offers, challenge_offer
     from .model import BattleOffer
     from .ownership import STOLEN_TECH_GROUP
     from .progression import TIERS, _enemy_upgrades
@@ -1864,6 +1942,7 @@ def _shop_checks():
         battle=13,
     )
     dealt = ()
+    prototype = ''
     armed_pool = read_map_pool(GAME_ROOT / 'MapsMO' / 'Standard', cache=False)
     if armed_pool and skirmish_countries():
         # Several battles' worth, because one battle's three enemies out
@@ -1876,6 +1955,12 @@ def _shop_checks():
                 GAME_ROOT / 'MapsMO', skirmish_countries(),
             )
         )
+        closing = challenge_offer(
+            replace(dealing, battle=12),
+            read_map_pool(GAME_ROOT / 'MapsMO' / 'Challenge', cache=False),
+            GAME_ROOT / 'MapsMO', skirmish_countries(),
+        )
+        prototype = closing.player_stolen if closing is not None else ''
     armed_valid = bool(
         len(handed) == 3
         # Drawn from the seed, so the battle that is played is the one
@@ -1904,6 +1989,15 @@ def _shop_checks():
         # An offer stored before enemies were armed is read back as the
         # plain battle it was played as.
         and replace(stored, enemy_upgrades=()).enemy_bought() == ((), (), ())
+        # The challenge hands the player one unit of their own country
+        # that a run could otherwise only take by infiltrating somebody,
+        # and hands it over for that battle alone.
+        and prototype
+        and prototype in stolen_tech_units(
+            (country_by_index(dealing.player_country) or _NO_COUNTRY).country_id
+        )
+        # And a battle that is not a challenge hands over nothing.
+        and not any(one.player_stolen for one in dealt)
         # And an armed enemy never plays the ally's country, because the
         # launch cannot arm it there and the offer would have promised --
         # and charged for -- an enemy that fights plain.

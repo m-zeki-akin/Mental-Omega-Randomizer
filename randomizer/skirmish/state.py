@@ -104,6 +104,9 @@ def normalize_battle_offer(document, field='offer'):
             if isinstance(document.get('enemy_upgrades'), list)
             and isinstance(bought, list)
         ),
+        player_stolen=_string(
+            document.get('player_stolen'), f'{field}.player_stolen'
+        ).upper(),
         bonus_percent=_int(
             document.get('bonus_percent'), f'{field}.bonus_percent',
             minimum=0, default=0,

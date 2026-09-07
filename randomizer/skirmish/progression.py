@@ -158,6 +158,11 @@ class Modifier:
     mental: bool = False
     # How many upgrades this adds to what each enemy already carries.
     enemy_upgrades: int = 0
+    # Whether each enemy fields the units its country can only field by
+    # infiltrating somebody. The AI has always had teams that name them --
+    # all fifteen appear in Mental Omega's own task forces -- and has
+    # never been able to build one, because it cannot infiltrate.
+    enemy_stolen: bool = False
 
 
 # What each one is worth is what it costs to survive, not what it sounds
@@ -170,6 +175,8 @@ MODIFIERS = (
     Modifier('armed', 'a bought-up enemy', 35, enemy_upgrades=2),
     Modifier('extra_enemy', 'one more enemy', 40, extra_enemies=1),
     Modifier('boost', 'boosted AI', 50, from_tier=4, mental=True),
+    Modifier('stolen', 'an enemy that has infiltrated', 45, from_tier=3,
+             enemy_stolen=True),
 )
 MODIFIERS_BY_KEY = {one.key: one for one in MODIFIERS}
 # How many may be asked for at once. Three at a time is not an offer, it
@@ -258,6 +265,14 @@ def challenge_offer(run, pool, maps_dir, countries):
         map_path=relative,
         map_name=entry.name,
         enemy_countries=enemies,
+        # The one thing a challenge gives back. It is the tier's own
+        # fight, on a map built for it, and this is where a prototype
+        # belongs: one unit of the player's country that the run could
+        # otherwise only take by infiltrating somebody, theirs for this
+        # battle and gone with it.
+        player_stolen=_a_stolen_unit(
+            _country_id(countries, run.player_country), generator,
+        ),
         handicap=challenge_level(run.battle),
         handicaps=tuple(
             challenge_level(run.battle) for _ in enemies
@@ -323,6 +338,16 @@ def offer_modifiers(battle, count=OFFER_COUNT, seed=''):
     while len(drawn) < count:
         drawn.append(())
     return tuple(drawn)
+
+
+def _a_stolen_unit(country, generator):
+    """Return one unit this country could only field by infiltrating."""
+    if not country:
+        return ''
+    from .ownership import stolen_tech_units
+
+    found = sorted(stolen_tech_units(country))
+    return generator.choice(found) if found else ''
 
 
 def _enemy_upgrades(country, many, generator):
@@ -476,7 +501,24 @@ def describe_offer(offer):
         f'\n+{offer.bonus_percent}% Ore for taking it'
         if offer.bonus_percent else ''
     )
+    stolen = (
+        f'\nYou field a {stolen_label(offer.player_stolen)} for this battle'
+        if offer.player_stolen else ''
+    )
+    infiltrated = (
+        '\nEvery enemy fields what it could only steal'
+        if 'stolen' in set(offer.modifiers) else ''
+    )
     return (
         f'{" and ".join(parts)} {"enemy" if enemies == 1 else "enemies"}'
-        f'{boost}{armed}, {company}{reward}'
+        f'{boost}{armed}, {company}{infiltrated}{stolen}{reward}'
+    )
+
+
+def stolen_label(unit):
+    """Return what the game calls one unit, or the ID if it has no name."""
+    from randomizer.rewards.catalogue import BUFF_TARGETS
+
+    return str(
+        (BUFF_TARGETS.get(str(unit or '').upper()) or {}).get('label') or unit
     )

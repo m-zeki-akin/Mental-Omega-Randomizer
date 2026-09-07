@@ -52,6 +52,9 @@ SPAWN_MAP_INI = GAME_ROOT / 'spawnmap.ini'
 PLAYER_CLONE_PREFIX = 'MOP'
 ALLY_CLONE_PREFIX = 'MOL'
 ENEMY_CLONE_PREFIX = 'MOE'
+# A unit handed over rather than improved: the player's prototype, and
+# what an enemy that has infiltrated somebody fields.
+GRANT_CLONE_PREFIX = 'MOG'
 
 
 # What the player wears when they have not said, and what everyone wears
@@ -257,6 +260,22 @@ def prepare_battle(battle, *, before=None, after=None):
         prefix=PLAYER_CLONE_PREFIX,
         roster=battle['player'].country_id,
     )
+    # The prototype, if this battle hands one over. Its own call because
+    # it is the one copy written without the gate it is named for: the
+    # upgrades above keep theirs, so a run that has bought stolen-tech
+    # upgrades still has to infiltrate for those.
+    granted = {}
+    if offer.player_stolen:
+        granted = apply_house_clones(
+            SPAWN_MAP_INI,
+            (),
+            battle['seat'],
+            prefix=GRANT_CLONE_PREFIX,
+            roster=battle['player'].country_id,
+            forbid_source=False,
+            gated=False,
+            grant=(offer.player_stolen,),
+        )
     ai_units = prepare_ai(battle)
 
     if after is not None:
@@ -267,11 +286,13 @@ def prepare_battle(battle, *, before=None, after=None):
         game_mode=game_mode,
         seat=battle['seat'],
         player_clones=len(built),
+        player_granted=len(granted),
         ally_clones=len(ai_units),
     )
     return {
         'game_mode': game_mode,
         'player_clones': built,
+        'player_granted': granted,
         'ally_clones': ai_units,
     }
 
@@ -355,7 +376,36 @@ def prepare_ai(battle):
             # single house.
             forbid_source=False,
         )
+    # What an enemy that has infiltrated fields. Not drawn: it is every
+    # stolen-tech unit its own country may own, which is what having
+    # infiltrated means. The AI needs no new script for them -- all
+    # fifteen are already named by Mental Omega's own task forces, and
+    # ai_house_code copies those the way it copies any other.
+    from .ownership import stolen_tech_units
+
+    infiltrated = set()
+    if 'stolen' in set(battle['offer'].modifiers):
+        for index in battle['offer'].enemy_countries:
+            country = country_by_index(index)
+            if country is None or (
+                ally is not None and country.country_id == ally.country_id
+            ):
+                continue
+            infiltrated.add(country.country_id)
+
     by_country = {}
+    for country_id in sorted(infiltrated):
+        made = apply_house_clones(
+            SPAWN_MAP_INI,
+            (),
+            country_id,
+            prefix=GRANT_CLONE_PREFIX,
+            forbid_source=False,
+            gated=False,
+            grant=stolen_tech_units(country_id),
+        )
+        if made:
+            by_country.setdefault(country_id, {}).update(made)
     for country_id, bought in enemy_purchases(battle['offer']).items():
         if ally is not None and country_id == ally.country_id:
             # The ally is playing what an enemy is playing. A copy is the
@@ -370,7 +420,7 @@ def prepare_ai(battle):
             forbid_source=False,
         )
         if made:
-            by_country[country_id] = made
+            by_country.setdefault(country_id, {}).update(made)
     houses = ai_houses(battle, clones, by_country)
     if houses and (clones or by_country):
         stage_ai_file(ai_house_code(houses))
@@ -378,6 +428,7 @@ def prepare_ai(battle):
         'skirmish_ai_prepared',
         ally_clones=len(clones),
         armed_enemies=len(by_country),
+        infiltrated_enemies=len(infiltrated),
         enemy_clones=sum(len(made) for made in by_country.values()),
     )
     return clones
