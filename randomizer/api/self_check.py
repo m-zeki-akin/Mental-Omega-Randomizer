@@ -649,6 +649,58 @@ def _a_ceiling_answers_the_other_settings_valid():
     )
 
 
+def _a_battle_that_cannot_be_fought_is_not_committed_to_valid():
+    """A launch that fails leaves the table as it found it.
+
+    Committing to an offer is final -- a battle scouted and put back is a
+    battle chosen twice -- and the run used to be saved as committed
+    before the battle it named had been built. Anything that went wrong
+    after that point left the run pinned to an offer it could not fight
+    and could not trade for another, with giving up the only way out. A
+    submod that takes a country away is enough to cause it.
+
+    So the run is written down between the files being written and the
+    game being started, and this is what says so: a battle that cannot be
+    built is refused, and the offer is still there to choose.
+    """
+    from randomizer.skirmish import launch as battles
+    from randomizer.skirmish.factions import skirmish_countries
+    from randomizer.skirmish.table import deal
+    from randomizer.skirmish.transitions import skip_warmup, start_run
+
+    from . import skirmish as actions_module
+
+    countries = skirmish_countries()
+    if len(countries) < 2:
+        return False
+
+    def cannot_build(*_args, **_kwargs):
+        raise LookupError('This run plays a country the rules no longer have')
+
+    with _store_of_its_own():
+        store = actions_module._repository()
+        store.save_run(deal(skip_warmup(start_run(
+            run_id='a-run-that-cannot-be-fought',
+            seed='SELFCHECK',
+            player_country=countries[0].index,
+            ally_country=countries[1].index,
+            created='2026-01-01',
+        ))))
+        building = battles.build_battle
+        battles.build_battle = cannot_build
+        try:
+            refused = call('skirmish.launch', index=0)
+        finally:
+            battles.build_battle = building
+        after = store.load_run()
+    return bool(
+        refused.get('kind') == 'ApiError'
+        and after is not None
+        # Free to choose, which is the whole of it.
+        and after.committed_offer is None
+    )
+
+
 def _refuse_to_start(*_args, **_kwargs):
     raise ApiError('The self-check does not start games')
 
@@ -776,6 +828,9 @@ def validate_api_contract():
     one_at_a_time = _two_presses_at_once_keep_both_valid()
     ready_or_waiting = _the_registry_is_never_half_ready_valid()
     ceilings_answer = _a_ceiling_answers_the_other_settings_valid()
+    nothing_committed = (
+        _a_battle_that_cannot_be_fought_is_not_committed_to_valid()
+    )
     named_lists_kept = _a_named_list_keeps_what_it_was_given_valid()
     all_of_them_kept = _all_of_them_is_kept_as_all_of_them_valid()
     after = _touched()
@@ -841,6 +896,7 @@ def validate_api_contract():
         'api_two_presses_at_once_keep_both_valid': one_at_a_time,
         'api_registry_is_never_half_ready_valid': ready_or_waiting,
         'api_ceilings_answer_the_settings_valid': ceilings_answer,
+        'api_failed_launch_commits_to_nothing_valid': nothing_committed,
         'api_named_lists_keep_their_names_valid': named_lists_kept,
         'api_all_of_them_stays_all_of_them_valid': all_of_them_kept,
         # Asking the launcher what it can do is not playing it. Every
@@ -857,6 +913,7 @@ def validate_api_contract():
             and one_at_a_time
             and ready_or_waiting
             and ceilings_answer
+            and nothing_committed
             and named_lists_kept
             and all_of_them_kept
             and before == after

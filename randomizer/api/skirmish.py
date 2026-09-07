@@ -178,9 +178,7 @@ def run_view(run, *, shelf=()):
 
 @action('skirmish.run', 'The run being played, or nothing')
 def run(repository=None):
-    from randomizer.skirmish.persistence import SkirmishRepository
-
-    repository = repository or SkirmishRepository()
+    repository = repository or _repository()
     current = repository.load_run()
     if current is None:
         return None
@@ -194,9 +192,7 @@ def run(repository=None):
 
 @action('skirmish.runs', 'Every saved run, and which one is being played')
 def runs(repository=None):
-    from randomizer.skirmish.persistence import SkirmishRepository
-
-    repository = repository or SkirmishRepository()
+    repository = repository or _repository()
     stored, active = repository.list_runs()
     return {
         'active': active,
@@ -516,14 +512,18 @@ def launch(index=0):
         if not path.exists():
             raise ApiError(f'The game is missing {path.name}')
 
-    saved = repository.save_run(current)
     try:
         battle = build_battle(
-            saved, offer, entry,
+            current, offer, entry,
             difficulty=LOCKED_DIFFICULTY,
             game_speed=LOCKED_GAME_SPEED_VALUE,
         )
     except LookupError as exc:
+        # Nothing is written down yet, and that is the point. Committing
+        # is final -- a battle put back is a battle chosen twice -- so a
+        # run saved before the battle was built would be a run pinned to
+        # an offer it could not fight and could not swap, which a submod
+        # that took a country away is enough to cause.
         raise ApiError(str(exc)) from exc
     prepare_battle(
         battle,
@@ -536,6 +536,10 @@ def launch(index=0):
             battle['difficulty'], battle['game_speed']
         ),
     )
+    # Saved between the writing and the starting: the files are the
+    # part that can fail, and a game must never start on a battle the run
+    # has not been told it committed to.
+    saved = repository.save_run(current)
     session.start(battle)
     return {
         'map_name': entry.name,
