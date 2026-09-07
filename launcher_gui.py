@@ -1145,6 +1145,37 @@ def run_self_check():
                 for entry in starting_unlock_entries
             )
         )
+        # A starting unlock the installed rules no longer know is kept
+        # where the settings are stored and left out of what a run is
+        # generated with. Both windows keep it now; the classic one used
+        # to drop it on its next save, so a player who tried a submod
+        # without that reward lost the choice for good -- and the new
+        # interface, which keeps it, would have looked like the one that
+        # was wrong.
+        class BothControllers(
+            state_controller_module.StateController,
+            starting_unlocks_module.StartingUnlocksController,
+        ):
+            """The two mixins the launcher itself combines."""
+
+        unknown_name = 'A Reward No Rules Have'
+        keeping_stub = object.__new__(BothControllers)
+        keeping_stub.config = {
+            'generation': {'starting_unlock_rewards': [unknown_name]},
+        }
+        keeping_stub.manual_starting_reward_names = {unknown_name}
+        kept_unlocks = (
+            BothControllers.config_reward_settings(keeping_stub)
+            .get('starting_unlock_rewards', ())
+        )
+        unknown_starting_unlocks_kept_valid = bool(
+            # Kept where it is stored, by both paths that store it.
+            unknown_name in kept_unlocks
+            and unknown_name in keeping_stub.canonical_starting_unlock_names()
+            # And nowhere near what a run is generated with.
+            and unknown_name not in
+            keeping_stub.filter_permanent_starting_unlock_names(kept_unlocks)
+        )
         state_stub = object.__new__(state_controller_module.StateController)
         state_stub.config = {'generation': {}}
         runtime_reward_settings = (
@@ -1578,6 +1609,9 @@ def run_self_check():
             'static_config_paths': [str(path) for path in static_config_paths],
             'application_imported': True,
             'starting_unlock_catalogue_valid': starting_unlock_catalogue_valid,
+            'unknown_starting_unlocks_kept_valid': (
+                unknown_starting_unlocks_kept_valid
+            ),
             'reward_weight_connections_valid': (
                 reward_weight_connections_valid
             ),
@@ -1667,6 +1701,7 @@ def run_self_check():
                 'original_refinery_contract_valid',
                 'application_imported',
                 'starting_unlock_catalogue_valid',
+                'unknown_starting_unlocks_kept_valid',
                 'reward_weight_connections_valid',
                 'randomizer_arsenal_contract_valid',
                 'mission_reward_multipliers_valid',

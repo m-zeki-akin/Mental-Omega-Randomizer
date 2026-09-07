@@ -400,7 +400,11 @@ class StateController:
             'start_with_tier_one_defenses': start_with_tier_one_defenses,
             'starting_reward_count': normalize_starting_reward_count(generation_config.get('starting_reward_count', 0)),
             'starting_reward_types': normalize_starting_reward_types(generation_config.get('starting_reward_types')),
-            'starting_unlock_rewards': self.filter_permanent_starting_unlock_names(generation_config.get('starting_unlock_rewards')) if hasattr(self, 'filter_permanent_starting_unlock_names') else normalize_starting_unlock_reward_names(generation_config.get('starting_unlock_rewards')),
+            # Kept as chosen rather than filtered: this is what the
+            # settings hold, and what a run is generated with is filtered
+            # where it is generated. A name the installed rules no longer
+            # know is a submod away from meaning something again.
+            'starting_unlock_rewards': self.kept_starting_unlock_names(generation_config.get('starting_unlock_rewards')) if hasattr(self, 'kept_starting_unlock_names') else normalize_starting_unlock_reward_names(generation_config.get('starting_unlock_rewards')),
             'include_defensive_buildings': include_defensive_buildings,
             'include_special_buildings': include_special_buildings,
             'include_special_rewards': include_special_rewards,

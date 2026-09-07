@@ -53,8 +53,20 @@ class StartingUnlocksController:
                 filtered.append(canonical_name)
         return normalize_starting_unlock_reward_names(filtered)
 
+    def kept_starting_unlock_names(self, names):
+        """Return the names as they were chosen, known to the rules or not.
+
+        What a run is generated with is filtered -- the generator cannot
+        hand over a reward the installed rules have never heard of. What
+        is *stored* is not, because the rules are a submod away from
+        changing: a player who picks a reward, plays a submod without it
+        and comes back would otherwise find their choice quietly gone,
+        and nothing anywhere would say who took it.
+        """
+        return normalize_starting_unlock_reward_names(names)
+
     def canonical_starting_unlock_names(self):
-        return self.filter_permanent_starting_unlock_names(sorted({
+        return self.kept_starting_unlock_names(sorted({
             canonical_reward({'name': name}).get('name', name)
             for name in getattr(self, 'manual_starting_reward_names', set())
         }, key=str.casefold))
