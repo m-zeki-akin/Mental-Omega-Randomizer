@@ -139,10 +139,11 @@ is whether the game does what they ask. Each names what to look at.
 
 The mode control offers the five modes as two kinds of game -- Campaign
 (Classic, Mission List, Grid) and Roguelike (Campaign, Skirmish) -- and
-the screens follow whichever is standing. Only Skirmish is *played* here;
-Roguelike/Campaign has its setup here and its run in the classic window,
-and the three Campaign modes get one panel saying what the mode is and one
-press to open the classic window at the next start.
+the screens follow whichever is standing. Only Skirmish is *played* here.
+The three Campaign modes have a Run screen and a Setup screen: the run
+standing can be read, and the next one generated, here. What is left of
+them is the mission itself -- launching one and recording how it went.
+Roguelike/Campaign has its setup here and its run in the classic window.
 
 ### Which settings belong to a kind, and which to one mode
 
@@ -193,10 +194,25 @@ skirmish keeps under its own name.
   setting is a kind in all four -- which is what `map` and `limits` cost,
   and both were worth it.
 
-- **The screens for the four modes themselves.** A mode drawn here needs
-  what Skirmish Shop has: the play loop, not only the settings. Until a
-  mode has both, the panel pointing at the classic window is the truthful
-  thing to show.
+- **Launching a campaign mission from here.** The last piece of the
+  three Campaign modes. What a mission needs written before it starts is
+  in `launch_controller` and mostly free of the window already; what is
+  not is the watching -- the classic window polls the game's log on a Tk
+  timer, and a page cannot. Skirmish solved the same problem with a
+  ticket on disk and a poll the page asks for (`randomizer/api/session.py`),
+  but that ticket is shaped as a run and a battle; a mission's is a seed
+  and a mission code, and recording one is unlocking its checks rather
+  than saving a run. The mechanism is proven; the shape is not shared.
+
+- **Grid's own board.** Which missions are open there is a shape rather
+  than a count, and it is kept up to date as a run is played -- a change
+  to the run, not a reading of it. The Run screen reads the tiles the
+  classic window last settled; drawing the board, and settling it here,
+  is its own piece of work.
+
+- **The two roguelike runs.** Shop Mode's run is a domain of its own
+  (`shop_controller.py`), and Skirmish is already here. Neither is
+  waiting on anything the Campaign work does not already provide.
 
 - **`randomizer/ui` goes when the two interfaces are at parity**, and not
   before: it is what the fallback falls back to.
