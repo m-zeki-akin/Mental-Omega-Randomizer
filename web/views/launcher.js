@@ -1,11 +1,19 @@
 /* The launcher itself, rather than anything it is playing.
  *
- * Two settings so far, and what they have in common is that neither
- * belongs to a mode: which interface opens, and whether either is drawn
- * light or dark. A mode's own settings belong on that mode's screens. */
+ * What everything here has in common is that none of it belongs to a
+ * mode: which interface opens, whether either is drawn light or dark, and
+ * how a mission is written out looking and sounding. A mode's own
+ * settings belong on that mode's screens.
+ *
+ * The last of those is on this screen and not on a run's setup for a
+ * reason worth keeping: two runs made from the same seed play the same
+ * however those three are set. They change what the map is written with,
+ * not what the run is. */
 
 import { act, applyTheme, call, register } from '../app.js';
-import { button, el, notice, panel, pill, section } from '../components/index.js';
+import {
+  button, el, field, notice, panel, pill, section, select, toggle,
+} from '../components/index.js';
 
 function interfacePanel(appearance) {
   return panel('Interface', {
@@ -52,6 +60,29 @@ function themePanel(appearance) {
   });
 }
 
+function lookPanel(mission) {
+  const change = (name, value) => act('launcher.use_mission_look', {
+    name, value,
+  });
+  const choice = (name, label) => field(label, select(
+    mission[name].choices.map((one) => ({ value: one, label: one })),
+    { value: mission[name].value, onChange: (value) => change(name, value) },
+  ));
+  return panel('In the game', {
+    body: 'How a mission is written out. None of it changes what a run '
+      + 'is: the same seed deals the same missions and the same rewards '
+      + 'however these are set.',
+    children: [
+      choice('player_color', 'Your colour'),
+      choice('eva_voice', 'Whose voice reads the briefing'),
+      field('Shuffle the other house colours', toggle({
+        value: mission.rainbowizer.value,
+        onChange: (value) => change('rainbowizer', value),
+      })),
+    ],
+  });
+}
+
 function classicSeed(seed) {
   if (!seed || !seed.seed) return null;
   return notice(
@@ -65,6 +96,7 @@ async function render(root) {
   const modes = await call('launcher.modes');
   root.replaceChildren(
     section('Launcher', [interfacePanel(appearance), themePanel(appearance)]),
+    section('Missions', lookPanel(appearance.mission)),
     section('Elsewhere', [
       classicSeed(modes.campaign_seed)
       || notice('No campaign seed has been generated.'),

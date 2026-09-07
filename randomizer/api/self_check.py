@@ -1446,6 +1446,57 @@ def _a_mission_left_out_stays_out_valid():
     )
 
 
+def _what_a_mission_looks_like_is_settable_valid():
+    """What the new window writes is what the mission writer reads.
+
+    Three settings decide how a mission is written out -- the player's
+    colour, whether the other houses are shuffled, whose voice reads the
+    briefing -- and they were the ones that stopped a headless launcher
+    from hooking a map at all until they were given a way to be read
+    without a control. That fix has a matching half: the window that has
+    no controls for them can now set them.
+
+    So this goes the whole way round rather than checking either end.
+    Written through the boundary the way the screen writes it, and read
+    back through the accessor the map writer actually calls.
+    """
+    from randomizer.campaign import generator
+    from randomizer.config import player as settings_file
+    from randomizer.ui.config import EVA_VOICE_CHOICES, PLAYER_COLORS
+
+    colour = PLAYER_COLORS[-1]
+    voice = EVA_VOICE_CHOICES[-1]
+    with _store_of_its_own():
+        kept = [
+            call('launcher.use_mission_look', name='player_color',
+                 value=colour),
+            call('launcher.use_mission_look', name='rainbowizer', value=True),
+            call('launcher.use_mission_look', name='eva_voice', value=voice),
+        ]
+        refused = [
+            call('launcher.use_mission_look', name='player_color',
+                 value='not a colour'),
+            call('launcher.use_mission_look', name='rainbowizer',
+                 value='yes'),
+            call('launcher.use_mission_look', name='no.such.look', value=1),
+        ]
+        read_back = generator.build(
+            settings_file.load_config(), [],
+        ).launch_appearance_choices()
+        answered = call('launcher.appearance')
+    return bool(
+        all(reply.get('ok') for reply in kept)
+        and all(reply.get('kind') == 'ApiError' for reply in refused)
+        # The map writer sees exactly what was set, in the order it reads
+        # them: colour, shuffle, voice.
+        and read_back == (colour, True, voice)
+        # And the screen is told the same thing it just wrote.
+        and answered['result']['mission']['player_color']['value'] == colour
+        and answered['result']['mission']['rainbowizer']['value'] is True
+        and answered['result']['mission']['eva_voice']['value'] == voice
+    )
+
+
 def _refuse_to_start(*_args, **_kwargs):
     raise ApiError('The self-check does not start games')
 
@@ -1638,6 +1689,7 @@ def validate_api_contract():
     mission_written = _a_mission_is_written_out_without_a_window_valid()
     rules_order = _a_named_list_is_in_the_order_the_rules_are_valid()
     mission_left_out = _a_mission_left_out_stays_out_valid()
+    look_settable = _what_a_mission_looks_like_is_settable_valid()
     pictures_answer = _a_picture_comes_back_for_what_a_list_names_valid()
     after = _touched()
 
@@ -1719,6 +1771,7 @@ def validate_api_contract():
         ),
         'api_a_named_list_is_in_the_order_the_rules_are_valid': rules_order,
         'api_a_mission_left_out_stays_out_valid': mission_left_out,
+        'api_what_a_mission_looks_like_is_settable_valid': look_settable,
         'api_a_picture_comes_back_for_what_a_list_names_valid': (
             pictures_answer
         ),
@@ -1749,6 +1802,7 @@ def validate_api_contract():
             and mission_written
             and rules_order
             and mission_left_out
+            and look_settable
             and pictures_answer
             and before == after
             and unknown.get('ok') is False

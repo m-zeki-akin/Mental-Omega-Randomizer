@@ -141,6 +141,37 @@ def use_mode(name=''):
     }
 
 
+# What a mission is written out looking and sounding like. Three
+# settings that belong to no mode -- they are the same in a campaign run
+# and a Shop one -- and that the classic window keeps among its own, which
+# is why they had no home here.
+LOOK = 'player_color'
+SHUFFLE = 'rainbowizer'
+VOICE = 'eva_voice'
+
+
+def _mission_look(config):
+    """Return the three, each with what it may be."""
+    from randomizer.rewards.display import valid_choice
+    from randomizer.ui.config import EVA_VOICE_CHOICES, PLAYER_COLORS
+
+    return {
+        LOOK: {
+            'value': valid_choice(
+                config.get(LOOK), PLAYER_COLORS, PLAYER_COLORS[0],
+            ),
+            'choices': list(PLAYER_COLORS),
+        },
+        SHUFFLE: {'value': bool(config.get(SHUFFLE, False))},
+        VOICE: {
+            'value': valid_choice(
+                config.get(VOICE), EVA_VOICE_CHOICES, EVA_VOICE_CHOICES[0],
+            ),
+            'choices': list(EVA_VOICE_CHOICES),
+        },
+    }
+
+
 @action('launcher.appearance', 'How the launcher itself is set up')
 def appearance():
     config = _settings()
@@ -150,7 +181,38 @@ def appearance():
         'new': kept == NEW,
         'theme': DARK if config.get(THEME_KEY) else LIGHT,
         'dark': bool(config.get(THEME_KEY)),
+        'mission': _mission_look(config),
     }
+
+
+@action(
+    'launcher.use_mission_look',
+    'Change how a mission is written out looking and sounding',
+    kind=COMMAND,
+)
+def use_mission_look(name='', value=None):
+    """Keep one of the three, and answer with all of them.
+
+    They are read where a mission is written rather than where a run is
+    generated, which is why they sit here and not on a mode's setup: two
+    runs made from the same seed play the same however these are set.
+    """
+    wanted = str(name or '').strip()
+    if wanted not in (LOOK, SHUFFLE, VOICE):
+        raise ApiError(f'There is no {wanted or "unnamed"} appearance setting')
+    config = _settings()
+    if wanted == SHUFFLE:
+        if not isinstance(value, bool):
+            raise ApiError('Whether the houses are shuffled is yes or no')
+        config[SHUFFLE] = value
+    else:
+        offered = _mission_look(config)[wanted]['choices']
+        chosen = str(value or '')
+        if chosen not in offered:
+            raise ApiError(f'{chosen or "That"} is not one of the choices')
+        config[wanted] = chosen
+    _keep(config)
+    return appearance()
 
 
 @action('launcher.use_theme', 'Draw the launcher light or dark', kind=COMMAND)
