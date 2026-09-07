@@ -65,12 +65,19 @@ function control(setting, { onChange, catalogues, queries, pending, refresh }) {
     const off = new Map(
       (setting.chosen || []).map((entry) => [entry.id, new Set(entry.types)]),
     );
-    const named = (setting.chosen || []).map((entry) => entry.label);
+    // A thing just named is named the way the rest of them are: the
+    // launcher has nothing to call it by yet, so the list it was picked
+    // out of is what says what it is called.
+    const known = (catalogues && catalogues.get(setting.catalogue_name)) || [];
+    const callsIt = (id) => {
+      const entry = known.find((item) => item.id === id);
+      return entry ? entry.label : id;
+    };
     const listed = [
       ...(setting.chosen || []),
       ...[...waiting]
         .filter((id) => !off.has(id))
-        .map((id) => ({ id, label: id, types: [] })),
+        .map((id) => ({ id, label: callsIt(id), types: [] })),
     ];
     const send = () => change(Object.fromEntries(
       [...off].map(([id, types]) => [id, [...types]]),
@@ -113,10 +120,13 @@ function control(setting, { onChange, catalogues, queries, pending, refresh }) {
       });
     };
     return el('div', { class: 'stack' }, [
+      listed.length
+        ? null
+        : el('div', { class: 'faint', text: 'Nothing named yet.' }),
       ...listed.map(subject),
       picker({
         chosen: listed.map((entry) => ({ id: entry.id, label: entry.label })),
-        catalogue: (catalogues && catalogues.get(setting.catalogue_name)) || [],
+        catalogue: known,
         query: (queries && queries.get(setting.key)) || '',
         placeholder: `Search ${setting.catalogue_size} of them`,
         pills: false,
@@ -131,9 +141,6 @@ function control(setting, { onChange, catalogues, queries, pending, refresh }) {
           return refresh ? refresh() : null;
         },
       }),
-      named.length
-        ? null
-        : el('div', { class: 'faint', text: 'Nothing named yet.' }),
     ]);
   }
   if (setting.kind === 'set') {

@@ -272,9 +272,18 @@ export function picker({
   const matches = el('div', { class: 'picker__matches' });
   const show = (typed) => {
     const wanted = String(typed || '').trim().toLowerCase();
+    // Nothing until something is typed. Twenty names off the top of a
+    // list of three hundred is not a catalogue and not an answer -- it
+    // is a wall to scroll past on the way to the next setting.
+    if (!wanted) {
+      fill(matches, [el('div', {
+        class: 'faint',
+        text: `Type a name to find one of ${catalogue.length}.`,
+      })]);
+      return;
+    }
     const found = catalogue.filter((entry) => !taken.has(entry.id) && (
-      !wanted
-      || String(entry.label).toLowerCase().includes(wanted)
+      String(entry.label).toLowerCase().includes(wanted)
       || String(entry.id).toLowerCase().includes(wanted)
       || String(entry.group || '').toLowerCase().includes(wanted)
     ));

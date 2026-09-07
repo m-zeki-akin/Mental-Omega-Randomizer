@@ -170,36 +170,28 @@ Two consequences worth writing down. The Roguelike pair should share one
 Records screen rather than growing a second board -- today only Skirmish
 has one. And a setting that is shared has to be stored where both modes
 read it: the Campaign three already are (one `generation` block), the
-Roguelike two are not (`shop_*` keys beside skirmish's own).
+Roguelike two are not (`shop_*` keys beside skirmish's own). Shop Mode's
+own setup is drawn here now, and the two roguelikes do share the mission
+pool through `generation` -- what is still apart is everything the
+skirmish keeps under its own name.
 
-- **The rest of Shop Mode's settings.** Its pacing and its optional
-  modifiers are drawn here now, and are settings rather than window state:
-  `shop_pacing` and `shop_modifiers`, read by both windows. What is still
-  only in the classic window is the other half -- the faction pool, the
-  mission pool, the reward exclusion groups, the starting loadout and the
-  seed. Those are already in the player config, so each is a row on the
-  Setup screen and an action beside `shop.use_pacing`; nothing has to be
-  decided first.
+- **Shop Mode's starting loadout.** Everything else about the next Shop
+  run is on its Setup screen: the pacing, the optional trades, the seed,
+  the faction pool, the mission pool and the reward filters. The loadout
+  is not, and it is not a setting -- it is drawn from the units the shop
+  profile has permanently bought, and how many may be taken is itself an
+  upgrade. It wants the profile read across the boundary, which is a
+  reading nothing has needed yet.
 
-- **What the Campaign kind's Setup screen still leaves out.** Nothing of
-  the setup itself: the run, the reward rules and mode, the reward pool,
-  the access limits, the starting rewards and the ones named outright,
-  the arsenal, which buff types a reward may be, what is left out, how
-  often each kind of reward comes up, what the enemy is given, and Grid's
-  own three. What is left are two settings of a different shape --
-  `excluded_unit_buff_types` and `excluded_power_buff_types` are a map of
-  unit to the upgrades it may not get, and `enemy_scaling.caps` is a
-  ceiling per bonus rather than a list of them. Both are a control this
-  interface has not needed yet, and neither is a wall the way the three
-  that were just built would have been.
-
-- **The classic window's mode control names the modes, not the labels.**
-  It is two controls now, like the new interface, but its second one lists
-  the stored names (`Shop Mode`, `Skirmish Shop`) where the new interface
-  lists what they are called inside their kind (`Campaign`, `Skirmish`).
-  Showing labels there means a display value that is not the stored one,
-  in a combobox bound straight to the mode variable; worth doing, worth
-  doing carefully.
+- **What both Setup screens are made of.** A row says where a value
+  lives, what it is called, what kind of thing it is and what it may be
+  (`randomizer/ui/settings_rows.py`); a table is a list of rows
+  (`campaign_settings.py`, `shop_settings.py`); one piece in the middle
+  turns a table into a reply and a reply back into a setting
+  (`randomizer/api/settings.py`); and one component draws either
+  (`web/components/settings.js`). A new setting is a row. A new *kind* of
+  setting is a kind in all four -- which is what `map` and `limits` cost,
+  and both were worth it.
 
 - **The screens for the four modes themselves.** A mode drawn here needs
   what Skirmish Shop has: the play loop, not only the settings. Until a
