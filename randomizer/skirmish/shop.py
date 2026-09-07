@@ -21,6 +21,7 @@ from functools import lru_cache
 import random
 
 from .model import UpgradePurchase, tier_of
+from .ownership import STOLEN_TECH_GROUP
 
 
 # What a battle pays, by the tier it was fought in. Fixed rather than scaled
@@ -383,8 +384,20 @@ def ally_shopping(run, country, coins):
     what it has rather than saving: an ally that hoards is an ally that
     never gets better.
     """
+    from .ai import fielded_by_ai
+
+    # The ally builds what its task forces name, like any other computer
+    # player, so a row on anything else is its Ore spent on a unit it
+    # will not field. The player's own shelf is not held to this: a human
+    # builds what the sidebar offers.
+    fielded = fielded_by_ai()
     upgrades = available_upgrades(
-        country_upgrades(country), run.ally_purchases
+        [
+            one for one in country_upgrades(country)
+            if not fielded or one.unit in fielded
+            or one.unit.startswith(STOLEN_TECH_GROUP)
+        ],
+        run.ally_purchases,
     )
     if not upgrades:
         return run.ally_purchases, coins

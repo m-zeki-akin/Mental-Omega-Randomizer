@@ -138,6 +138,24 @@ def taskforce_units(body):
     return slots
 
 
+def fielded_by_ai(sections=None):
+    """Return every unit some task force asks a computer player to build.
+
+    A computer player builds what its task forces name and nothing else,
+    so an upgrade on a unit no task force names is Ore spent on a unit
+    that never arrives. Of a United States shelf's 364 rows, 56 are on
+    the five units in that position; the other three sides lose less.
+
+    A human is not held to this -- they build what the sidebar offers.
+    """
+    sections = sections if sections is not None else installed_ai_sections()
+    found = set()
+    for force in _index(sections, TASK_FORCES):
+        for _count, unit in taskforce_units(sections.get(force)).values():
+            found.add(unit)
+    return frozenset(found)
+
+
 def _index(sections, list_section):
     """Return the ids a list section names, in order."""
     return list((sections.get(list_section) or {}).values())

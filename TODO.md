@@ -73,10 +73,6 @@ is whether the game does what they ask. Each names what to look at.
   exclusive needs a lever this AI file does not have --
   `STAND_DOWN_ORIGINALS` and `forbid_source` are where it would go.
 
-- **The ally's shelf still offers units its AI never fields.** Only 212 of
-  the units in the catalogue appear in a task force; an upgrade on one of
-  the others is Ore the ally will never see the benefit of.
-
 - **Buying a sibling country's units with Ore.** The shelf is one country's
   army, which is right: the three Allied countries field different rosters
   and a United States run has no Hailstorm to improve. The next thing Ore

@@ -1911,6 +1911,7 @@ def _shop_checks():
     from .ai import ai_house_code, installed_ai_sections, taskforce_units
     from randomizer.core.paths import GAME_ROOT
 
+    from .ai import fielded_by_ai
     from .launch import ai_houses, enemy_purchases
     from .maps import read_map_pool
     from .ownership import stolen_tech_units
@@ -1968,9 +1969,26 @@ def _shop_checks():
         and handed == again
         and set(handed) <= on_the_shelf
         # Nothing gated behind an infiltration: a computer player cannot
-        # bring a stolen-tech unit, so improving one spends the offer on
-        # a unit that never arrives.
+        # bring a stolen-tech unit unless the offer hands it over, so
+        # improving one otherwise spends the offer on a unit that never
+        # arrives.
         and not any(key.startswith(STOLEN_TECH_GROUP) for key in handed)
+        # And nothing no task force names, for the same reason: what a
+        # computer player builds is what its task forces ask for.
+        and fielded_by_ai()
+        and all(
+            key.split(':')[0] in fielded_by_ai()
+            for country in ('UnitedStates', 'USSR', 'PsiCorps', 'Guild1')
+            for key in _enemy_upgrades(country, 12, Random(3))
+        )
+        # The ally is held to the same, out of its own purse.
+        and all(
+            purchase.unit in fielded_by_ai()
+            or purchase.unit.startswith(STOLEN_TECH_GROUP)
+            for purchase in ally_shopping(
+                replace(dealing, battle=1), 'UnitedStates', 4000,
+            )[0]
+        )
         and _enemy_upgrades(armed_country, 0, Random(7)) == ()
         # The opening tier fights the army the rules describe. After that
         # an enemy is armed, and never less well armed than it was a tier

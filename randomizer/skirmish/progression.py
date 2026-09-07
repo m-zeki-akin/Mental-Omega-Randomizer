@@ -363,13 +363,18 @@ def _enemy_upgrades(country, many, generator):
     from .ownership import STOLEN_TECH_GROUP
     from .shop import country_upgrades
 
-    # Not the stolen-tech row. What puts those units on the field is an
-    # infiltration, which is not something a computer player is handed
-    # with its upgrades -- buying one for an enemy would improve a unit
-    # that never arrives.
+    # Not the stolen-tech row: what puts those units on the field is an
+    # infiltration, and an offer that wants them there says so and hands
+    # them over. And not a unit no task force names, because a computer
+    # player builds what its task forces name -- an upgrade on anything
+    # else is an upgrade on a unit that never arrives.
+    from .ai import fielded_by_ai
+
+    fielded = fielded_by_ai()
     shelf = [
         one for one in country_upgrades(country)
         if one.unit != STOLEN_TECH_GROUP
+        and (not fielded or one.unit in fielded)
     ]
     if not shelf:
         return ()
