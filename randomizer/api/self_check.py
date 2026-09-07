@@ -491,26 +491,50 @@ def _all_of_them_is_kept_as_all_of_them_valid():
         if every.get('ok'):
             return False
         opened = call('campaign.settings')
-        # And it is a setting the screen can see: the list means
-        # nothing while the enemy collects nothing, so it is shown
-        # only once the number above it is not zero.
-        if _held(opened, allowed) is None or len(names) < 2:
+        # And the screen can see every one of them: the list itself is
+        # written for the player by the limits beside it, where nought
+        # means the enemy is never handed that bonus at all.
+        drawn = _held(opened, f'{ENEMY_SCALING}.caps') or {}
+        if len(drawn.get('entries') or ()) != len(names) or len(names) < 2:
             return False
-        whole = call('campaign.use_setting', name=allowed, value=names)
+        def limits(reply):
+            drawn = _held(reply, f'{ENEMY_SCALING}.caps') or {}
+            return {
+                entry['key'].rsplit('.', 1)[-1]: entry['value']
+                for entry in drawn.get('entries') or ()
+            }
+
+        call('campaign.use_setting', name=allowed, value=names)
         as_wildcard = stored()
-        fewer = call(
-            'campaign.use_setting', name=allowed, value=names[1:],
-        )
+        every = limits(call('campaign.settings'))
+        fewer = call('campaign.use_setting', name=allowed, value=names[1:])
         as_list = stored()
-        again = call('campaign.use_setting', name=allowed, value=names)
+        without = limits(fewer)
+        call('campaign.use_setting', name=allowed, value=names)
         collapsed = stored()
+        # And the other way about: the screen moves the limit, and the
+        # list follows it. This is the write the player actually makes.
+        one = f'{ENEMY_SCALING}.caps.{names[0]}'
+        call('campaign.use_setting', name=one, value=0)
+        after_nought = stored()
+        call('campaign.use_setting', name=one, value=2)
+        after_two = stored()
     return bool(
-        (_held(whole, allowed) or {}).get('value') == names
-        and as_wildcard == ['*']
-        and (_held(fewer, allowed) or {}).get('value') == names[1:]
+        as_wildcard == ['*']
         and as_list == names[1:]
-        and (_held(again, allowed) or {}).get('value') == names
         and collapsed == ['*']
+        # And what the screen draws says the same thing: a bonus the
+        # enemy may not be given is a limit of nought, whatever the
+        # settings hold for it.
+        and every.get(names[0])
+        and without.get(names[0]) == 0
+        and without.get(names[1])
+        # Written out in full, without the one turned off. The wildcard
+        # would answer "not in" for every name there is, so what is
+        # checked is that it is no longer the wildcard.
+        and after_nought != ['*']
+        and names[0] not in (after_nought or ())
+        and after_two == ['*']
     )
 
 

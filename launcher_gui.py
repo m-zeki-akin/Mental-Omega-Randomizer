@@ -1268,10 +1268,15 @@ def run_self_check():
         # that has been renamed under it would draw a control that reads
         # as off, writes somewhere nothing looks, and says nothing.
         from randomizer.config.player import DEFAULT_CONFIG
+        from randomizer.rewards.enemy_scaling import (
+            normalize_enemy_scaling_settings,
+        )
         from randomizer.rewards.weights import normalize_reward_weights
         from randomizer.ui.campaign_catalogues import CATALOGUE_NAMES
         from randomizer.ui.campaign_settings import (
             CHOICE,
+            GROUPS,
+            KINDS,
             NUMBER,
             SEARCH,
             SECTIONS,
@@ -1293,20 +1298,24 @@ def run_self_check():
         campaign_setting_rows = [
             row for _name, rows in SECTIONS for row in rows
         ]
-        # Reward weights are the one group whose defaults do not live in
-        # the settings file: the file carries what a player has changed,
-        # and the rest are filled in from the launcher's own table when a
-        # seed is made. So a weight is checked against that table, which
-        # is where a renamed one would show up.
+        # Two groups have defaults that do not live in the settings file:
+        # the reward weights and the enemy's per-bonus limits. The file
+        # carries what a player has changed and the launcher fills in the
+        # rest when a seed is made, so those rows are checked against the
+        # tables that do the filling -- which is where a renamed one shows
+        # up just as loudly.
         campaign_weight_defaults = normalize_reward_weights({})
+        campaign_cap_defaults = normalize_enemy_scaling_settings({})['caps']
 
-        def weight_shipped(row):
+        def filled_in(row):
             steps = str(row['where']).split('.')
-            if steps[:2] != ['generation', 'reward_weights']:
-                return False
-            if len(steps) == 2:
-                return row['key'] in campaign_weight_defaults
-            return row['key'] in campaign_weight_defaults.get(steps[2], {})
+            if steps[:2] == ['generation', 'reward_weights']:
+                if len(steps) == 2:
+                    return row['key'] in campaign_weight_defaults
+                return row['key'] in campaign_weight_defaults.get(steps[2], {})
+            if steps == ['generation', 'enemy_scaling', 'caps']:
+                return row['key'] in campaign_cap_defaults
+            return False
         # A row can be shown only while another setting holds a value. A
         # condition naming a setting that no longer exists would hide the
         # row for good, silently.
@@ -1319,7 +1328,7 @@ def run_self_check():
                 # group of weights holds none -- it is read through
                 # the settings it draws -- so a row waiting on one
                 # would ask a question with no answer.
-                and CAMPAIGN_BY_KEY[row['needs'][0]]['kind'] != WEIGHTS
+                and CAMPAIGN_BY_KEY[row['needs'][0]]['kind'] not in GROUPS
             )
             for row in campaign_setting_rows
         )
@@ -1329,10 +1338,8 @@ def run_self_check():
             and all(
                 row['label']
                 and row['help']
-                and row['kind'] in {
-                    SWITCH, NUMBER, CHOICE, TEXT, SET, SEARCH, WEIGHTS,
-                }
-                and (shipped(row) or weight_shipped(row))
+                and row['kind'] in KINDS
+                and (shipped(row) or filled_in(row))
                 and (
                     row['kind'] != NUMBER
                     or 0 <= row['minimum'] < row['maximum']
@@ -1357,7 +1364,7 @@ def run_self_check():
                 # gap, and one naming a setting the screen also draws
                 # on its own would draw it twice.
                 and (
-                    row['kind'] != WEIGHTS
+                    row['kind'] not in GROUPS
                     or (
                         row['entries']
                         and all(

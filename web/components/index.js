@@ -333,15 +333,49 @@ export function picker({
  * are written.
  */
 export function weights({ entries = [], onChange } = {}) {
+  return numbers({
+    entries,
+    onChange,
+    under: (entry) => (
+      entry.value ? `${entry.share}% of this group` : 'never comes up'
+    ),
+  });
+}
+
+/**
+ * Numbers that each mean something on their own, asked of a list.
+ *
+ * One question about many things -- how far each of these may go -- so
+ * they are drawn together, in whatever groups the launcher names them in.
+ * Nought is spelled out as never, because that is what it does and a
+ * player should not have to work it out from a zero.
+ */
+export function limits({ entries = [], onChange } = {}) {
+  const groups = [];
+  for (const entry of entries) {
+    const name = entry.group || '';
+    const last = groups[groups.length - 1];
+    if (last && last.name === name) last.entries.push(entry);
+    else groups.push({ name, entries: [entry] });
+  }
+  return el('div', { class: 'stack' }, groups.map((group) => el('div', {
+    class: 'stack',
+  }, [
+    group.name ? el('div', { class: 'faint', text: group.name }) : null,
+    numbers({
+      entries: group.entries,
+      onChange,
+      under: (entry) => (entry.value ? entry.note || '' : 'never'),
+    }),
+  ])));
+}
+
+/** A grid of named numbers, each with a line saying what it means. */
+function numbers({ entries = [], onChange, under }) {
   return grid(entries.map((entry) => row([
     el('div', {}, [
       el('div', { text: entry.label }),
-      el('div', {
-        class: 'faint',
-        text: entry.value
-          ? `${entry.share}% of this group`
-          : 'never comes up',
-      }),
+      el('div', { class: 'faint', text: under(entry) }),
     ]),
     stepper({
       value: entry.value,

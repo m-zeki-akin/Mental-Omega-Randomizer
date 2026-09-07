@@ -11,8 +11,8 @@
 
 import { act, call, register } from '../app.js';
 import {
-  el, grid, notice, panel, picker, row, section, select, stepper, textField,
-  toggle, weights,
+  el, grid, limits, notice, panel, picker, row, section, select, stepper,
+  textField, toggle, weights,
 } from '../components/index.js';
 
 /* The long lists, once each. What a setting may name comes from the
@@ -48,6 +48,17 @@ function control(setting) {
       placeholder: 'a new one each time',
       maximum: setting.maximum_length,
       onChange: change,
+    });
+  }
+  if (setting.kind === 'limits') {
+    // Two settings under one control: whether the enemy may be given a
+    // bonus at all, and how much of it. Nought is both answers at once,
+    // and the launcher is what keeps the two in step.
+    return limits({
+      entries: setting.entries,
+      onChange: (key, value) => act('campaign.use_setting', {
+        name: key, value,
+      }),
     });
   }
   if (setting.kind === 'weights') {
@@ -146,7 +157,7 @@ function block(setting) {
   ]);
 }
 
-const WIDE = new Set(['set', 'search', 'weights']);
+const WIDE = new Set(['set', 'search', 'weights', 'limits']);
 
 function settingsPanel(part) {
   const listed = part.settings.filter((setting) => WIDE.has(setting.kind));

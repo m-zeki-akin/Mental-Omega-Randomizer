@@ -38,6 +38,24 @@ from randomizer.rewards.weights import (
 from .campaign_catalogues import REWARD_NAME, SUPERWEAPON, UNIT_ACCESS
 
 from .config import CAMPAIGN_FILTERS, DIFFICULTIES, GAME_SPEEDS, REWARD_MODES
+from .settings_rows import (  # noqa: F401  (the table's own vocabulary)
+    CHOICE,
+    GROUPS,
+    KINDS,
+    LIMITS,
+    NUMBER,
+    SEARCH,
+    SET,
+    SWITCH,
+    TEXT,
+    TOP,
+    WEIGHTS,
+    by_key,
+    full_key,
+    hidden,
+    row as _row,
+)
+from .settings_rows import rows_for as _rows_for
 
 
 # A run cannot ask for more missions than the campaign has. The launcher
@@ -45,29 +63,13 @@ from .config import CAMPAIGN_FILTERS, DIFFICULTIES, GAME_SPEEDS, REWARD_MODES
 # generator is what refuses an order it cannot fill.
 MAXIMUM_MISSION_GOAL = 97
 
-SWITCH = 'switch'
-NUMBER = 'number'
-CHOICE = 'choice'
-TEXT = 'text'
-# Several of one catalogue at once, each on or off. A list rather than a
-# choice: turning one off is not picking another.
-SET = 'set'
-# Several out of a list too long to draw: what has been picked, and a
-# box to find the next one in. The list itself is asked for by name,
-# because there are a few hundred units and a screen filtering them as
-# somebody types must not ask the launcher once per letter.
-SEARCH = 'search'
-# One group of numbers that only mean anything against each other. A
-# weight of 50 is not half of anything until you know what it sits
-# beside, so they are drawn together and each says its share.
-WEIGHTS = 'weights'
 # Long enough for any name a player would type, short enough that a
 # settings file cannot be filled with one.
 MAXIMUM_SEED_LENGTH = 64
 
-# Where a value lives: at the top of the player's settings, or inside the
-# generation block that describes how a seed is made.
-TOP = ''
+# The block of the settings that describes how a seed is made. The rest
+# of the vocabulary -- the kinds, what a row is, where a value lives --
+# is shared with the other table, in settings_rows.
 GENERATION = 'generation'
 # A block inside the generation block. Written as a path because that is
 # what it is; nothing here needs a deeper one yet.
@@ -76,35 +78,13 @@ ARSENAL = 'generation.arsenal'
 ARSENAL_POWERS = 'generation.arsenal.power_counts'
 REWARD_WEIGHTS = 'generation.reward_weights'
 ENEMY_SCALING = 'generation.enemy_scaling'
+ENEMY_CAPS = 'generation.enemy_scaling.caps'
 
 # How many starting rewards a control offers. The launcher itself allows
 # far more; a spinner that can reach four figures is a spinner nobody
 # reaches the end of, and a run that starts with thirty rewards has
 # already answered the question the setting was asking.
 MAXIMUM_STARTING_REWARDS = 30
-
-
-def _row(key, label, kind, help_text, *, where=TOP, mode=None, needs=None,
-         **rest):
-    return {
-        'key': key,
-        'where': where,
-        'label': label,
-        'kind': kind,
-        'help': help_text,
-        # None means every campaign mode. A mode name means that one only,
-        # which is how Grid's own three stay off the other two's screen.
-        'mode': mode,
-        # What has to be true of another setting for this one to mean
-        # anything: that setting's full name, and either the value it has
-        # to hold or True for "anything at all". A setting that means
-        # nothing right now is a setting worth not showing -- the roster
-        # sizes are Randomizer Arsenal's alone, a limit's size says
-        # nothing while the limit is off, and neither does which kinds a
-        # starting reward may be when there are none.
-        'needs': needs,
-        **rest,
-    }
 
 
 RUN_SETTINGS = (
@@ -395,16 +375,14 @@ def _weight_rows(group, title, items):
     """Return one group's control and the settings it draws."""
     where = f'{REWARD_WEIGHTS}.{group}'
     numbers = tuple(
-        _row(
+        hidden(_row(
             item_id, label, NUMBER,
             description or f'How often {label.lower()} comes up.',
             where=where, minimum=0, maximum=MAX_REWARD_WEIGHT, step=5,
             default=DEFAULT_REWARD_WEIGHTS.get(group, {}).get(
                 item_id, MAX_REWARD_WEIGHT
             ),
-            # Drawn by the group above rather than one row each.
-            hidden=True,
-        )
+        ))
         for item_id, label, description in items
     )
     return (
@@ -450,6 +428,7 @@ def _enemy_buff_entry(definition):
         'id': str(definition['id']),
         'label': str(definition.get('name') or definition['id']),
         'group': _ENEMY_GROUP_BY_ID.get(str(definition['id']), 'Other'),
+        'maximum_stacks': stacks,
         'note': (
             f'{percent}% a stack, up to {stacks}' if percent
             else f'up to {stacks}'
@@ -457,39 +436,68 @@ def _enemy_buff_entry(definition):
     }
 
 
+ENEMY_BUFF_CATALOGUE = sorted(
+    (_enemy_buff_entry(definition) for definition in ENEMY_BUFF_DEFINITIONS),
+    key=lambda entry: (
+        _ENEMY_GROUP_ORDER.get(entry['group'], 9),
+        entry['label'].casefold(),
+    ),
+)
+ALLOWED_BUFFS = f'{ENEMY_SCALING}.allowed_buff_ids'
+
+# How far each bonus may be stacked, as one number a player reads as
+# "up to this many, and nought means never". Which is two settings
+# underneath -- whether the enemy may be given it at all, and how much of
+# it -- because a bonus allowed with a limit of nought and a bonus not
+# allowed are the same enemy. The screen asks the question once; the
+# boundary keeps the two in step.
+ENEMY_CAP_SETTINGS = tuple(
+    hidden(_row(
+        entry['id'], entry['label'], NUMBER,
+        f'How much of it the enemy may collect: {entry["note"]}.',
+        where=ENEMY_CAPS,
+        minimum=0,
+        maximum=int(entry['maximum_stacks']),
+        step=1,
+        default=int(entry['maximum_stacks']),
+        gated_by=ALLOWED_BUFFS,
+        group=entry['group'],
+        note=entry['note'],
+    ))
+    for entry in ENEMY_BUFF_CATALOGUE
+)
+
 ENEMY_SETTINGS = (
     _row(
         'maximum_total_buffs', 'Bonuses the enemy collects', NUMBER,
         'How many the run hands the enemy over its whole length, out of '
-        'what the bonuses below could add up to. Zero is an enemy that '
-        'never grows.',
+        'what the bonuses below add up to. Zero is an enemy that never '
+        'grows.',
         where=ENEMY_SCALING,
         minimum=0, maximum=ENEMY_BUFF_CAPACITY, step=1, default=0,
         ceiling=ENEMY_CAPACITY,
     ),
     _row(
-        'allowed_buff_ids', 'Bonuses the enemy may be given', SET,
-        'Turn one off and the enemy is never handed it. Turning them all '
-        'off is an enemy that never grows, whatever the number above says.',
+        'caps', 'What the enemy may be given, and how much of each', LIMITS,
+        'Nought is a bonus the enemy is never handed at all. The rest is '
+        'how far one bonus may be stacked over a whole run.',
         where=ENEMY_SCALING,
-        catalogue=sorted(
-            (
-                _enemy_buff_entry(definition)
-                for definition in ENEMY_BUFF_DEFINITIONS
-            ),
-            key=lambda entry: (
-                _ENEMY_GROUP_ORDER.get(entry['group'], 9),
-                entry['label'].casefold(),
-            ),
-        ),
+        entries=[f'{ENEMY_CAPS}.{entry["id"]}' for entry in ENEMY_BUFF_CATALOGUE],
+    ),
+    _row(
+        'allowed_buff_ids', 'Bonuses the enemy may be given', SET,
+        'Which of them the enemy may be handed. Written for it by the '
+        'limits above, where nought means never.',
+        where=ENEMY_SCALING,
+        catalogue=ENEMY_BUFF_CATALOGUE,
         # Everything, written as one entry rather than as forty-eight.
         # What the launcher keeps has always said it this way, and a
         # settings file that says "all of them" still means all of them
         # after a submod adds one.
         wildcard='*',
-        needs=(f'{ENEMY_SCALING}.maximum_total_buffs', True),
+        hidden=True,
     ),
-)
+) + ENEMY_CAP_SETTINGS
 
 
 SECTIONS = (
@@ -506,23 +514,9 @@ SECTIONS = (
     ('Grid', GRID_SETTINGS),
 )
 
-def full_key(row):
-    """Return one name for a row, since two blocks both have 'units'."""
-    return f'{row["where"]}.{row["key"]}' if row['where'] else row['key']
-
-
-BY_KEY = {full_key(row): row for _section, rows in SECTIONS for row in rows}
+BY_KEY = by_key(SECTIONS)
 
 
 def rows_for(mode):
     """Return the settings one campaign mode shows, section by section."""
-    wanted = str(mode or '')
-    shown = []
-    for name, rows in SECTIONS:
-        kept = [
-            row for row in rows
-            if row['mode'] in (None, wanted) and not row.get('hidden')
-        ]
-        if kept:
-            shown.append((name, kept))
-    return shown
+    return _rows_for(SECTIONS, mode)
