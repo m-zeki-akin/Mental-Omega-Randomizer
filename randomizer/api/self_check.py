@@ -1584,6 +1584,72 @@ def _what_a_run_handed_over_can_be_read_valid():
     )
 
 
+def _a_board_is_a_board_valid():
+    """Grid answers with a shape, and only when it has one.
+
+    Its order is not a list. What is open is decided by what a finished
+    mission sits next to, so the run screen's table describes it about
+    as well as a list of streets describes a town -- everything true,
+    nothing shaped. The board says where each mission is, which tile the
+    run ends at, and which of them can be played right now.
+
+    And only for a run dealt as one. A run made in another mode has no
+    board, and answering with an empty one would be inventing a shape it
+    does not have.
+    """
+    from randomizer.campaign import generation, generator
+    from randomizer.campaign import store as run_file
+    from randomizer.config import player as settings_file
+
+    def deal(mode, seed):
+        config = settings_file.load_config()
+        config.update({
+            'campaign_filter': 'All Campaigns', 'mission_goal': 8,
+            'progression_mode': mode, 'seed': seed,
+        })
+        missions = generator.installed_missions()
+        if not missions:
+            return None
+        maker = generator.build(config, missions)
+        run_file.keep(maker.build_seed_generation(generation.options_from(
+            maker,
+            generation.controls_from_config(config),
+            missions=missions,
+            reward_settings=maker.config_reward_settings(),
+        ))['state'])
+        return call('campaign.board')
+
+    with _store_of_its_own():
+        on_a_board = deal('Grid Mode', 'SELF-CHECK-BOARD')
+        in_a_line = deal('Mission List', 'SELF-CHECK-BOARD')
+    if on_a_board is None or not on_a_board.get('ok'):
+        return False
+    laid_out = on_a_board['result']['board']
+    if not laid_out:
+        return False
+    tiles = laid_out['tiles']
+    places = {(tile['x'], tile['y']) for tile in tiles}
+    return bool(
+        # A run dealt in a line has no board, and says so rather than
+        # answering with an empty one.
+        in_a_line['result']['board'] is None
+        # Every tile is somewhere, and no two are in the same place.
+        and len(places) == len(tiles) > 0
+        and all(
+            0 <= tile['x'] < laid_out['width']
+            and 0 <= tile['y'] < laid_out['height']
+            for tile in tiles
+        )
+        # Somewhere to start from, and somewhere to get to.
+        and any(tile['standing'] == 'unlocked' for tile in tiles)
+        and sum(1 for tile in tiles if tile['finish']) == 1
+        and laid_out['finish'] in {tile['code'] for tile in tiles}
+        # Read across and then down, which is the order it is drawn in.
+        and [(tile['y'], tile['x']) for tile in tiles]
+             == sorted((tile['y'], tile['x']) for tile in tiles)
+    )
+
+
 def _refuse_to_start(*_args, **_kwargs):
     raise ApiError('The self-check does not start games')
 
@@ -1778,6 +1844,7 @@ def validate_api_contract():
     mission_left_out = _a_mission_left_out_stays_out_valid()
     look_settable = _what_a_mission_looks_like_is_settable_valid()
     unlocks_readable = _what_a_run_handed_over_can_be_read_valid()
+    board_shaped = _a_board_is_a_board_valid()
     pictures_answer = _a_picture_comes_back_for_what_a_list_names_valid()
     after = _touched()
 
@@ -1861,6 +1928,7 @@ def validate_api_contract():
         'api_a_mission_left_out_stays_out_valid': mission_left_out,
         'api_what_a_mission_looks_like_is_settable_valid': look_settable,
         'api_what_a_run_handed_over_can_be_read_valid': unlocks_readable,
+        'api_a_board_is_a_board_valid': board_shaped,
         'api_a_picture_comes_back_for_what_a_list_names_valid': (
             pictures_answer
         ),
@@ -1893,6 +1961,7 @@ def validate_api_contract():
             and mission_left_out
             and look_settable
             and unlocks_readable
+            and board_shaped
             and pictures_answer
             and before == after
             and unknown.get('ok') is False

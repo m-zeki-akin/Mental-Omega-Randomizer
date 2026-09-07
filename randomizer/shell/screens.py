@@ -54,9 +54,14 @@ BY_MODE = {
         ('run', 'Run'), ('unlocks', 'Unlocks'), ('campaign', 'Setup'),
         ('classic', 'Mode'),
     ),
+    # Grid gets one screen the other two do not, and it comes first: its
+    # order is not a list, so a table of missions describes it about as
+    # well as a list of streets describes a town. The table is still
+    # there beside it -- it says how far each mission got, which a tile
+    # has no room for.
     'Grid Mode': (
-        ('run', 'Run'), ('unlocks', 'Unlocks'), ('campaign', 'Setup'),
-        ('classic', 'Mode'),
+        ('board', 'Board'), ('run', 'Run'), ('unlocks', 'Unlocks'),
+        ('campaign', 'Setup'), ('classic', 'Mode'),
     ),
     # Its setup is here and its run is not: what a run is started with
     # outlives the run, and both windows read it from one place. The

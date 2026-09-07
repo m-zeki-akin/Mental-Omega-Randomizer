@@ -77,6 +77,8 @@
    * draws in its sidebar. It is not a scale anybody here chose, which is
    * exactly why it is written once. */
   --cameo-width: 60px;
+  /* A board tile holds a mission name, a count and a button. */
+  --tile-height: 96px;
   --cameo-aspect: 5 / 4;
 
   /* --- shape ---------------------------------------------------------- */

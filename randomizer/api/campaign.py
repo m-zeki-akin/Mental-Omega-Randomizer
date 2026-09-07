@@ -654,3 +654,55 @@ def unlocks():
         },
         'entries': entries,
     }
+
+
+@action('campaign.board', 'The board a Grid run is played on')
+def board():
+    """Return the run laid out the way Grid deals it.
+
+    Grid is the one mode whose order is not a list. What is open is
+    decided by what a finished mission is next to, so a list of missions
+    in order describes it about as well as a list of streets describes a
+    town. The board is small -- a dozen tiles on a four-by-three -- and
+    it is the whole of what the mode is.
+
+    Only for a run that was dealt as one. A run made in another mode has
+    no board, and drawing an empty one would be inventing a shape the run
+    does not have.
+    """
+    state = store.standing()
+    layout = state.get('grid') if isinstance(state.get('grid'), dict) else None
+    if not state.get('seed') or not layout:
+        return {'board': None}
+    tiles = progress.grid_states(state)
+    installed = _missions_by_code()
+    placed = []
+    for code, node in (layout.get('nodes') or {}).items():
+        if not isinstance(node, dict):
+            continue
+        seen = _mission_view(state, str(code), installed, tiles)
+        seen.update({
+            'x': int(node.get('x') or 0),
+            'y': int(node.get('y') or 0),
+            'standing': str(node.get('state') or 'locked'),
+            # The one that ends the run, which a board has and an
+            # ordered run does not: reaching it is the point of the
+            # shape rather than finishing a count of missions.
+            'finish': str(code) == str(layout.get('goal') or ''),
+        })
+        placed.append(seen)
+    # Read across and then down, which is how the board is drawn and how
+    # a tile with no position at all still ends up somewhere sensible.
+    placed.sort(key=lambda tile: (tile['y'], tile['x']))
+    return {
+        'board': {
+            'seed': str(state.get('seed') or ''),
+            'width': int(layout.get('width') or 0),
+            'height': int(layout.get('height') or 0),
+            # A code, not a count: on a board the run ends by reaching
+            # one particular tile.
+            'finish': str(layout.get('goal') or ''),
+            'won': sum(1 for tile in placed if tile['complete']),
+            'tiles': placed,
+        },
+    }

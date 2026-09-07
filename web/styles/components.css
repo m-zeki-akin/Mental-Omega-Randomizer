@@ -455,3 +455,43 @@
   height: auto;
   aspect-ratio: var(--cameo-aspect);
 }
+
+/* --- the board Grid is played on --------------------------------------
+ * A dozen tiles at most, drawn where they are. The columns are set by
+ * the screen because only the run knows how wide its board is. */
+.board {
+  display: grid;
+  gap: var(--space-2);
+}
+
+.tile {
+  display: grid;
+  gap: var(--space-1);
+  align-content: start;
+  justify-items: center;
+  text-align: center;
+  padding: var(--space-2);
+  min-height: var(--tile-height);
+  border: 2px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+
+.tile__name {
+  font-size: var(--size-sm);
+  font-weight: var(--weight-medium);
+}
+
+.tile__note {
+  font-size: var(--size-xs);
+  color: var(--text-faint);
+}
+
+/* Finished, open, and not yet reachable -- the three states a board has,
+ * which are not the four a reward has. */
+.tile--completed { border-color: var(--success); }
+.tile--unlocked { border-color: var(--accent); background: var(--surface-raised); }
+.tile--locked { border-style: dashed; opacity: 0.55; }
+
+/* The tile the run ends at. It is worth seeing from across the board. */
+.tile--finish { border-color: var(--ore); }
