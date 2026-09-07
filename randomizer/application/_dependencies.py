@@ -262,6 +262,7 @@ from randomizer.ui.config import (
     modes_in_family,
 )
 from randomizer.launch.game import MAX_OPTION_INI_BYTES
+from randomizer.campaign.store import CHECK_SCHEMA_VERSION  # noqa: F401
 from randomizer.ui.builder import create_widgets as build_launcher_widgets
 from randomizer.ui.grid import redraw_grid as redraw_launcher_grid
 from randomizer.ui.scrolling import scroll_under_pointer
@@ -269,7 +270,6 @@ from randomizer.ui.theme import apply_color_mode as apply_launcher_color_mode
 from randomizer.ui.tooltips import WidgetTooltip
 
 DEFAULT_MISSION_GOAL = int(DEFAULT_CONFIG['mission_goal'])
-CHECK_SCHEMA_VERSION = 18
 HOOK_POLL_MS = 1500
 RESTART_FAILURE_GRACE_MS = 3000
 VICTORY_CLOSE_DELAY_MS = 2500

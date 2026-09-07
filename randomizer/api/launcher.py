@@ -39,16 +39,10 @@ def _campaign_seed():
     seed already standing is worth saying: it is why the classic window
     will open on that mode whatever this one is set to.
     """
-    from randomizer.core.paths import STATE_PATH
-    from randomizer.core.storage import read_json_object
+    from randomizer.campaign import store
 
-    try:
-        if not STATE_PATH.is_file():
-            return {}
-        state = read_json_object(STATE_PATH)
-    except (OSError, ValueError):
-        return {}
-    if not isinstance(state, dict) or not state.get('seed'):
+    state = store.standing()
+    if not state.get('seed'):
         return {}
     return {
         'seed': str(state.get('seed') or ''),

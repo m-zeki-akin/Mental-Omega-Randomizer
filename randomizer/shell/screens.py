@@ -40,9 +40,16 @@ BY_MODE = {
     # campaign in a different order and share all but three settings. The
     # tab beside it is 'Mode' rather than 'Campaign': the kind of game is
     # named in the control above, and a tab repeating it says nothing.
-    'Classic': (('campaign', 'Setup'), ('classic', 'Mode')),
-    'Mission List': (('campaign', 'Setup'), ('classic', 'Mode')),
-    'Grid Mode': (('campaign', 'Setup'), ('classic', 'Mode')),
+    #
+    # Run comes first because it is what a player opens the launcher to
+    # look at once a run exists: which mission is next, and how much is
+    # behind them. It reads the run and does not touch it -- the mission
+    # itself is still launched in the classic window.
+    'Classic': (('run', 'Run'), ('campaign', 'Setup'), ('classic', 'Mode')),
+    'Mission List': (
+        ('run', 'Run'), ('campaign', 'Setup'), ('classic', 'Mode'),
+    ),
+    'Grid Mode': (('run', 'Run'), ('campaign', 'Setup'), ('classic', 'Mode')),
     # Its setup is here and its run is not: what a run is started with
     # outlives the run, and both windows read it from one place. The
     # mode's own panel says where the run itself is played.

@@ -48,10 +48,17 @@ def _package_files():
 
     This file names the toolkits it is looking for, so reading itself
     would always find one.
+
+    The campaign domain is read as part of the boundary, because that is
+    what it is for: the rules a run is read by, written where a page can
+    reach them. A window import creeping in there would reach the page
+    just as surely as one written here.
     """
     here = Path(__file__).resolve()
+    domain = here.parent.parent / 'campaign'
     return sorted(
-        path for path in here.parent.glob('*.py') if path != here
+        path for path in (*here.parent.glob('*.py'), *domain.glob('*.py'))
+        if path != here
     )
 
 
@@ -59,13 +66,15 @@ def _touched():
     """Return everything a sweep must leave alone, as something comparable.
 
     The runs being played, the board of the ones that ended, whether a
-    battle is up, the three files a battle is written into, and the
-    player's own settings. Each of the first four has been written by a
-    check that was only supposed to be asking; the settings are here
-    because a command that writes one now exists.
+    battle is up, the three files a battle is written into, the player's
+    own settings, and the campaign run. Each of the first four has been
+    written by a check that was only supposed to be asking; the settings
+    are here because a command that writes one now exists, and the
+    campaign run because it is the one thing here somebody may have been
+    playing for weeks.
     """
     from randomizer.config.player import load_config
-    from randomizer.core.paths import GAME_ROOT, SPAWN_INI
+    from randomizer.core.paths import GAME_ROOT, SPAWN_INI, STATE_PATH
     from randomizer.skirmish.launch import SPAWN_MAP_INI
     from randomizer.skirmish.leaderboard import load_board
     from randomizer.skirmish.persistence import (
@@ -97,7 +106,7 @@ def _touched():
         session.running(),
         tuple(stamp(path) for path in (
             SPAWN_INI, SPAWN_MAP_INI, GAME_ROOT / 'aimo.ini',
-            session.SKIRMISH_LAUNCH_PATH,
+            session.SKIRMISH_LAUNCH_PATH, STATE_PATH,
         )),
         tuple(sorted(
             (key, repr(value)) for key, value in load_config().items()
@@ -772,6 +781,72 @@ def _a_setting_about_one_thing_keeps_both_halves_valid():
     )
 
 
+def _one_rule_says_how_far_a_run_got_valid():
+    """Both windows read a run by the same rule, and the rule is right.
+
+    How far a run got used to be worked out on the classic window's
+    controllers, where only a Tk instance could reach it -- so a screen
+    here either could not ask or would have had to answer the question a
+    second time. Two answers to one question is two answers that drift,
+    and the drift shows up as a mission the launcher says is open and the
+    game refuses to start.
+
+    So the arithmetic is checked against a run made up for the purpose,
+    and the classic window is checked for calling it rather than keeping
+    a copy. Read from the bytecode, because the frozen build has no
+    source to read.
+    """
+    from randomizer.application.launch_controller import LaunchController
+    from randomizer.application.progression_controller import (
+        ProgressionController,
+    )
+    from randomizer.campaign import progress
+
+    order = ['A', 'B', 'C', 'D', 'E']
+    made_up = {
+        'mission_order': order,
+        'starting_unlocked_missions': 2,
+        'completed_missions': ['A'],
+        'mission_checks': {
+            'A': [{'id': 'victory', 'unlocked': True, 'rewards': [{}, {}]}],
+            'B': [
+                {'id': 'objective_1', 'unlocked': True, 'rewards': [{}]},
+                {'id': 'victory', 'unlocked': False, 'rewards': [{}, {}]},
+            ],
+        },
+    }
+    # Each of them separately: three methods read together stay true
+    # while one of them quietly keeps a copy, which is exactly the drift
+    # this row is here to catch.
+    asking = all(
+        'campaign_progress' in method.__code__.co_names
+        for method in (
+            LaunchController.unlocked_mission_codes,
+            ProgressionController.is_mission_complete,
+            ProgressionController.is_mission_started,
+            ProgressionController.mission_checks,
+            ProgressionController.mission_check_counts,
+        )
+    )
+    return bool(
+        # One won on top of the two a run begins with: three open, and
+        # the fourth still shut.
+        progress.unlocked_codes(made_up) == ['A', 'B', 'C']
+        and progress.next_code(made_up) == 'B'
+        and progress.is_complete(made_up, 'A')
+        and not progress.is_complete(made_up, 'B')
+        and progress.is_started(made_up, 'B')
+        and not progress.is_started(made_up, 'A')
+        # One objective met of three rewards' worth.
+        and progress.check_counts(made_up, 'B') == (1, 3)
+        # A run with nothing in it opens nothing, rather than everything.
+        and progress.unlocked_codes({}) == []
+        and progress.next_code({}) is None
+        # And the classic window asks rather than answering again.
+        and asking
+    )
+
+
 def _refuse_to_start(*_args, **_kwargs):
     raise ApiError('The self-check does not start games')
 
@@ -824,6 +899,13 @@ def _store_of_its_own():
     from randomizer.config import player as settings_file
 
     reading, writing = settings_file.load_config, settings_file.save_config
+    # And the campaign run, which is the one thing here somebody may have
+    # been playing for weeks. Nothing reads it through anything but these
+    # two, so swapping them is the whole of it -- and a run of its own is
+    # what lets a check about generating one be run at all.
+    from randomizer.campaign import store as run_file
+
+    standing, keeping = run_file.standing, run_file.keep
     with TemporaryDirectory(prefix='mo-api-check-') as folder:
         paths = SkirmishPersistencePaths(
             runs=Path(folder) / 'runs.dat',
@@ -843,6 +925,14 @@ def _store_of_its_own():
             held.update(deepcopy(config))
 
         settings_file.save_config = keep_settings
+        run_of_its_own = {}
+
+        def keep_run(state):
+            run_of_its_own.clear()
+            run_of_its_own.update(deepcopy(state))
+
+        run_file.standing = lambda: deepcopy(run_of_its_own)
+        run_file.keep = keep_run
         try:
             yield
         finally:
@@ -854,6 +944,8 @@ def _store_of_its_own():
             ai.remove_staged_ai_file = staged
             settings_file.load_config = reading
             settings_file.save_config = writing
+            run_file.standing = standing
+            run_file.keep = keeping
 
 
 def validate_api_contract():
@@ -907,6 +999,7 @@ def validate_api_contract():
         _a_setting_about_one_thing_keeps_both_halves_valid()
     )
     all_of_them_kept = _all_of_them_is_kept_as_all_of_them_valid()
+    one_rule = _one_rule_says_how_far_a_run_got_valid()
     after = _touched()
 
     json_safe = True
@@ -974,6 +1067,7 @@ def validate_api_contract():
         'api_named_lists_keep_their_names_valid': named_lists_kept,
         'api_settings_about_one_thing_keep_both_valid': both_halves_kept,
         'api_all_of_them_stays_all_of_them_valid': all_of_them_kept,
+        'api_one_rule_says_how_far_a_run_got_valid': one_rule,
         # Asking the launcher what it can do is not playing it. Every
         # command was called above; the runs, the board, the battle files
         # and the game itself are all where they were.
@@ -992,6 +1086,7 @@ def validate_api_contract():
             and named_lists_kept
             and both_halves_kept
             and all_of_them_kept
+            and one_rule
             and before == after
             and unknown.get('ok') is False
             and described

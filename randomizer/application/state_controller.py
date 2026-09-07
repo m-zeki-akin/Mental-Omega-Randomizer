@@ -1,5 +1,6 @@
 """Persistent state, player configuration, starters, and assistance."""
 
+from randomizer.campaign import store as campaign_store
 from randomizer.config.tuning import mission_assistance_stack_count
 from .archipelago_state import normalize_archipelago_activation
 
@@ -34,7 +35,6 @@ from ._dependencies import (
     STARTING_UNLOCKED_MISSIONS,
     STARTING_REWARD_TYPE_DEFINITIONS,
     STATE_PATH,
-    atomic_write_json,
     check_rewards,
     clamp_reward_weight,
     create_grid,
@@ -62,7 +62,6 @@ from ._dependencies import (
     select_tier_one_unit_variants,
     standard_tier_one_defense_markers,
     standard_tier_one_unit_markers,
-    read_json_object,
     read_portable_settings,
     refresh_grid_states,
     save_config,
@@ -79,14 +78,14 @@ class StateController:
         if not STATE_PATH.exists():
             return {}
         try:
-            loaded = read_json_object(STATE_PATH)
+            loaded = campaign_store.standing()
             restore = getattr(
                 self, 'restore_archipelago_context_on_startup', None
             )
             if callable(restore):
                 loaded, changed = restore(loaded)
                 if changed:
-                    atomic_write_json(STATE_PATH, loaded, indent=None)
+                    campaign_store.keep(loaded)
             return loaded
         except Exception:
             log_event('state_load_failed', level=logging.ERROR, traceback=traceback.format_exc())
@@ -328,7 +327,7 @@ class StateController:
         self.__dict__.pop('_unlock_dashboard_sources_cache', None)
         self.__dict__.pop('_configured_reward_pool_cache', None)
         self._enemy_buffs_view_dirty = True
-        atomic_write_json(STATE_PATH, self.state, indent=None)
+        campaign_store.keep(self.state)
 
     def config_reward_settings(self):
         generation_config = self.config.get('generation', {})

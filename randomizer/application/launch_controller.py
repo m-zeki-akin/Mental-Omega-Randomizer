@@ -1,5 +1,6 @@
 """Mission file preparation, game process control, and log watching."""
 
+from randomizer.campaign import progress as campaign_progress
 from randomizer.launch.syringe import windows_syringe_command_line
 from randomizer.launch.game import (
     clear_generated_root_maps,
@@ -38,7 +39,6 @@ from ._dependencies import (
     SCRIPTED_TECH_BUILD_LIMIT,
     SCRIPTED_TECH_LOCK_EXCLUSIONS,
     SPAWN_INI,
-    STARTING_UNLOCKED_MISSIONS,
     UIMD_INI,
     VICTORY_CLOSE_DELAY_MS,
     YR_OPTIONS_INI,
@@ -93,11 +93,7 @@ class LaunchController:
                 if states.get(code) in {GRID_UNLOCKED, GRID_COMPLETED}
             ]
 
-        order = self.state.get('mission_order', [])
-        completed_count = len(self.state.get('completed_missions', []))
-        starting_count = self.state.get('starting_unlocked_missions', STARTING_UNLOCKED_MISSIONS)
-        open_count = min(len(order), starting_count + completed_count)
-        return order[:open_count]
+        return campaign_progress.unlocked_codes(self.state)
 
     def get_selected_difficulty_value(self):
         return dict(DIFFICULTIES).get(self.difficulty_var.get(), 1)

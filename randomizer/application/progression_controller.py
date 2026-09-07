@@ -1,5 +1,7 @@
 """Mission visibility, Grid state, selection, and launch validation."""
 
+from randomizer.campaign import progress as campaign_progress
+
 from ._dependencies import (
     DEFAULT_PROGRESSION_MODE,
     FACTION_TILE_COLORS,
@@ -365,42 +367,21 @@ class ProgressionController:
         mission = self.selected_mission()
         return mission['code'] if mission else None
 
+    # How far a mission got is a reading of the run and nothing else, so
+    # the rule is kept where both windows can ask it rather than here
+    # where only a Tk instance can. These four are what this window calls
+    # it by.
     def mission_checks(self, code):
-        return self.state.get('mission_checks', {}).get(code, [])
+        return campaign_progress.checks(self.state, code)
 
     def mission_check_counts(self, code):
-        checks = self.mission_checks(code)
-        if not checks:
-            return (0, 0)
-        if self.state.get('rewards_on_victory_only', False):
-            done = sum(
-                len(check_rewards(check))
-                for check in checks
-                if check.get('unlocked') or check.get('released')
-            )
-            total = sum(len(check_rewards(check)) for check in checks)
-            return (done, total)
-        done = sum(
-            len(check_rewards(check))
-            for check in checks
-            if check.get('unlocked') or check.get('released')
-        )
-        total = sum(max(1, len(check_rewards(check))) for check in checks)
-        return (done, total)
+        return campaign_progress.check_counts(self.state, code)
 
     def is_mission_complete(self, code):
-        checks = self.mission_checks(code)
-        if checks:
-            return any(check.get('id') == 'victory' and check.get('unlocked') for check in checks)
-        return code in self.state.get('completed_missions', [])
+        return campaign_progress.is_complete(self.state, code)
 
     def is_mission_started(self, code):
-        if not self.state or self.is_mission_complete(code):
-            return False
-        return (
-            code in self.state.get('started_missions', [])
-            or any(check.get('unlocked') for check in self.mission_checks(code))
-        )
+        return campaign_progress.is_started(self.state, code)
 
     def is_run_complete(self):
         if not self.state:
