@@ -24,7 +24,15 @@ is whether the game does what they ask. Each names what to look at.
   The tiers read: 1 medium; 2 medium; medium + hard; 2 medium + hard;
   medium + 2 hard; 3 hard; 3 hard boosted; 4 hard boosted; 5 hard boosted.
   What to watch for is whether they attack -- the tier before this one sat
-  on Easy and built defences all game.
+  on Easy and built defences all game. Tiers are no longer all one length:
+  the challenges close battles 3, 7, 12 and 17, so tier 3 begins at battle
+  8 rather than 11.
+
+- **An armed enemy building its copies.** From tier 2 an enemy is handed
+  upgrades for the country it plays, written as `MOE` copies and named
+  into that house's task forces the way the ally's are. Watch whether what
+  an enemy fields is the upgraded copy. A card says how many each one
+  carries, so what is on screen can be checked against what is fought.
 
 - **The ally fielding its copies.** The ally's upgrades are private copies
   of its units, and a computer player builds what its task forces name, so
@@ -68,11 +76,6 @@ is whether the game does what they ask. Each names what to look at.
 - **The ally's shelf still offers units its AI never fields.** Only 212 of
   the units in the catalogue appear in a task force; an upgrade on one of
   the others is Ore the ally will never see the benefit of.
-
-- **Enemies that grow with the tier.** The channel now exists: a tier's
-  enemy strength is a purchase list generated for the enemy houses and put
-  through the same copies the ally's purchases go through. Until then the
-  tier only changes how many enemies there are and how hard the AI plays.
 
 - **Buying a sibling country's units with Ore.** The shelf is one country's
   army, which is right: the three Allied countries field different rosters
@@ -139,11 +142,15 @@ is whether the game does what they ask. Each names what to look at.
 
 The mode control offers the five modes as two kinds of game -- Campaign
 (Classic, Mission List, Grid) and Roguelike (Campaign, Skirmish) -- and
-the screens follow whichever is standing. Only Skirmish is *played* here.
-The three Campaign modes have a Run screen and a Setup screen: the run
-standing can be read, and the next one generated, here. What is left of
-them is the mission itself -- launching one and recording how it went.
+the screens follow whichever is standing. Skirmish and the three Campaign
+modes are played here: each has its setup, its run, its unlocks, and
+Grid its board, and a mission is launched and recorded from the page.
 Roguelike/Campaign has its setup here and its run in the classic window.
+
+What is left for the Campaign three is the word: `PORTED` in
+`randomizer/shell/screens.py` still names only Skirmish, so the classic
+window opens for them. Flipping it is a decision to make after a mission
+has been played end to end from the page, not a piece of work.
 
 ### Which settings belong to a kind, and which to one mode
 
@@ -193,22 +200,6 @@ skirmish keeps under its own name.
   (`web/components/settings.js`). A new setting is a row. A new *kind* of
   setting is a kind in all four -- which is what `map` and `limits` cost,
   and both were worth it.
-
-- **Launching a campaign mission from here.** The last piece of the
-  three Campaign modes. What a mission needs written before it starts is
-  in `launch_controller` and mostly free of the window already; what is
-  not is the watching -- the classic window polls the game's log on a Tk
-  timer, and a page cannot. Skirmish solved the same problem with a
-  ticket on disk and a poll the page asks for (`randomizer/api/session.py`),
-  but that ticket is shaped as a run and a battle; a mission's is a seed
-  and a mission code, and recording one is unlocking its checks rather
-  than saving a run. The mechanism is proven; the shape is not shared.
-
-- **Grid's own board.** Which missions are open there is a shape rather
-  than a count, and it is kept up to date as a run is played -- a change
-  to the run, not a reading of it. The Run screen reads the tiles the
-  classic window last settled; drawing the board, and settling it here,
-  is its own piece of work.
 
 - **The two roguelike runs.** Shop Mode's run is a domain of its own
   (`shop_controller.py`), and Skirmish is already here. Neither is
