@@ -1146,6 +1146,77 @@ def _a_mission_left_running_is_found_again_valid():
     )
 
 
+def _a_mission_is_not_started_until_it_starts_valid():
+    """Nothing is written down about a mission that never opened.
+
+    Playing one is several steps -- a locked mission refused, a map
+    written out, the game opened, the attempt recorded, the ticket kept
+    -- and the order of them is the whole of the promise. A mission the
+    launcher refused has not been attempted; nor has one whose map could
+    not be written; nor one the game would not open on. Any of those
+    leaving a mark on the run is an attempt spent on a mission the player
+    never saw.
+
+    So both refusals are made to happen. The first is the run's own: a
+    mission it has not opened yet. The second is the sweep's, which
+    refuses to write launch files at all -- which is also what makes this
+    checkable without a game anywhere near it.
+    """
+    from randomizer.campaign import generation, generator, progress
+    from randomizer.campaign import store as run_file
+    from randomizer.config import player as settings_file
+
+    with _store_of_its_own():
+        config = settings_file.load_config()
+        config['campaign_filter'] = 'All Campaigns'
+        config['mission_goal'] = 6
+        config['progression_mode'] = 'Mission List'
+        config['seed'] = 'SELF-CHECK-LAUNCH'
+        settings_file.save_config(config)
+        missions = generator.installed_missions()
+        if not missions:
+            return False
+        maker = generator.build(config, missions)
+        state = maker.build_seed_generation(generation.options_from(
+            maker,
+            generation.controls_from_config(config),
+            missions=missions,
+            reward_settings=maker.config_reward_settings(),
+        ))['state']
+        run_file.keep(state)
+        listed = state.get('mission_order') or []
+        open_now = [
+            code for code in listed
+            if code in set(progress.unlocked_codes(state))
+        ]
+        shut = [code for code in listed if code not in set(open_now)]
+        if not open_now or not shut:
+            return False
+        locked = call('campaign.launch', code=shut[-1])
+        after_locked = list(
+            run_file.standing().get('started_missions') or ()
+        )
+        allowed = call('campaign.launch', code=open_now[0])
+        after_allowed = list(
+            run_file.standing().get('started_missions') or ()
+        )
+        nothing_yet = call('campaign.session')
+    return bool(
+        # A mission the run has not opened is refused, and says which.
+        locked.get('ok') is False
+        and shut[-1] in str(locked.get('error') or '')
+        and after_locked == []
+        # And one it has opened gets as far as writing the map out, which
+        # is where the sweep stops it -- with the run still saying the
+        # mission has not been attempted.
+        and allowed.get('ok') is False
+        and after_allowed == []
+        # And nothing is being watched, because nothing was started.
+        and nothing_yet.get('ok') is True
+        and nothing_yet['result'].get('playing') is False
+    )
+
+
 def _refuse_to_start(*_args, **_kwargs):
     raise ApiError('The self-check does not start games')
 
@@ -1334,6 +1405,7 @@ def validate_api_contract():
         _a_mission_is_recorded_from_what_the_game_said_valid()
     )
     mission_kept = _a_mission_left_running_is_found_again_valid()
+    mission_not_started = _a_mission_is_not_started_until_it_starts_valid()
     after = _touched()
 
     json_safe = True
@@ -1406,6 +1478,9 @@ def validate_api_contract():
         'api_the_same_settings_make_the_same_run_valid': same_run,
         'api_a_mission_is_recorded_from_the_log_valid': mission_recorded,
         'api_a_mission_left_running_is_found_again_valid': mission_kept,
+        'api_a_mission_is_not_started_until_it_starts_valid': (
+            mission_not_started
+        ),
         # Asking the launcher what it can do is not playing it. Every
         # command was called above; the runs, the board, the battle files
         # and the game itself are all where they were.
@@ -1429,6 +1504,7 @@ def validate_api_contract():
             and same_run
             and mission_recorded
             and mission_kept
+            and mission_not_started
             and before == after
             and unknown.get('ok') is False
             and described

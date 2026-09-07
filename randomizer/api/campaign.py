@@ -229,6 +229,24 @@ def run():
 CAMPAIGN_MODES = ('Classic', 'Mission List', 'Grid Mode')
 
 
+def _refuse_if_archipelago(state, doing):
+    """Refuse to touch a run an Archipelago server is playing along with.
+
+    The classic window locks its own controls while a session is up. The
+    mark is on the run rather than on that window, which is what makes it
+    askable from here -- and the answer sends the player back there,
+    because that is where a session is ended.
+    """
+    playing = (state or {}).get('archipelago')
+    if isinstance(playing, dict) and str(
+        playing.get('activation') or ''
+    ).strip().lower() == 'active':
+        raise ApiError(
+            'This run is being played with Archipelago. Finish or '
+            f'disconnect it in the classic window before {doing}.'
+        )
+
+
 @action('campaign.generate', 'Generate the run these settings describe',
         kind=COMMAND)
 def generate():
@@ -244,18 +262,7 @@ def generate():
     mode = str(config.get(MODE_KEY) or '')
     if mode not in CAMPAIGN_MODES:
         raise ApiError(f'{mode or "This mode"} does not generate a campaign run')
-    # A run an Archipelago server is playing along with is not this
-    # window's to replace. The classic window locks its own controls
-    # while a session is up; the mark on the run outlives that window,
-    # and it is what there is to ask here.
-    playing = store.standing().get('archipelago')
-    if isinstance(playing, dict) and str(
-        playing.get('activation') or ''
-    ).strip().lower() == 'active':
-        raise ApiError(
-            'This run is being played with Archipelago. Finish or '
-            'disconnect it in the classic window before generating another.'
-        )
+    _refuse_if_archipelago(store.standing(), 'generating another')
     missions = generator.installed_missions()
     if not missions:
         raise ApiError('No missions are installed to generate a run from')
@@ -313,3 +320,140 @@ def use_setting(name='', value=None):
     _keep(config)
     return _answer(config)
 
+
+
+def _open_now(state, code):
+    """Whether this run will let that mission be played right now.
+
+    A board says so itself -- a tile it has not opened is locked however
+    many missions have been won, which is the whole point of one -- and
+    an ordered run says so by counting. A mission already finished is
+    open either way: replaying one is allowed, and always has been.
+    """
+    if code in (state.get('completed_missions') or ()):
+        return True
+    if str(state.get(MODE_KEY) or '') == GRID_MODE:
+        return progress.grid_states(state).get(code) in {
+            'unlocked', 'completed',
+        }
+    return code in progress.unlocked_codes(state)
+
+
+def _hook_for(mission, prepared):
+    """Return what the watcher will read this mission by.
+
+    Usually the map it just wrote, which has the objective markers in it.
+    Sometimes that fails and the window launches anyway without automatic
+    objective detection -- and the mission still has to be watched, or a
+    game closed after an hour would leave a ticket nobody ever settles.
+    So the mission is described either way, with no markers on it when
+    there are none.
+    """
+    from randomizer.core.paths import DEBUG_LOG
+
+    if isinstance(prepared, dict) and prepared.get('mission_code'):
+        return prepared
+    try:
+        offset = DEBUG_LOG.stat().st_size if DEBUG_LOG.exists() else 0
+    except OSError:
+        offset = 0
+    return {
+        'mission_code': str(mission.get('code') or ''),
+        'scenario': str(mission.get('scenario') or ''),
+        'markers': {},
+        'seen': set(),
+        'completed_objective_checks': 0,
+        'objective_events_seen': 0,
+        'offset': offset,
+    }
+
+
+@action('campaign.launch', 'Play one mission of the run standing', kind=COMMAND)
+def launch(code=''):
+    """Write out one mission, open the game on it, and start watching.
+
+    Everything that decides anything is the classic window's own code,
+    run on a launcher with nothing drawn: which rules the mission gets,
+    which rewards are already in hand, what the map is hooked with. What
+    is different is only what happens after the game opens -- a window
+    watches on a timer, and this leaves a ticket for whoever asks next.
+    """
+    from randomizer.campaign import generator
+    from randomizer.core.paths import GAME_EXE, GAME_LAUNCHER_EXE
+
+    from . import mission_session, session
+
+    wanted = str(code or '').strip().upper()
+    state = store.standing()
+    if not state.get('seed'):
+        raise ApiError('There is no run to play a mission of')
+    if mission_session.running():
+        raise ApiError('A mission is already being played')
+    if session.running():
+        raise ApiError('A skirmish battle is being played')
+    _refuse_if_archipelago(state, 'playing a mission from here')
+    if wanted not in progress.order(state):
+        raise ApiError(f'{wanted or "That mission"} is not part of this run')
+    if not _open_now(state, wanted):
+        raise ApiError(
+            f'{wanted} is locked. Finish more open missions to reach it.'
+        )
+    mission = _missions_by_code().get(wanted)
+    if not mission or not mission.get('scenario'):
+        raise ApiError(f'{wanted} is not installed here')
+    missing = [
+        path for path in (GAME_LAUNCHER_EXE, GAME_EXE) if not path.exists()
+    ]
+    if missing:
+        raise ApiError(
+            'The game is not where the launcher expects it: '
+            + ', '.join(path.name for path in missing)
+        )
+
+    maker = generator.build(_settings(), generator.installed_missions(), state)
+    prepared = maker.prepare_mission_launch_files(
+        mission,
+        None,
+        maker.get_selected_difficulty_value(),
+        maker.get_selected_game_speed_value(),
+    )
+    hook = _hook_for(mission, prepared)
+    try:
+        process, _command = maker.spawn_game_process()
+    except OSError as exc:
+        # Nothing is running, so nothing should be left behind written
+        # out for it -- the same tidying the window does on this failure.
+        maker.cleanup_generated_root_maps()
+        maker.disable_generated_rules_for_client()
+        raise ApiError(f'The game would not start: {exc}') from exc
+    # In this order, and before the ticket: an attempt begins when the
+    # game does, and a launcher that fell over between the two should
+    # have written down the attempt rather than only the ticket.
+    maker.remember_mission_started(mission)
+    mission_session.start(hook, state.get('seed'), process)
+    return {
+        'code': wanted,
+        'name': str(mission.get('title') or wanted),
+        'markers': len(hook.get('markers') or {}),
+        'watched': bool(hook.get('markers')),
+    }
+
+
+@action('campaign.session', 'What the mission being played is doing')
+def playing():
+    """Read what the game has said since the last ask.
+
+    A read that writes, which is unusual here and deliberate: the game
+    says an objective is done exactly once, in a line of its own log, and
+    a reading that did not record it would be a reward lost. What it
+    records is what the game already did.
+    """
+    from randomizer.campaign import generator
+
+    from . import mission_session
+
+    state = store.standing()
+    if not state.get('seed'):
+        return {'playing': False, 'finished': None}
+    maker = generator.build(_settings(), generator.installed_missions(), state)
+    return mission_session.poll(maker)

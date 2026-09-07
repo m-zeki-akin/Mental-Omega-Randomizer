@@ -1133,6 +1133,76 @@ class LaunchController:
         )
         return hook
 
+    def spawn_game_process(self):
+        """Open the game on whatever was just written out, and say how.
+
+        The command is not simply a list on Windows: Syringe reads its own
+        raw command line and refuses to start unless the host executable
+        is quoted, which a list cannot carry. Under Wine it is a list, and
+        the graphics override has to be in the environment. Both belong
+        wherever the game is opened from, which is now more than one
+        place.
+        """
+        cmd = self.build_command()
+        popen_options = {}
+        launch_target = cmd
+        if sys.platform == 'win32':
+            launch_target = windows_syringe_command_line(cmd)
+            popen_options['executable'] = cmd[0]
+            command_text = launch_target
+        else:
+            command_text = subprocess.list2cmdline(cmd)
+            environment = os.environ.copy()
+            overrides = environment.get('WINEDLLOVERRIDES', '')
+            if not any(
+                entry.strip().lower().startswith('ddraw=')
+                for entry in overrides.split(';')
+            ):
+                environment['WINEDLLOVERRIDES'] = ';'.join(
+                    value for value in (overrides, 'ddraw=n,b') if value
+                )
+            popen_options.update(
+                env=environment,
+                start_new_session=True,
+            )
+        self.append_log('Attempting game launch via: ' + command_text)
+        process = subprocess.Popen(
+            launch_target,
+            cwd=str(GAME_ROOT),
+            **popen_options,
+        )
+        self.append_log(f'Launched game process PID={process.pid}.')
+        return process, command_text
+
+    def remember_mission_started(self, mission):
+        """Write down that a mission of this run was opened.
+
+        An attempt begins when the game does, not when it ends: a mission
+        opened and walked away from has still been tried, and the run has
+        to say so whatever happens to the launcher next.
+        """
+        if not (
+            self.state
+            and not getattr(self, 'shop_launch_active', lambda: False)()
+            and mission.get('code') in self.state.get('mission_order', [])
+        ):
+            return
+        try:
+            started_missions = self.state.setdefault('started_missions', [])
+            if mission['code'] not in started_missions:
+                started_missions.append(mission['code'])
+                self.save_state()
+                self.redraw_mission_tree()
+                self.refresh_progress_view()
+        except Exception:
+            self.append_log('Could not persist the mission in-progress state.', error=True)
+            log_event(
+                'mission_started_state_save_failed',
+                level=logging.ERROR,
+                code=mission.get('code'),
+                traceback=traceback.format_exc(),
+            )
+
     def start_mission_process(
         self,
         mission,
@@ -1143,55 +1213,8 @@ class LaunchController:
     ):
         scenario = mission['scenario']
         try:
-            cmd = self.build_command()
-            popen_options = {}
-            launch_target = cmd
-            if sys.platform == 'win32':
-                launch_target = windows_syringe_command_line(cmd)
-                popen_options['executable'] = cmd[0]
-                command_text = launch_target
-            else:
-                command_text = subprocess.list2cmdline(cmd)
-                environment = os.environ.copy()
-                overrides = environment.get('WINEDLLOVERRIDES', '')
-                if not any(
-                    entry.strip().lower().startswith('ddraw=')
-                    for entry in overrides.split(';')
-                ):
-                    environment['WINEDLLOVERRIDES'] = ';'.join(
-                        value for value in (overrides, 'ddraw=n,b') if value
-                    )
-                popen_options.update(
-                    env=environment,
-                    start_new_session=True,
-                )
-            self.append_log('Attempting game launch via: ' + command_text)
-            process = subprocess.Popen(
-                launch_target,
-                cwd=str(GAME_ROOT),
-                **popen_options,
-            )
-            self.append_log(f'Launched game process PID={process.pid}.')
-            if (
-                self.state
-                and not getattr(self, 'shop_launch_active', lambda: False)()
-                and mission.get('code') in self.state.get('mission_order', [])
-            ):
-                try:
-                    started_missions = self.state.setdefault('started_missions', [])
-                    if mission['code'] not in started_missions:
-                        started_missions.append(mission['code'])
-                        self.save_state()
-                        self.redraw_mission_tree()
-                        self.refresh_progress_view()
-                except Exception:
-                    self.append_log('Could not persist the mission in-progress state.', error=True)
-                    log_event(
-                        'mission_started_state_save_failed',
-                        level=logging.ERROR,
-                        code=mission.get('code'),
-                        traceback=traceback.format_exc(),
-                    )
+            process, command_text = self.spawn_game_process()
+            self.remember_mission_started(mission)
             log_event(
                 'mission_process_started',
                 pid=process.pid,
