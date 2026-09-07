@@ -80,8 +80,8 @@ async function render(root) {
       notice(
         answer.mode
           ? `These are ${answer.mode}'s settings. Generate the run they `
-            + 'describe at the bottom of this screen; it is played in the '
-            + 'classic window.'
+            + 'describe at the bottom of this screen, then play it on the '
+            + 'Run tab.'
           : 'The campaign settings, shared by Classic, Mission List and Grid.',
       ),
       // Why the seed box is empty when a run is standing. The classic
@@ -97,7 +97,7 @@ async function render(root) {
       ...settingsSections(answer.sections, tools),
       panel('Generate', {
         body: 'Deals the missions, plans the rewards and writes the run '
-          + 'down. The run itself is played in the classic window.',
+          + 'down. The Run tab is where it is then played.',
         footer: [
           el('span', {
             class: 'muted',

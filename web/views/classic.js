@@ -43,7 +43,7 @@ function modePanel(mode, seed, screens, kind) {
       ABOUT[mode] || '',
       elsewhere
         ? 'Its setup is on the tabs beside this one, and a run is '
-          + 'generated there; the classic window is where one is played.'
+          + 'generated and played there.'
         : 'This interface does not draw it yet. The classic window does, '
           + 'with every setting it has.',
       standing ? `A seed is standing for it: ${seed.seed}.` : '',

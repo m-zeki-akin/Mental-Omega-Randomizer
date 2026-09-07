@@ -4,11 +4,11 @@ The three campaign modes share almost every setting -- they are the same
 campaign in a different order -- so one screen answers for all three, and
 the table says which of the rows belong to Grid alone.
 
-Nothing here generates a seed or changes one that exists. A run that has
-been generated keeps the settings it was generated with; these describe
-the next one, which is why they are settings rather than run state. The
-run itself is read, not written: ``campaign.run`` says how far the one
-standing got, and the classic window is still where it is played.
+A run that has been generated keeps the settings it was generated with;
+these describe the next one, which is why they are settings rather than
+run state. The run itself is a separate thing to ask about, and there are
+three questions: how far the one standing got, generating another, and
+playing a mission of it.
 
 How a table becomes a reply is not here either: that is the same question
 for every setup screen, and it is answered once in ``settings``.
@@ -176,10 +176,10 @@ _OPEN_FOR = None
 def run():
     """Return how far the run written down has got.
 
-    Read-only, and it says so: what a campaign mode is played in is still
-    the classic window. What this answers is the question a player opens
-    the launcher to ask -- which mission is next, and how much of the run
-    is behind them.
+    What this answers is the question a player opens the launcher to ask
+    -- which mission is next, and how much of the run is behind them. It
+    reads and does not touch; playing one of those missions is its own
+    action, and finishing one happens where the game is watched.
     """
     state = store.standing()
     if not state.get('seed'):
