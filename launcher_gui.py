@@ -1169,10 +1169,15 @@ def run_self_check():
             BothControllers.config_reward_settings(keeping_stub)
             .get('starting_unlock_rewards', ())
         )
-        # The one place a run is settled on its settings. Read from the
-        # bytecode, because the frozen launcher has no source to read.
+        # The one place a run is settled on its settings. It is shared by
+        # both windows now, so the reading is of the shared body and of
+        # the classic window calling it rather than answering again. Read
+        # from the bytecode, because the frozen launcher has no source.
+        from randomizer.campaign import generation as generation_module
+
         settling_on_settings = (
-            seed_controller_module.SeedController
+            generation_module.options_from.__code__.co_names
+            + seed_controller_module.SeedController
             .seed_generation_options_from_settings.__code__.co_names
         )
         unknown_starting_unlocks_kept_valid = bool(
@@ -1188,6 +1193,14 @@ def run_self_check():
             and 'current_reward_settings' in settling_on_settings
             and 'filter_permanent_starting_unlock_names'
             in settling_on_settings
+            and 'options_from' in settling_on_settings
+            # And the shared body reaches no control. A window is where
+            # the controls are read; what a run may be is decided from
+            # what they said, which is a different thing and now says so.
+            and not any(
+                name.endswith('_var') for name in
+                generation_module.options_from.__code__.co_names
+            )
         )
         state_stub = object.__new__(state_controller_module.StateController)
         state_stub.config = {'generation': {}}

@@ -1,5 +1,7 @@
 """Deterministic seed creation and mission-check completion."""
 
+from randomizer.campaign import generation as campaign_generation
+
 from ._dependencies import (
     ARSENAL_MODE,
     CAMPAIGN_FILTERS,
@@ -66,180 +68,64 @@ class SeedController:
             self.handle_seed_generation_error,
         )
 
+    def controls_from_widgets(self):
+        """Return what the live controls say, as plain values.
+
+        The one part of asking for a run that is about this window: the
+        rest is the same question wherever it is asked from, and lives
+        beside the run it is asked about.
+        """
+        return {
+            'campaign_filter': self.campaign_var.get(),
+            'seed': self.seed_var.get(),
+            'mission_goal': self.selected_mission_goal(),
+            'rewards_per_check': self.selected_rewards_per_check(),
+            'progression_mode': self.progression_mode_var.get(),
+            'reward_mode': self.reward_mode_var.get(),
+            'rewards_on_victory_only': bool(
+                self.rewards_on_victory_only_var.get()
+            ),
+            'use_act_based_reward_multipliers': bool(
+                self.use_act_reward_multipliers_var.get()
+            ),
+            'unlock_all_grid_rewards': bool(
+                self.unlock_all_grid_rewards_var.get()
+            ),
+            'two_start_positions': bool(self.grid_two_starts_var.get()),
+            'include_no_build_missions': bool(
+                self.include_no_build_missions_var.get()
+            ),
+            'include_no_build_production_missions': bool(
+                self.include_no_build_production_missions_var.get()
+            ),
+            'include_operation_missions': bool(
+                self.include_operation_missions_var.get()
+            ),
+            'prioritize_no_build_missions': bool(
+                self.prioritize_no_build_missions_var.get()
+            ),
+        }
+
     def seed_generation_options_from_settings(self):
         """Validate live controls and freeze one exact generation request."""
         if self.gameplay_settings_locked():
             return None
-        if not self.missions:
-            self.append_log('Cannot generate seed: no missions loaded.', error=True)
-            return
-
-        seed_missions = self.filtered_missions_for_seed()
-        if not seed_missions:
-            self.append_log(f'Cannot generate seed: no missions match {self.campaign_var.get()}.', error=True)
-            return
-
         self.clear_log()
-        requested_seed = self.seed_var.get().strip()
-        seed = requested_seed or f'MO-{random.randrange(0x10000000):08X}'
-        mission_goal = (
-            len(seed_missions)
-            if self.progression_mode_var.get() == 'Shop Mode'
-            else self.selected_mission_goal()
-        )
-        rewards_per_check = self.selected_rewards_per_check()
-        rewards_on_victory_only = bool(
-            self.rewards_on_victory_only_var.get()
-        )
-        use_act_based_reward_multipliers = bool(
-            self.use_act_reward_multipliers_var.get()
-        )
-        unlock_all_grid_rewards = bool(self.unlock_all_grid_rewards_var.get())
-        reward_settings = self.current_reward_settings()
-        # A run is generated with the names this install can actually
-        # find. What the player typed is kept in the settings file
-        # whether the name is known here or not -- a submod may be off
-        # today and on tomorrow -- but the run's own record of itself,
-        # its manifest and the account of where each starting reward
-        # came from should say what it was really given.
-        reward_settings = dict(reward_settings)
-        reward_settings['starting_unlock_rewards'] = (
-            self.filter_permanent_starting_unlock_names(
-                reward_settings.get('starting_unlock_rewards')
+        try:
+            return campaign_generation.options_from(
+                self,
+                self.controls_from_widgets(),
+                missions=self.missions,
+                reward_settings=self.current_reward_settings(),
+                progress=self.queue_busy_progress,
             )
-        )
-        arsenal_mode = self.reward_mode_var.get() == ARSENAL_MODE
-        if arsenal_mode:
-            reward_settings = dict(reward_settings)
-            reward_settings.update({
-                'randomize_unit_access': True,
-                'start_with_tier_one_units': False,
-                'start_with_tier_one_defenses': False,
-                'starting_reward_count': 0,
-                'starting_unlock_rewards': [],
-            })
-            arsenal_settings = reward_settings['arsenal']
-            if not arsenal_settings['factions']:
-                self.append_log(
-                    'Cannot generate seed: Randomizer Arsenal needs at least one faction.',
-                    error=True,
-                )
-                return
-            if not any(
-                count
-                for tier in arsenal_settings['roster_sizes'].values()
-                for count in tier.values()
-            ) and not any(arsenal_settings['power_counts'].values()):
-                self.append_log(
-                    'Cannot generate seed: Randomizer Arsenal roster sizes are all zero.',
-                    error=True,
-                )
-                return
-            if not (
-                reward_settings['include_buff_rewards']
-                or reward_settings['include_power_buff_rewards']
-            ):
-                self.append_log(
-                    'Cannot generate seed: Randomizer Arsenal rewards must enable unit or power buffs.',
-                    error=True,
-                )
-                return
-        power_sources_enabled = any((
-            reward_settings['include_superweapon_rewards'],
-            reward_settings['include_secondary_superweapon_rewards'],
-            reward_settings['include_aid_power_rewards'],
-        ))
-        if not any((
-            reward_settings['randomize_unit_access'],
-            reward_settings['include_buff_rewards'],
-            reward_settings['include_superweapon_rewards'],
-            reward_settings['include_secondary_superweapon_rewards'],
-            reward_settings['include_aid_power_rewards'],
-            (
-                reward_settings['include_power_buff_rewards']
-                and power_sources_enabled
-            ),
-        )):
-            self.append_log('Cannot generate seed: enable at least one reward-pool option.', error=True)
-            return
-        if reward_settings['include_buff_rewards'] and not reward_settings['enabled_buff_types']:
-            self.append_log('Cannot generate seed: buff rewards are enabled but no buff types are selected.', error=True)
-            return
-        if (
-            reward_settings['include_power_buff_rewards']
-            and power_sources_enabled
-            and not reward_settings['enabled_power_buff_types']
-        ):
-            self.append_log(
-                'Cannot generate seed: power buffs are enabled but no power buff types are selected.',
-                error=True,
-            )
-            return
-        if not any(
-            reward_settings['reward_weights']['main'].values()
-        ):
-            self.append_log(
-                'Cannot generate seed: enable at least one main reward weight.',
-                error=True,
-            )
-            return
-        if (
-            reward_settings['starting_reward_count'] > 0
-            and not reward_settings['starting_reward_types']
-        ):
-            self.append_log(
-                'Cannot generate seed: Starting Rewards has no allowed reward types.',
-                error=True,
-            )
-            return
+        except campaign_generation.GenerationRefused as refusal:
+            # Written where it was always written. What changed is that
+            # the same sentence is now available to a window that has no
+            # log to write it in.
+            self.append_log(str(refusal), error=True)
+            return None
 
-        generation_context = {
-            'campaign_filter': self.campaign_var.get(),
-            'reward_mode': self.reward_mode_var.get(),
-            'use_act_based_reward_multipliers': (
-                use_act_based_reward_multipliers
-            ),
-        }
-        self._seed_generation_context = generation_context
-        self._reward_settings_override = reward_settings
-        starting_unit_ids = self.starting_tier_one_unit_ids_for_seed(seed, reward_settings)
-        starting_defense_ids = self.starting_tier_one_defense_ids_for_seed(
-            reward_settings,
-            seed=seed,
-        )
-        self._starting_unit_ids_override = starting_unit_ids
-        self._starting_defense_ids_override = starting_defense_ids
-        return {
-            **generation_context,
-            'seed': seed,
-            'seed_was_explicit': bool(requested_seed),
-            'seed_missions': list(seed_missions),
-            'mission_goal': mission_goal,
-            'rewards_per_check': rewards_per_check,
-            'rewards_on_victory_only': rewards_on_victory_only,
-            'use_act_based_reward_multipliers': (
-                use_act_based_reward_multipliers
-            ),
-            'unlock_all_grid_rewards': unlock_all_grid_rewards,
-            'reward_settings': reward_settings,
-            'starting_defense_ids': starting_defense_ids,
-            'starting_unit_ids': starting_unit_ids,
-            'progression_mode': self.progression_mode_var.get(),
-            'two_start_positions': bool(self.grid_two_starts_var.get()),
-            'mission_pool_settings': {
-                'include_no_build_missions': bool(self.include_no_build_missions_var.get()),
-                'include_no_build_production_missions': bool(
-                    self.include_no_build_production_missions_var.get()
-                ),
-                'include_operation_missions': bool(
-                    self.include_operation_missions_var.get()
-                ),
-                'prioritize_no_build_missions': bool(
-                    self.prioritize_no_build_missions_var.get()
-                ),
-            },
-            '_progress': self.queue_busy_progress,
-        }
     def build_seed_generation(self, options):
         progress = options.get('_progress') or (lambda *_args: None)
         progress('Building deterministic mission order.', 1, 5)
