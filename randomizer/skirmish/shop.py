@@ -31,9 +31,35 @@ BATTLE_REWARD = 125
 REWARD_PER_TIER = 75
 CHALLENGE_REWARD_MULTIPLIER = 2
 STARTING_ORE = 125
-# How many upgrades stand on the shelf between battles. The shelf is drawn
-# from the run's seed, so it is the same shelf every time the run is opened.
+# How many upgrades stand on the shelf between battles, and how many by
+# the end. The shelf is drawn from the run's seed, so it is the same shelf
+# every time the run is opened.
+#
+# It grows a row per tier because what a battle pays grows too: a late
+# shelf of six was a shelf a run could buy out, and a shelf a run can buy
+# out is not a choice between upgrades. Ten is the ceiling -- past that
+# the screen is a list rather than a decision.
 SHELF_SIZE = 6
+SHELF_CAP = 10
+# What share of the shelf is given to the special powers rather than to
+# units -- a small one, because a power is a moment and a unit is the
+# whole battle.
+#
+# Zero, because nothing would arrive. The catalogue has 259 power
+# upgrades over 94 superweapons, and every one of them is written to be
+# folded into a *granted* superweapon: run one through
+# apply_power_buffs_to_unlock_rewards without an unlock reward beside it
+# and it produces no rules at all. A skirmish grants no superweapons --
+# the player builds a Weather Control Device and gets the native power --
+# so a row sold here would take Ore and change nothing.
+#
+# The two ways to change that are written up in TODO.md. Editing the
+# native [XSpecial] would work and is refused: a superweapon type is
+# global, and with three enemies drawn from twelve countries better than
+# half of all battles seat somebody who shares the player's side and
+# would collect the upgrade with them. That is the bug private copies
+# were invented to remove.
+POWER_UPGRADE_WEIGHT = 0.0
 # What a stolen-tech row costs on top of the dearest unit it improves, per
 # extra unit it reaches. A row that raises a stat on five units is worth
 # more than one that raises it on one, and some stats reach only one of
@@ -42,15 +68,22 @@ STOLEN_TECH_PRICE_PER_UNIT = 0.5
 # What a skirmish charges over the campaign shop's list price, and what
 # every upgrade already owned adds to the next one.
 #
-# The list is the campaign's and the two economies are not the same. A
-# United States shelf holds 364 upgrades and buying every one of them came
-# to 16,847 Ore, while a walk through the nine tiers pays 18,675 before a
-# single bonus or challenge is counted: a run could own the entire
-# catalogue and still have change. The rise is the other half of it --
-# what a battle pays climbs with the tier and a fixed price does not, so
-# the late shelf was bought whole every time it was drawn.
-PRICE_SCALE = 2
-PRICE_RISE_PER_OWNED = 0.15
+# Both are set from what a run actually earns and actually gets offered.
+# A walk through the nine tiers is 42 battles paying 22,500 Ore with the
+# challenges doubled and nothing asked for, around 27,000 if the harder
+# offers are taken; it is dealt 381 shelf rows over that walk, out of a
+# United States list of 364. At this scale a run buys 124 of them taking
+# no bonuses and 166 taking the dear ones, and closes on under 300 Ore in
+# hand either way -- so the Ore is spent, and the army is a third of the
+# catalogue rather than all of it. Calibrated at a +25% average.
+PRICE_SCALE = 4
+PRICE_RISE_PER_OWNED = 0.04
+# And where that rise stops. Without a ceiling the fortieth upgrade cost
+# seven times the first and a run stopped buying rather than choosing;
+# with one the rise is an early tilt and then a flat price, and what
+# limits a late run is the shelf rather than the arithmetic. The
+# thirteenth upgrade is the last one that costs more than the one before.
+PRICE_RISE_CAP = 0.50
 
 
 @dataclass(frozen=True)
@@ -67,6 +100,11 @@ class Upgrade:
     @property
     def key(self):
         return (self.unit, self.buff_type)
+
+
+def shelf_size(tier):
+    """Return how many upgrades stand on the shelf in this tier."""
+    return min(SHELF_CAP, SHELF_SIZE + max(0, int(tier) - 1))
 
 
 def upgrade_price(unit):
@@ -89,14 +127,15 @@ def price_for(upgrade, purchases=()):
     """Return what one upgrade costs an army that already owns those.
 
     The list price is what the first one costs. Every upgrade an army has
-    already bought raises what the next one asks, so a run that is winning
-    is a run whose next improvement is dearer than its last -- which is
-    what stops the late tiers buying the whole shelf every battle.
+    already bought raises what the next one asks, up to a ceiling: the
+    fourteenth costs what the thirteenth did, and so does the hundredth.
+    Past that what limits a run is the shelf it is offered rather than a
+    number that keeps climbing.
     """
     owned = sum(max(1, int(one.stacks)) for one in purchases or ())
-    return max(1, int(round(
-        upgrade.price * (1 + PRICE_RISE_PER_OWNED * owned)
-    )))
+    return max(1, int(round(upgrade.price * min(
+        1 + PRICE_RISE_PER_OWNED * owned, 1 + PRICE_RISE_CAP,
+    ))))
 
 
 def battle_reward(battle, *, challenge=False, bonus_percent=0):

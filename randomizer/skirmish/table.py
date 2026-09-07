@@ -14,7 +14,7 @@ can seat the ally's own country as the enemy.
 from .factions import country_by_index, skirmish_countries
 from .maps import MAPS_DIR, challenge_map_pool, skirmish_map_pool
 from .progression import offers_for
-from .shop import draw_shelf
+from .shop import draw_shelf, shelf_size
 from .transitions import SkirmishTransitionError, offer_battles
 
 
@@ -65,5 +65,7 @@ def deal(run):
     return offer_battles(
         run,
         offers,
-        shelf=draw_shelf(run, country.country_id) if country else (),
+        shelf=draw_shelf(
+            run, country.country_id, count=shelf_size(run.tier),
+        ) if country else (),
     )

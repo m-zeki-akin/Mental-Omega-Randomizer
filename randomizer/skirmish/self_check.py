@@ -1634,7 +1634,20 @@ def _shop_checks():
         price_refused = False
     except SkirmishTransitionError:
         price_refused = True
-    from .shop import PRICE_RISE_PER_OWNED, price_for
+    from .shop import (
+        PRICE_RISE_CAP,
+        PRICE_RISE_PER_OWNED,
+        SHELF_CAP,
+        SHELF_SIZE,
+        price_for,
+        shelf_size,
+    )
+
+    def _owning(many):
+        return tuple(
+            UpgradePurchase(f'OWNED{index}', 'speed', 1)
+            for index in range(many)
+        )
 
     purchase_valid = bool(
         # The first costs the list price and the second costs more,
@@ -1647,6 +1660,22 @@ def _shop_checks():
         and price_for(cheap, (UpgradePurchase('GGI', 'speed', 1),))
         > cheap.price
         and PRICE_RISE_PER_OWNED > 0
+        # It rises while it rises, and then it stops. Two claims, because
+        # a curve with no ceiling and a ceiling with no curve are both
+        # wrong in a way the other would hide.
+        and price_for(cheap, _owning(5)) < price_for(cheap, _owning(12))
+        and price_for(cheap, _owning(13)) == price_for(cheap, _owning(40))
+        and price_for(cheap, _owning(400)) == price_for(cheap, _owning(13))
+        and price_for(cheap, _owning(400)) == round(
+            cheap.price * (1 + PRICE_RISE_CAP)
+        )
+        # The shelf grows a row a tier and then stops as well, so a late
+        # run is choosing from more without the screen becoming a list.
+        and shelf_size(1) == SHELF_SIZE
+        and shelf_size(5) == SHELF_CAP
+        and shelf_size(9) == SHELF_CAP
+        and [shelf_size(one) for one in range(1, 10)]
+        == sorted(shelf_size(one) for one in range(1, 10))
         and owned_stacks(bought.purchases, 'GGI', 'speed') == 2
         and limit_refused
         and price_refused

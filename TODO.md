@@ -93,6 +93,23 @@ is whether the game does what they ask. Each names what to look at.
   way, three tech buildings at tier two and an expansion on one of them to
   reach tier three.
 
+- **The special powers on the shelf.** 259 upgrades over 94
+  superweapons, and none of them can be sold yet. Every one is authored
+  to fold into a superweapon a run was *granted* --
+  `apply_power_buffs_to_unlock_rewards` produces nothing without a
+  `kind: superweapon` reward beside it -- and a skirmish grants none: the
+  player builds the structure and gets the native power. Writing the
+  buff onto the native `[XSpecial]` would work and is the wrong trade,
+  because a superweapon type is global and better than half of all
+  battles seat an enemy sharing the player's side, who would collect the
+  upgrade with them. What it needs is the campaign's own path: a private
+  copy of the superweapon registered in `[SuperWeaponTypes]` and granted
+  to the seat by trigger action 34. The campaign owns its triggers
+  through a fixed player house; whether a multiplayer spawnmap can own
+  one against a `Multi` seat is unread, and no skirmish map has ever
+  carried a trigger. `POWER_UPGRADE_WEIGHT` in `shop.py` is where the
+  shelf share goes once it can.
+
 - **Upgrades for buildings.** Cost, health, armour, production speed, an
   extra garrison slot, power (more from a plant, less drawn by a defence or
   a superweapon), a wider `Adjacent`, and a larger
