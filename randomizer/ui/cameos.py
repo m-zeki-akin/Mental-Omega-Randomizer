@@ -432,14 +432,28 @@ def _load_rules_asset_names(*, synchronous=False):
 
 
 def rules_art_names(*, synchronous=False):
+    """Return installed Image= art ids keyed by rules section.
+
+    A copy, like its neighbour below, and for the same reason.
+    """
     _load_rules_asset_names(synchronous=synchronous)
-    return _RULES_ART_NAMES or {}
+    return dict(_RULES_ART_NAMES or {})
 
 
 def rules_sidebar_names(*, synchronous=False):
-    """Return installed SidebarPCX filenames keyed by rules section."""
+    """Return installed SidebarPCX filenames keyed by rules section.
+
+    A copy of the cache rather than the cache. A caller that wants an
+    icon the installed rules do not name -- one of the powers the
+    randomizer invents, which the game has no sidebar art for -- merges
+    its own names into what it is given. Handing over the cache itself
+    meant that merge stayed there: the next caller, asking a question
+    about the installed rules, was answered partly with somebody else's
+    overrides, and every check of what the rules actually name came back
+    true once anything had asked with them.
+    """
     _load_rules_asset_names(synchronous=synchronous)
-    return _RULES_SIDEBAR_NAMES or {}
+    return dict(_RULES_SIDEBAR_NAMES or {})
 
 
 def png_chunk(kind, payload):

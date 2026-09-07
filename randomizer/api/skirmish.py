@@ -27,6 +27,7 @@ from randomizer.ui.config import LOCKED_GAME_SPEED_VALUE
 
 from . import session
 from .contract import COMMAND, ApiError, action
+from .pictures import data_uri
 
 
 # What a preview is allowed to weigh before it is not worth sending. The
@@ -37,25 +38,8 @@ MAX_PREVIEW_BYTES = 512 * 1024
 
 
 def _data_uri(path):
-    """Return a picture the page can draw, as data rather than as a path.
-
-    A page loaded from a file cannot open another file: the engine refuses
-    it, and a refused picture looks exactly like a map that has none. So
-    the bytes go across and the page caches them by map.
-    """
-    import base64
-
-    if not path:
-        return ''
-    path = Path(path)
-    try:
-        if not path.is_file() or path.stat().st_size > MAX_PREVIEW_BYTES:
-            return ''
-        raw = path.read_bytes()
-    except OSError:
-        return ''
-    encoded = base64.b64encode(raw).decode('ascii')
-    return f'data:image/png;base64,{encoded}'
+    """Return one map's picture as data the page can draw."""
+    return data_uri(path, ceiling=MAX_PREVIEW_BYTES)
 
 
 # What a run is played at. The launcher locks both: a run whose pacing or

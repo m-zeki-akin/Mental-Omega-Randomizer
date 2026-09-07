@@ -41,7 +41,9 @@ TOOLKIT_NAMES = ('tkinter', 'import tk', 'ttk.', 'webview')
 # so the sweep asks it without one to prove it refuses cleanly rather than
 # to read it. No screen calls it yet -- it and `skirmish.tiers` are there
 # for the shelf and tier tables that are not drawn.
-ARGUMENT_REQUIRED = frozenset({'campaign.catalogue', 'skirmish.upgrades'})
+ARGUMENT_REQUIRED = frozenset({
+    'campaign.catalogue', 'campaign.cameos', 'skirmish.upgrades',
+})
 
 
 def _package_files():
@@ -1275,6 +1277,108 @@ def _a_mission_is_written_out_without_a_window_valid():
     )
 
 
+def _a_named_list_is_in_the_order_the_rules_are_valid():
+    """The lists a setting picks out of read the way the game does.
+
+    Three hundred units in alphabetical order is a list with no shape:
+    it splits every faction apart, and it puts the answer to "which of
+    these two is the newer one" nowhere in particular. The installed
+    rules already hold an order -- the one the game itself reads them in
+    -- and a player who knows where a unit sits in Mental Omega should
+    find it in the same place here.
+
+    Checked against the rules themselves rather than against a list
+    written down here: a submod changes that order, and a check that
+    knew the answer in advance would be checking the wrong install.
+    """
+    from randomizer.ui.cameos import installed_rules_registry
+    from randomizer.ui.campaign_catalogues import TYPE_LISTS, catalogue
+
+    _powers, sections = installed_rules_registry(synchronous=True)
+    if not sections:
+        return False
+    order, listed = {}, []
+    for name, values in sections.items():
+        if str(name).upper() not in TYPE_LISTS:
+            continue
+        for value in values.values():
+            type_id = str(value).strip().upper()
+            if type_id and type_id not in order:
+                order[type_id] = len(order)
+    units = catalogue('unit_access')
+    powers = catalogue('superweapon')
+    rewards = catalogue('reward_name')
+    if not units or not powers or not rewards:
+        return False
+    for entries in (units, powers, rewards):
+        places = [
+            order.get(
+                str(
+                    (entry.get('cameo') or {}).get('unit')
+                    or (entry.get('cameo') or {}).get('power')
+                    or entry['id']
+                ).upper(),
+                len(order),
+            )
+            for entry in entries
+        ]
+        listed.append(places)
+    return bool(
+        # Every list climbs: what the rules name first is drawn first,
+        # and what they do not name at all is drawn after all of it.
+        all(
+            places == sorted(places)
+            for places in listed
+        )
+        # And it is really the rules being followed, not an accident of
+        # some other order agreeing with them.
+        and listed[0][0] < listed[0][-1]
+        and any(place == len(order) for place in listed[2])
+    )
+
+
+def _a_picture_comes_back_for_what_a_list_names_valid():
+    """A row can show what the thing it names looks like.
+
+    A cameo is how a player recognises a unit; the name underneath is how
+    they confirm it. The launcher already reads them for the classic
+    window, and the only new thing is getting them to a page -- which
+    cannot open a file, so they go over as data.
+
+    Two are asked for on purpose. One the installed rules have art for,
+    and one they do not: four of the powers a run hands out are the
+    randomizer's own inventions, with no sidebar art anywhere in the
+    game, and the reward that invents the power names the icon instead.
+    Forgetting that is how those four come back blank.
+    """
+    from randomizer.ui.campaign_catalogues import catalogue
+
+    named = {entry['id'] for entry in catalogue('superweapon')}
+    invented = 'KNIGHTFALLSPAWN'
+    if invented not in named:
+        return False
+    asked = call('campaign.cameos', units=['E1'], powers=[invented, 'NOSUCH'])
+    too_many = call(
+        'campaign.cameos',
+        units=[f'UNIT{number}' for number in range(200)],
+    )
+    if asked.get('ok') is not True:
+        return False
+    pictures = asked['result']
+    return bool(
+        # A picture for the one the rules know.
+        str(pictures['units'].get('E1') or '').startswith('data:image/png')
+        # And for the one only a reward knows about.
+        and str(
+            pictures['powers'].get(invented) or ''
+        ).startswith('data:image/png')
+        # A name nothing knows is left out rather than answered blank.
+        and 'NOSUCH' not in pictures['powers']
+        # And a page cannot ask for the whole list at once.
+        and too_many.get('ok') is False
+    )
+
+
 def _refuse_to_start(*_args, **_kwargs):
     raise ApiError('The self-check does not start games')
 
@@ -1465,6 +1569,8 @@ def validate_api_contract():
     mission_kept = _a_mission_left_running_is_found_again_valid()
     mission_not_started = _a_mission_is_not_started_until_it_starts_valid()
     mission_written = _a_mission_is_written_out_without_a_window_valid()
+    rules_order = _a_named_list_is_in_the_order_the_rules_are_valid()
+    pictures_answer = _a_picture_comes_back_for_what_a_list_names_valid()
     after = _touched()
 
     json_safe = True
@@ -1543,6 +1649,10 @@ def validate_api_contract():
         'api_a_mission_is_written_out_without_a_window_valid': (
             mission_written
         ),
+        'api_a_named_list_is_in_the_order_the_rules_are_valid': rules_order,
+        'api_a_picture_comes_back_for_what_a_list_names_valid': (
+            pictures_answer
+        ),
         # Asking the launcher what it can do is not playing it. Every
         # command was called above; the runs, the board, the battle files
         # and the game itself are all where they were.
@@ -1568,6 +1678,8 @@ def validate_api_contract():
             and mission_kept
             and mission_not_started
             and mission_written
+            and rules_order
+            and pictures_answer
             and before == after
             and unknown.get('ok') is False
             and described

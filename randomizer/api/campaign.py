@@ -25,6 +25,7 @@ from randomizer.ui.campaign_settings import (
 )
 
 from .contract import COMMAND, ApiError, action
+from .pictures import data_uri
 from .settings import Settings
 
 
@@ -32,6 +33,39 @@ from .settings import Settings
 # mode whose openings are a board rather than a count.
 MODE_KEY = 'progression_mode'
 GRID_MODE = 'Grid Mode'
+
+
+# What one icon is allowed to weigh, and how many may be asked for at
+# once. A cameo is a sixty-by-forty-eight picture and runs to about four
+# kilobytes; the ceiling is generous enough that a submod with a larger
+# one still draws, and mean enough that nothing else gets through. The
+# batch is what a page can show at a time -- roughly two screenfuls of
+# rows -- because asking for three hundred is a megabyte and a half sent
+# across for the sake of the twenty somebody is looking at.
+MAX_CAMEO_BYTES = 64 * 1024
+MAX_CAMEO_BATCH = 60
+
+
+def _sidebar_overrides():
+    """Return the icons the rules do not name but the rewards do.
+
+    Four of the powers a run can hand out are the randomizer's own --
+    reinforcements, an engineering team -- and the installed rules have
+    no sidebar art for them, because the game never offers them from a
+    sidebar. The reward that invents the power names the icon instead,
+    and this is where that is read back out.
+    """
+    from randomizer.rewards.catalogue import REWARD_POOL
+
+    named = {}
+    for reward in REWARD_POOL:
+        power = str(reward.get('superweapon') or '').upper()
+        if not power or power in named:
+            continue
+        icon = (reward.get('superweapon_rules') or {}).get('SidebarPCX')
+        if icon:
+            named[power] = str(icon)
+    return named
 
 
 def _enemy_capacity(config, row):
@@ -310,6 +344,65 @@ def catalogue(name=''):
             dict(entry) for entry in campaign_catalogues.catalogue(wanted)
         ],
     }
+
+
+@action('campaign.cameos', 'The pictures for some of what a list names')
+def cameos(units=(), powers=()):
+    """Return an icon for each thing asked about, as data a page can draw.
+
+    Asked for in batches rather than with the list itself. The list is
+    three hundred rows and the icons for all of them are a megabyte and a
+    half; what a player is looking at is twenty of them. So the names
+    come over once and the pictures follow the eye.
+
+    A thing with no icon is simply absent from the answer. That is not an
+    error and the screen already draws it: a row with a blank where the
+    picture goes still says what it is.
+    """
+    wanted_units = _named(units)
+    wanted_powers = _named(powers)
+    if len(wanted_units) + len(wanted_powers) > MAX_CAMEO_BATCH:
+        raise ApiError(
+            f'Ask for at most {MAX_CAMEO_BATCH} pictures at a time'
+        )
+    from randomizer.ui.cameos import (
+        ensure_superweapon_cameos,
+        ensure_unit_cameos,
+    )
+
+    def drawn(found):
+        pictures = {}
+        for asset_id, path in (found or {}).items():
+            uri = data_uri(path, ceiling=MAX_CAMEO_BYTES)
+            if uri:
+                pictures[str(asset_id)] = uri
+        return pictures
+
+    return {
+        'units': drawn(
+            ensure_unit_cameos(wanted_units, synchronous=True)
+            if wanted_units else {}
+        ),
+        'powers': drawn(
+            ensure_superweapon_cameos(
+                wanted_powers,
+                _sidebar_overrides(),
+                synchronous=True,
+            ) if wanted_powers else {}
+        ),
+    }
+
+
+def _named(asked):
+    """Return the ids asked about, once each and in the order given."""
+    listed = []
+    seen = set()
+    for value in asked or ():
+        name = str(value or '').strip().upper()
+        if name and name not in seen:
+            seen.add(name)
+            listed.append(name)
+    return listed
 
 
 @action('campaign.use_setting', 'Change one campaign setting', kind=COMMAND)

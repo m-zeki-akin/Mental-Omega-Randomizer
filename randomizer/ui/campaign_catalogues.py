@@ -10,6 +10,15 @@ A screen asks for one by name and filters it itself, because filtering as
 somebody types is not something to ask the launcher once per letter. The
 lists are built once and kept: the rules they come from do not change
 while the launcher is open.
+
+They are handed over in the order the installed rules list them, which is
+not an order anybody chose -- it is the order the game itself reads, so a
+player who knows where a unit sits in Mental Omega finds it in the same
+place here. Alphabetical was worse than it sounds: it split every faction
+apart and put the answer to "which of these two is the newer one" nowhere
+in particular. What the rules do not name is listed after what they do,
+by faction and then by name, so a submod renaming something moves it to
+the end rather than losing it.
 """
 
 from randomizer.rewards.catalogue import (
@@ -49,11 +58,90 @@ SUPERWEAPON = 'superweapon'
 REWARD_NAME = 'reward_name'
 CATALOGUE_NAMES = (UNIT_ACCESS, SUPERWEAPON, REWARD_NAME)
 
+# The rules sections that are lists of things, in the order the game
+# reads them. Their order inside the file is the order of the catalogue.
+TYPE_LISTS = (
+    'INFANTRYTYPES', 'VEHICLETYPES', 'AIRCRAFTTYPES', 'BUILDINGTYPES',
+    'SUPERWEAPONTYPES',
+)
+
 _built = {}
+_ORDER = None
 
 
-def _entry(item_id, label, group):
-    return {'id': str(item_id), 'label': str(label), 'group': str(group)}
+def _entry(item_id, label, group, cameo=None):
+    """Return one thing a setting may name.
+
+    ``cameo`` says what picture stands for it and is not always the id: a
+    starting unlock is named by its reward, and a reward is not something
+    the rules have art for. It carries the unit or power the picture
+    belongs to instead -- the first one, for a reward that hands over
+    several, because a row has room for one picture.
+    """
+    return {
+        'id': str(item_id),
+        'label': str(label),
+        'group': str(group),
+        'cameo': dict(cameo) if cameo else {},
+    }
+
+
+def _rules_order():
+    """Return each type id and where the installed rules list it.
+
+    Read once and kept. An installation the launcher cannot read the
+    rules of answers with nothing, and everything falls back to the order
+    it had before -- which is the right failure: a list in the wrong
+    order is still a list, and an empty one is not.
+    """
+    global _ORDER
+    if _ORDER is not None:
+        return _ORDER
+    try:
+        from randomizer.ui.cameos import installed_rules_registry
+
+        _superweapons, sections = installed_rules_registry(synchronous=True)
+    except (OSError, ValueError):
+        sections = {}
+    order = {}
+    for name, values in (sections or {}).items():
+        if str(name).upper() not in TYPE_LISTS:
+            continue
+        for value in values.values():
+            type_id = str(value).strip().upper()
+            if type_id and type_id not in order:
+                order[type_id] = len(order)
+    if not order:
+        # Not kept: an installation whose rules are not readable yet is
+        # one that may be readable on the next ask, and an order cached
+        # from nothing would never be asked for again.
+        return {}
+    _ORDER = order
+    return _ORDER
+
+
+def _ordering_id(entry):
+    """Return the id the rules would know this entry by."""
+    cameo = entry.get('cameo') or {}
+    return str(
+        cameo.get('unit') or cameo.get('power') or entry['id']
+    ).upper()
+
+
+def _in_rules_order(entries):
+    """Return the entries as the installed rules list them.
+
+    What the rules do not name keeps the order it was built in -- by
+    faction, then by name -- and follows everything they do.
+    """
+    order = _rules_order()
+    if not order:
+        return tuple(entries)
+    listed = len(order)
+    return tuple(sorted(
+        entries,
+        key=lambda entry: order.get(_ordering_id(entry), listed),
+    ))
 
 
 def _sorted(entries):
@@ -97,6 +185,7 @@ def _unit_access_entries():
                 unit_id,
                 unit_display_label(unit_id),
                 f'{factions[0]} - {UNIT_CATEGORIES[category]}',
+                {'unit': unit_id},
             ))
     return _sorted(entries.values())
 
@@ -119,8 +208,26 @@ def _superweapon_entries():
             reward_display_name(reward),
             f'{factions[0]} - '
             f'{POWER_CATEGORIES.get(category, "Other powers")}',
+            {'power': power_id},
         ))
     return _sorted(entries.values())
+
+
+def _first_in_rules(tech_ids):
+    """Return the one of these the installed rules name first.
+
+    A reward that hands over several units has one row and room for one
+    picture, so one of them has to stand for the rest. Which one is not
+    obvious and must not be arbitrary: the ids arrive as a set, so
+    picking whichever came out first would draw a different picture on
+    different days. The rules decide, and where they say nothing the
+    name does.
+    """
+    listed = sorted(str(tech_id).upper() for tech_id in tech_ids or ())
+    if not listed:
+        return ''
+    order = _rules_order()
+    return min(listed, key=lambda tech_id: order.get(tech_id, len(order)))
 
 
 def _reward_name_entries():
@@ -148,11 +255,15 @@ def _reward_name_entries():
             continue
         seen.add(name)
         factions = tuple(reward.get('factions') or ('Other',))
+        power = str(reward.get('superweapon') or '').upper()
+        handed = _first_in_rules(tech_ids_for_rewards([reward]))
         entries.append(_entry(
             name,
             reward_display_name(reward) or name,
             f'{factions[0]} - '
             f'{"Powers" if reward.get("kind") == "superweapon" else "Units"}',
+            {'power': power} if power
+            else ({'unit': handed} if handed else None),
         ))
     return _sorted(entries)
 
@@ -173,7 +284,10 @@ def catalogue(name):
     if held is None:
         held = _BUILDERS[wanted]()
         _built[wanted] = held
-    return held
+    # Ordered here rather than when it was built: the rules may not have
+    # been readable then, and a list built once would keep whatever order
+    # that moment could manage for the rest of the launcher's life.
+    return _in_rules_order(held)
 
 
 def labels(name, ids):
