@@ -42,9 +42,8 @@ BY_MODE = {
     # named in the control above, and a tab repeating it says nothing.
     #
     # Run comes first because it is what a player opens the launcher to
-    # look at once a run exists: which mission is next, and how much is
-    # behind them. It reads the run and does not touch it -- the mission
-    # itself is still launched in the classic window.
+    # look at once a run exists: which mission is next, how much is
+    # behind them, and the button that starts the next one.
     'Classic': (('run', 'Run'), ('campaign', 'Setup'), ('classic', 'Mode')),
     'Mission List': (
         ('run', 'Run'), ('campaign', 'Setup'), ('classic', 'Mode'),
