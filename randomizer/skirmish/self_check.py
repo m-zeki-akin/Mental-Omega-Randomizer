@@ -1636,6 +1636,92 @@ def _shop_checks():
         )
     )
 
+    # The sentence on a shelf row is about this installation too, not only
+    # the edit underneath it. Mental Omega gives the Barracuda one round
+    # where the reviewed catalogue says two, and "Ammo 2 -> 3" was a
+    # promise about a different game: what the purchase writes is 1 -> 2.
+    import re
+
+    from randomizer.rewards.buff_reach import fielded_target
+    from randomizer.rewards.catalogue import UNIT_BUFF_REWARDS
+    from randomizer.rewards.display import buff_effect_lines
+
+    overlaid = fielded_target(
+        'FIXTUNIT',
+        {'ammo': 2, 'speed': 6, 'category': 'units'},
+        {'FIXTUNIT': {'Ammo': '1', 'Speed': '9'}},
+    )
+    # Where a shelf row names two numbers, both are the installation's.
+    NAMED_STAT = {
+        'ammo': ('Ammo', 1),
+        'storage': ('Storage', 1),
+        'income': ('ProduceCashAmount', 1),
+        'passenger_capacity': ('Passengers', 1),
+        'speed': ('Speed', 1),
+        'sensors': ('SensorsSight', 0),
+    }
+
+    def _spoken(reward):
+        """Return the number a reward's own sentence promises, or None."""
+        named = NAMED_STAT.get(str(reward.get('buff_type') or ''))
+        if not named:
+            return None
+        key, index = named
+        unit = str(reward.get('unit') or '').upper()
+        written = (unit_rules(
+            unit, reward['buff_type'], 1, sections, BUFF_TARGETS,
+        ).get(unit) or {}).get(key)
+        if written is None:
+            return None
+        spoken = re.findall(r'-?\d+', ' '.join(buff_effect_lines(
+            reward, 1, include_label=False, include_stack=False,
+            installed=sections,
+        )))
+        if len(spoken) <= index:
+            return None
+        return spoken[index] == str(written)
+
+    spoken = [
+        said for said in map(_spoken, UNIT_BUFF_REWARDS) if said is not None
+    ]
+
+    def _shelved(upgrade):
+        """Return whether one shelf row's own words match its edit."""
+        named = NAMED_STAT.get(upgrade.buff_type)
+        if not named or ' -> ' not in upgrade.effect:
+            return None
+        key, index = named
+        written = (unit_rules(
+            upgrade.unit, upgrade.buff_type, 1, sections, BUFF_TARGETS,
+        ).get(upgrade.unit) or {}).get(key)
+        if written is None:
+            return None
+        said = re.findall(r'-?\d+', upgrade.effect)
+        if len(said) <= index:
+            return None
+        return said[index] == str(written)
+
+    shelved = [
+        said
+        for country in ('UnitedStates', 'USSR', 'PsiCorps', 'Guild1')
+        for said in map(_shelved, country_upgrades(country))
+        if said is not None
+    ]
+    quoted_valid = bool(
+        overlaid['ammo'] == 1
+        and overlaid['speed'] == 9
+        # Only the numbers are the installation's: which ceiling a unit is
+        # held to stays the catalogue's reviewed decision.
+        and overlaid['category'] == 'units'
+        # A unit these rules have no section for keeps the catalogue's.
+        and fielded_target('FIXTUNIT', {'ammo': 2}, {})['ammo'] == 2
+        and len(spoken) > 100
+        and all(spoken)
+        # And on the shelf itself, which is where a player reads it.
+        and len(shelved) > 4
+        and all(shelved)
+    )
+
     # A purchase becomes an edit on the unit's own section, read off the
     # unit as this installation has it.
     installed = {
@@ -1673,6 +1759,7 @@ def _shop_checks():
         'skirmish_hero_priced_by_cost': hero_valid,
         'skirmish_linked_forms_copied': forms_valid,
         'skirmish_upgrade_effect_valid': effect_valid,
+        'skirmish_upgrade_effect_quotes_installed': quoted_valid,
         'skirmish_upgrade_delivers_valid': delivers_valid,
         'skirmish_upgrade_rules_valid': rules_valid,
     }

@@ -108,6 +108,55 @@ def fielded_weapon_stats(template, target, installed):
     return stats
 
 
+# The catalogue fields an effect sentence quotes, and the TechnoType key
+# each one is authored as. A buff adds to what the unit *is*, so a sentence
+# that says what the buff will do has to start from the same number the
+# buff will: the Barracuda carries one round in this installation and two
+# in the catalogue, and "Ammo 2 -> 3" was a promise about a different game.
+FIELDED_STATS = {
+    'ammo': 'Ammo',
+    'build_limit': 'BuildLimit',
+    'cost': 'Cost',
+    'passengers': 'Passengers',
+    'produce_cash_amount': 'ProduceCashAmount',
+    'sight': 'Sight',
+    'speed': 'Speed',
+    'storage': 'Storage',
+    'strength': 'Strength',
+}
+
+
+def fielded_target(unit_id, target, installed):
+    """Return the reward's target with this installation's stats in it.
+
+    The catalogue stays the authority on everything that is a *decision* --
+    which category a unit is in, what its safe speed ceiling is, whether it
+    is allowed a seat buff at all. What it stops being the authority on is
+    the unit's current numbers, which belong to whatever rules are loaded.
+
+    A unit the installed rules have no section for is left as the catalogue
+    has it, which is the same fallback ``live_value`` makes per key.
+    """
+    from randomizer.maps.buff_values import live_value
+
+    body = (installed or {}).get(str(unit_id or '').upper()) or {}
+    if not body:
+        return dict(target or {})
+    fielded = dict(target or {})
+    for field, ini_key in FIELDED_STATS.items():
+        if field not in fielded:
+            continue
+        fielded[field] = live_value(body, ini_key, fielded[field])
+    for key, value in body.items():
+        if str(key).lower() == 'locomotor' and str(value).strip():
+            fielded['locomotor'] = value
+            break
+    weapons = fielded_weapon_stats(body, fielded, installed or {})
+    if weapons:
+        fielded['weapons'] = weapons
+    return fielded
+
+
 def unit_buff_sequence(unit_id, buff_type, count, templates, targets):
     """Return the per-stack results of a direct TechnoType buff.
 

@@ -425,7 +425,17 @@ def stack_label(count, limit=None):
     return text
 
 
-def buff_effect_lines(reward, count=1, include_label=True, include_stack=True):
+def buff_effect_lines(
+    reward, count=1, include_label=True, include_stack=True, *, installed=None,
+):
+    """Return what one reward does, in a sentence.
+
+    ``installed`` is the loaded rules sections, and passing them makes the
+    sentence quote this installation's numbers rather than the catalogue's.
+    Callers who are describing a reward in the abstract -- a multiworld
+    catalogue, a mission's own reward list -- leave it out and get the
+    reviewed baseline, which is what those are authored against.
+    """
     reward = canonical_reward(reward)
     if reward.get('kind') != 'buff':
         return []
@@ -460,6 +470,10 @@ def buff_effect_lines(reward, count=1, include_label=True, include_stack=True):
         return [text]
 
     target = BUFF_TARGETS.get(reward.get('unit'), {})
+    if installed is not None:
+        from randomizer.rewards.buff_reach import fielded_target
+
+        target = fielded_target(reward.get('unit'), target, installed)
     buff_type = reward.get('buff_type')
     label = target.get('label', reward.get('unit', 'Unit'))
     prefix = f'{label}: ' if include_label else ''

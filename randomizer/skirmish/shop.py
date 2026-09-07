@@ -170,8 +170,12 @@ def country_upgrades(country):
             continue
         if not clonable(unit, installed, BUFF_TARGETS):
             continue
+        # Read against the rules that are loaded, not the reviewed
+        # baseline: what is written when this is bought is computed from
+        # the unit as it stands, and the shelf should say the same thing.
         effect = buff_effect_lines(
-            reward, 1, include_label=False, include_stack=False
+            reward, 1, include_label=False, include_stack=False,
+            installed=installed,
         )
         made = Upgrade(
             unit=unit,
