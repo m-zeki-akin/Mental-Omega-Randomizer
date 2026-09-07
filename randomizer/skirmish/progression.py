@@ -386,10 +386,22 @@ def battle_offers(run, pool, maps_dir, countries, *, count=OFFER_COUNT):
             continue
         entry = generator.choice(candidates)
         chosen.add(str(entry.path))
-        enemy_countries = tuple(
-            generator.choice(countries).index for _ in range(enemies)
-        )
         many = rules.enemy_upgrades + sum(one.enemy_upgrades for one in ask)
+        # An armed enemy may not play the ally's country. A copy is gated
+        # to a country rather than to a house, so arming that enemy would
+        # arm the ally with it -- and the launch, which cannot do that,
+        # would send it plain against an offer that promised otherwise and
+        # was paid for.
+        drawn_from = countries
+        if many > 0 and ally:
+            spare = [
+                country for country in countries
+                if country.index != run.ally_country
+            ]
+            drawn_from = spare or countries
+        enemy_countries = tuple(
+            generator.choice(drawn_from).index for _ in range(enemies)
+        )
         offers.append(BattleOffer(
             map_path=_relative(entry.path, maps_dir),
             map_name=entry.name,

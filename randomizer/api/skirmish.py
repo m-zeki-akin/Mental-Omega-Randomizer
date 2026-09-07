@@ -88,11 +88,24 @@ def offer_view(offer, index):
         # Each enemy with how well it plays: a tier mixes them, so the
         # card has to be able to say two trained and one hardened.
         'enemies': [
-            dict(_country(index), skill=SKILL_NAMES.get(handicap, ''))
-            for index, handicap in zip(
-                offer.enemy_countries, offer.enemy_handicaps()
+            dict(
+                _country(index),
+                skill=SKILL_NAMES.get(handicap, ''),
+                # What this one brought that the rules did not give it.
+                upgrades=len(bought),
+            )
+            for index, handicap, bought in zip(
+                offer.enemy_countries,
+                offer.enemy_handicaps(),
+                offer.enemy_bought(),
             )
         ],
+        # What the offer asked for, by name, so a card can say it without
+        # working it back out of the flags.
+        'modifiers': list(offer.modifiers),
+        'enemy_upgrades': max(
+            (len(bought) for bought in offer.enemy_bought()), default=0,
+        ),
         'challenge': offer.challenge,
         'ally': offer.ally,
         'mental_ai': offer.mental_ai,

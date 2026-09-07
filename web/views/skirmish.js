@@ -20,6 +20,14 @@ function offerPills(offer) {
   }
   if (!offer.ally) marks.push(pill('no ally', 'danger'));
   if (offer.mental_ai) marks.push(pill('boosted AI', 'danger'));
+  if (offer.enemy_upgrades) {
+    marks.push(pill(
+      offer.enemy_upgrades === 1
+        ? 'enemy carries 1 upgrade'
+        : `enemy carries ${offer.enemy_upgrades} upgrades`,
+      'danger',
+    ));
+  }
   if (offer.challenge) marks.push(pill('challenge', 'accent'));
   if (offer.bonus_percent) {
     marks.push(pill(`+${offer.bonus_percent}% Ore`, 'ore'));

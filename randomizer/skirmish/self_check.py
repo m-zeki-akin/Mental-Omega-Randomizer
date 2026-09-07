@@ -1775,7 +1775,11 @@ def _shop_checks():
     from random import Random
 
     from .ai import ai_house_code, installed_ai_sections, taskforce_units
+    from randomizer.core.paths import GAME_ROOT
+
     from .launch import ai_houses, enemy_purchases
+    from .maps import read_map_pool
+    from .progression import battle_offers
     from .model import BattleOffer
     from .ownership import STOLEN_TECH_GROUP
     from .progression import TIERS, _enemy_upgrades
@@ -1793,6 +1797,28 @@ def _shop_checks():
         enemy_upgrades=(('GGI:speed',), ('GI:armor',), ('GI:armor',)),
     )
     grouped = enemy_purchases(stored)
+    # Dealt for real, at a tier whose enemies are armed, out of the maps
+    # and the countries this installation has.
+    dealing = replace(
+        start_run(
+            run_id='armed-check', seed='ARMED-CHECK', player_country=0,
+            ally_country=3,
+        ),
+        battle=13,
+    )
+    dealt = ()
+    armed_pool = read_map_pool(GAME_ROOT / 'MapsMO' / 'Standard', cache=False)
+    if armed_pool and skirmish_countries():
+        # Several battles' worth, because one battle's three enemies out
+        # of a dozen countries would miss the collision by luck.
+        dealt = tuple(
+            one
+            for battle in range(8, 21)
+            for one in battle_offers(
+                replace(dealing, battle=battle), armed_pool,
+                GAME_ROOT / 'MapsMO', skirmish_countries(),
+            )
+        )
     armed_valid = bool(
         len(handed) == 3
         # Drawn from the seed, so the battle that is played is the one
@@ -1821,6 +1847,15 @@ def _shop_checks():
         # An offer stored before enemies were armed is read back as the
         # plain battle it was played as.
         and replace(stored, enemy_upgrades=()).enemy_bought() == ((), (), ())
+        # And an armed enemy never plays the ally's country, because the
+        # launch cannot arm it there and the offer would have promised --
+        # and charged for -- an enemy that fights plain.
+        and dealt
+        and not any(
+            index == dealing.ally_country
+            for one in dealt if one.ally and any(one.enemy_bought())
+            for index in one.enemy_countries
+        )
     )
 
     # And the copies reach the house that was handed them: the ally gets
