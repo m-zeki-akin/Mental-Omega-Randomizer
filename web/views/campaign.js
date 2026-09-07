@@ -6,11 +6,12 @@
  * screen's: it draws the sections it is given, in the order it is given
  * them, and a row it has never heard of would still be drawn.
  *
- * Generating the seed is still the classic window's, and the panel on the
- * tab beside this one says so. */
+ * Generating is here too now, at the end where it belongs: everything
+ * above it is what the run will be made of, and the press is what makes
+ * it. Playing the run is still the classic window's. */
 
 import { act, call, refresh, register } from '../app.js';
-import { notice, section } from '../components/index.js';
+import { button, el, notice, panel, section } from '../components/index.js';
 import { searchesIn, settingsSections } from '../components/settings.js';
 
 /* The long lists, once each. What a setting may name comes from the
@@ -46,6 +47,31 @@ const tools = {
   refresh,
 };
 
+/**
+ * A button that asks once.
+ *
+ * Generating replaces the run that is standing, and there are no dialogs
+ * on these screens -- so the button becomes the question and the second
+ * press is the answer, the same bargain the roguelike makes before
+ * ending a run. Asked only when there is a run to lose: a first run is
+ * not a decision anybody needs protecting from.
+ */
+function generateButton(standing) {
+  let asked = !standing;
+  const node = button('Generate the run', {
+    variant: 'primary',
+    onClick: async () => {
+      if (!asked) {
+        asked = true;
+        node.textContent = 'Replace the run in progress?';
+        return null;
+      }
+      return act('campaign.generate');
+    },
+  });
+  return node;
+}
+
 async function render(root) {
   const answer = await call('campaign.settings');
   await Promise.all(searchesIn(answer.sections).map(fetchCatalogue));
@@ -53,8 +79,9 @@ async function render(root) {
     section('The next run', [
       notice(
         answer.mode
-          ? `These are ${answer.mode}'s settings. Generating the seed they `
-            + 'describe is still done in the classic window.'
+          ? `These are ${answer.mode}'s settings. Generate the run they `
+            + 'describe at the bottom of this screen; it is played in the '
+            + 'classic window.'
           : 'The campaign settings, shared by Classic, Mission List and Grid.',
       ),
       // Why the seed box is empty when a run is standing. The classic
@@ -68,6 +95,19 @@ async function render(root) {
         )
         : null,
       ...settingsSections(answer.sections, tools),
+      panel('Generate', {
+        body: 'Deals the missions, plans the rewards and writes the run '
+          + 'down. The run itself is played in the classic window.',
+        footer: [
+          el('span', {
+            class: 'muted',
+            text: answer.generated_seed
+              ? 'This replaces the run in progress.'
+              : 'No run is standing.',
+          }),
+          generateButton(answer.generated_seed),
+        ],
+      }),
     ]),
   );
 }

@@ -23,6 +23,7 @@ from randomizer.missions.catalogue import (
     filter_missions_by_build_settings,
     normalize_faction,
 )
+from randomizer.launch.game import clear_generated_rules
 from randomizer.rewards.arsenal import ARSENAL_MODE
 from randomizer.rewards.definitions import (
     DEFAULT_REWARDS_PER_CHECK,
@@ -261,3 +262,64 @@ def options_from(source, controls, *, missions, reward_settings,
         },
         '_progress': progress,
     }
+
+
+# Where each control is kept in the settings file. Most sit at the top,
+# beside the other things a run is set up with; the four about which
+# missions may be dealt are in the generation block with the rest of what
+# the reward pool is made of, and `rewards_per_objective` is what the
+# file has always called the count this asks for as `rewards_per_check`.
+_TOP = {
+    'campaign_filter': 'campaign_filter',
+    'seed': 'seed',
+    'mission_goal': 'mission_goal',
+    'rewards_per_check': 'rewards_per_objective',
+    'progression_mode': 'progression_mode',
+    'rewards_on_victory_only': 'rewards_on_victory_only',
+    'use_act_based_reward_multipliers': 'use_act_based_reward_multipliers',
+    'unlock_all_grid_rewards': 'unlock_all_rewards_after_final_grid_mission',
+    'two_start_positions': 'grid_two_start_positions',
+}
+_GENERATED = {
+    'reward_mode': 'reward_mode',
+    'include_no_build_missions': 'include_no_build_missions',
+    'include_no_build_production_missions':
+        'include_no_build_production_missions',
+    'include_operation_missions': 'include_operation_missions',
+    'prioritize_no_build_missions': 'prioritize_no_build_missions',
+}
+
+
+def controls_from_config(config):
+    """Return what the settings file asks for, in the same words.
+
+    The other half of the pair: one window reads its widgets, the other
+    reads the file both windows write. What comes out is the same dict,
+    which is what makes the deciding shared.
+    """
+    generated = (config or {}).get('generation')
+    generated = generated if isinstance(generated, dict) else {}
+    controls = {
+        key: (config or {}).get(where) for key, where in _TOP.items()
+    }
+    controls.update({
+        key: generated.get(where) for key, where in _GENERATED.items()
+    })
+    return controls
+
+
+def settle(state, config):
+    """Keep a generated run, and put back what a new run makes stale.
+
+    The classic window does this and a great deal besides -- its own
+    labels, its log, its tree of missions. What is here is only the part
+    that outlives a window: the run itself, the ruleset the game would
+    otherwise still load, and the Archipelago connection, which belonged
+    to the run this one replaces.
+    """
+    from . import store
+
+    store.keep(state)
+    config.setdefault('archipelago', {})['enabled'] = False
+    clear_generated_rules()
+    return state

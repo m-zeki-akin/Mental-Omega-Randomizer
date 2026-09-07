@@ -83,7 +83,16 @@ class ProgressionController:
             return archipelago_mode
         if self.state:
             return self.state.get('progression_mode', DEFAULT_PROGRESSION_MODE)
-        return self.progression_mode_var.get()
+        # Guarded the way its neighbours are: what a run is generated as
+        # is asked of the control when there is one and of the settings
+        # file when there is not, so that generating without a window is
+        # a thing this can be asked to do.
+        if hasattr(self, 'progression_mode_var'):
+            return self.progression_mode_var.get()
+        return str(
+            (getattr(self, 'config', None) or {}).get('progression_mode')
+            or DEFAULT_PROGRESSION_MODE
+        )
 
     def sync_grid_progression(self):
         if self.active_progression_mode() != 'Grid Mode':

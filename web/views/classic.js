@@ -42,8 +42,8 @@ function modePanel(mode, seed, screens, kind) {
       kind && kind.description ? `${kind.name}: ${kind.description}` : '',
       ABOUT[mode] || '',
       elsewhere
-        ? 'Its setup is on the tab beside this one; the run itself is '
-          + 'played in the classic window, which draws the rest.'
+        ? 'Its setup is on the tabs beside this one, and a run is '
+          + 'generated there; playing one is still the classic window's.'
         : 'This interface does not draw it yet. The classic window does, '
           + 'with every setting it has.',
       standing ? `A seed is standing for it: ${seed.seed}.` : '',

@@ -223,6 +223,50 @@ def run():
     }
 
 
+# The three modes this generates for. Shop Mode deals a run through its
+# own shelf and its own controller; refusing here is better than dealing
+# it a campaign run that its screens would then have to explain.
+CAMPAIGN_MODES = ('Classic', 'Mission List', 'Grid Mode')
+
+
+@action('campaign.generate', 'Generate the run these settings describe',
+        kind=COMMAND)
+def generate():
+    """Make a run from the settings as they stand, and keep it.
+
+    This replaces whatever run was there. That is what generating has
+    always meant -- there is one campaign run and a new one is a new one
+    -- and it is why the screen asks before pressing rather than after.
+    """
+    from randomizer.campaign import generation, generator
+
+    config = _settings()
+    mode = str(config.get(MODE_KEY) or '')
+    if mode not in CAMPAIGN_MODES:
+        raise ApiError(f'{mode or "This mode"} does not generate a campaign run')
+    missions = generator.installed_missions()
+    if not missions:
+        raise ApiError('No missions are installed to generate a run from')
+    maker = generator.build(config, missions)
+    try:
+        options = generation.options_from(
+            maker,
+            generation.controls_from_config(config),
+            missions=missions,
+            reward_settings=maker.config_reward_settings(),
+        )
+        result = maker.build_seed_generation(options)
+    except generation.GenerationRefused as refusal:
+        raise ApiError(str(refusal)) from refusal
+    generation.settle(result['state'], config)
+    # A seed typed in is kept so the run can be played again; one made up
+    # is not, or the next run would quietly be the same one.
+    if not options['seed_was_explicit']:
+        config['seed'] = ''
+    _keep(config)
+    return run()
+
+
 @action('campaign.settings', 'How the next campaign run will be generated')
 def settings():
     return _answer(_settings())

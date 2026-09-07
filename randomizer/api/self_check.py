@@ -847,6 +847,56 @@ def _one_rule_says_how_far_a_run_got_valid():
     )
 
 
+def _a_run_is_generated_from_the_settings_valid():
+    """Generating makes the run the settings asked for, and keeps it.
+
+    The whole of what a campaign mode is set up for, end to end: a goal
+    of five means five missions dealt, the campaign asked for is the one
+    stamped on the run, and reading it back afterwards finds it. A check
+    that only asked whether generating raised would pass on a run of
+    nought missions.
+
+    Inside a store of its own, because generating replaces the run --
+    which is exactly what must never happen to somebody's own.
+    """
+    from randomizer.campaign import store
+    from randomizer.config import player as settings_file
+
+    wanted = 5
+    with _store_of_its_own():
+        # Through the module: a name imported before the store of its own
+        # was entered is the real function, and asking this question with
+        # it would write the player's own settings file.
+        config = settings_file.load_config()
+        config['progression_mode'] = 'Mission List'
+        config['campaign_filter'] = 'All Campaigns'
+        config['mission_goal'] = wanted
+        config['seed'] = ''
+        settings_file.save_config(config)
+        made = call('campaign.generate')
+        if not made.get('ok'):
+            return False
+        run = (made.get('result') or {}).get('run') or {}
+        kept = store.standing()
+        # And a mode that deals its own run refuses rather than being
+        # handed a campaign one.
+        config['progression_mode'] = 'Skirmish Shop'
+        settings_file.save_config(config)
+        refused = call('campaign.generate')
+    return bool(
+        run.get('goal') == wanted
+        and len(run.get('missions') or ()) == wanted
+        and run.get('campaign') == 'All Campaigns'
+        and run.get('seed')
+        and run.get('next') == (run.get('missions') or [{}])[0].get('code')
+        # Kept where the other window reads it, with the same run in it.
+        and len(kept.get('mission_order') or ()) == wanted
+        and kept.get('seed') == run.get('seed')
+        and kept.get('reward_queue')
+        and refused.get('ok') is False
+    )
+
+
 def _refuse_to_start(*_args, **_kwargs):
     raise ApiError('The self-check does not start games')
 
@@ -889,6 +939,9 @@ def _store_of_its_own():
     # and clearing the AI file is taken away for the length of the sweep.
     ticket_path = session.SKIRMISH_LAUNCH_PATH
     staged = ai.remove_staged_ai_file
+    from randomizer.campaign import generation as run_maker
+
+    clearing = run_maker.clear_generated_rules
     # And the player's own settings. A command that takes no arguments --
     # putting a mode's setup back to its defaults, say -- cannot be made
     # to refuse the way one that needs a name does, so the sweep is given
@@ -917,6 +970,7 @@ def _store_of_its_own():
         session.start = _refuse_to_start
         launch.prepare_battle = _refuse_to_start
         ai.remove_staged_ai_file = lambda *_a, **_k: None
+        run_maker.clear_generated_rules = lambda *_a, **_k: None
         held = reading()
         settings_file.load_config = lambda: deepcopy(held)
 
@@ -942,6 +996,7 @@ def _store_of_its_own():
             session.start = starter
             launch.prepare_battle = preparer
             ai.remove_staged_ai_file = staged
+            run_maker.clear_generated_rules = clearing
             settings_file.load_config = reading
             settings_file.save_config = writing
             run_file.standing = standing
@@ -1000,6 +1055,7 @@ def validate_api_contract():
     )
     all_of_them_kept = _all_of_them_is_kept_as_all_of_them_valid()
     one_rule = _one_rule_says_how_far_a_run_got_valid()
+    run_generated = _a_run_is_generated_from_the_settings_valid()
     after = _touched()
 
     json_safe = True
@@ -1068,6 +1124,7 @@ def validate_api_contract():
         'api_settings_about_one_thing_keep_both_valid': both_halves_kept,
         'api_all_of_them_stays_all_of_them_valid': all_of_them_kept,
         'api_one_rule_says_how_far_a_run_got_valid': one_rule,
+        'api_a_run_is_generated_from_the_settings_valid': run_generated,
         # Asking the launcher what it can do is not playing it. Every
         # command was called above; the runs, the board, the battle files
         # and the game itself are all where they were.
@@ -1087,6 +1144,7 @@ def validate_api_contract():
             and both_halves_kept
             and all_of_them_kept
             and one_rule
+            and run_generated
             and before == after
             and unknown.get('ok') is False
             and described
