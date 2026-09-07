@@ -7,10 +7,17 @@ rest of the run, because five fights against one enemy is four repeats of
 the same fight. Everything a tier decides is in one table, so what the mode
 does at battle twelve can be read rather than traced.
 
-What rises with the tier is the number of enemies, how well they play, and
-how often the ally is missing. What does not rise here is the enemy's own
-strength: the rules injection that buffs an opposition is the Shop mode's
-machinery, and until a skirmish launch generates rules it is not available.
+What rises with the tier is the number of enemies, how well they play, how
+often the ally is missing, and how much of an army each enemy has bought
+for itself. The last of those is new: an enemy used to field the units the
+rules give it and nothing more, while the player and the ally both spent a
+run getting better, so the fight got easier as the numbers got bigger.
+
+An enemy plays a different country nearly every battle, so it cannot shop
+the way the ally does -- there is nothing for it to keep. Instead each one
+is handed a set of upgrades for the country it is playing, drawn fresh from
+that country's own shelf when the battle is offered, which over a run is a
+draw across every faction's pool.
 
 Offers are drawn from the run's seed and its battle number, so the same run
 opened twice offers the same battles, and the offer that was stored is the
@@ -43,12 +50,18 @@ class Tier:
     play. ``challenge`` is which of the client's three challenge modes
     closes the tier, and the two ``mental`` flags say whether Mental
     Omega's AI boost is on for the tier's battles and for its challenge.
+
+    ``enemy_upgrades`` is how many upgrades each enemy is handed for the
+    country it is playing. The first tier hands out none: the opening
+    fight is against the army the rules describe, and an offer has to ask
+    for a bought-up enemy before one appears.
     """
 
     enemies: tuple[int, ...]
     challenge: int
     mental: bool = False
     challenge_mental: bool = False
+    enemy_upgrades: int = 0
 
     @property
     def handicap(self):
@@ -61,81 +74,107 @@ class Tier:
 # Omega's own boost makes that worse rather than better, because on Easy it
 # raises the team delay from 90 to 1000. So nothing here is fought on Easy.
 TIERS = (
-    Tier(enemies=(AI_DIFFICULTY_MEDIUM,), challenge=AI_DIFFICULTY_EASY),
+    Tier(
+        enemies=(AI_DIFFICULTY_MEDIUM,),
+        challenge=AI_DIFFICULTY_EASY,
+        enemy_upgrades=0,
+    ),
     Tier(
         enemies=(AI_DIFFICULTY_MEDIUM, AI_DIFFICULTY_MEDIUM),
         challenge=AI_DIFFICULTY_EASY,
+        enemy_upgrades=1,
     ),
     Tier(
         enemies=(AI_DIFFICULTY_MEDIUM, AI_DIFFICULTY_HARD),
         challenge=AI_DIFFICULTY_MEDIUM,
+        enemy_upgrades=1,
     ),
     Tier(
         enemies=(
             AI_DIFFICULTY_MEDIUM, AI_DIFFICULTY_MEDIUM, AI_DIFFICULTY_HARD,
         ),
         challenge=AI_DIFFICULTY_MEDIUM,
+        enemy_upgrades=2,
     ),
     Tier(
         enemies=(
             AI_DIFFICULTY_MEDIUM, AI_DIFFICULTY_HARD, AI_DIFFICULTY_HARD,
         ),
         challenge=AI_DIFFICULTY_HARD,
+        enemy_upgrades=2,
     ),
-    Tier(enemies=(AI_DIFFICULTY_HARD,) * 3, challenge=AI_DIFFICULTY_HARD),
+    Tier(
+        enemies=(AI_DIFFICULTY_HARD,) * 3,
+        challenge=AI_DIFFICULTY_HARD,
+        enemy_upgrades=3,
+    ),
     Tier(
         enemies=(AI_DIFFICULTY_HARD,) * 3,
         challenge=AI_DIFFICULTY_HARD,
         mental=True,
         challenge_mental=True,
+        enemy_upgrades=4,
     ),
     Tier(
         enemies=(AI_DIFFICULTY_HARD,) * 4,
         challenge=AI_DIFFICULTY_HARD,
         mental=True,
         challenge_mental=True,
+        enemy_upgrades=4,
     ),
     Tier(
         enemies=(AI_DIFFICULTY_HARD,) * 5,
         challenge=AI_DIFFICULTY_HARD,
         mental=True,
+        enemy_upgrades=5,
     ),
 )
 # The warmup. One trained enemy and the ally beside you, no shop, no
 # challenge and no life at stake: a fight to find the mouse again before
 # the run starts counting. It can be skipped.
 WARMUP = Tier(enemies=(AI_DIFFICULTY_MEDIUM,), challenge=AI_DIFFICULTY_EASY)
-OFFER_COUNT = 3
+OFFER_COUNT = 5
 
 
 @dataclass(frozen=True)
-class Bonus:
-    """What one of the harder offers asks, and what it pays for asking.
+class Modifier:
+    """One thing an offer may ask for, and what it pays for asking.
 
-    Three battles that differ only in which map they are on is not a
-    choice, it is a shuffle. So two of the three cost something -- one more
-    enemy, the ally left at home, an AI playing with Mental Omega's own
-    boost -- and pay a percentage on top for it.
+    Battles that differ only in which map they are on are not a choice,
+    they are a shuffle -- which is what three offers made of three fixed
+    bonuses were. So an offer is now composed: the plain battle, and then
+    combinations drawn from this table, at most two at once.
+
+    ``from_tier`` is where a modifier becomes askable. Nothing is asked of
+    a run before the run can answer it.
     """
 
+    key: str
     label: str
     percent: int
+    from_tier: int = 1
     extra_enemies: int = 0
     alone: bool = False
     mental: bool = False
+    # How many upgrades this adds to what each enemy already carries.
+    enemy_upgrades: int = 0
 
 
-# The plain offer first, then the two that ask for something. A run that
-# wants Ore takes the third; a run that wants to survive takes the first.
-BONUSES = (
-    Bonus(label='', percent=0),
-    Bonus(label='one more enemy', percent=40, extra_enemies=1),
-    Bonus(label='no ally', percent=75, alone=True),
+# What each one is worth is what it costs to survive, not what it sounds
+# like. Fighting without the ally used to pay 75% and was the easiest of
+# the three offers on a one-enemy tier: an ally is one more base to defend
+# and one more army walking into things. One more enemy is the harder ask
+# and now pays the more, and a bought-up enemy sits between them.
+MODIFIERS = (
+    Modifier('alone', 'no ally', 25, alone=True),
+    Modifier('armed', 'a bought-up enemy', 35, enemy_upgrades=2),
+    Modifier('extra_enemy', 'one more enemy', 40, extra_enemies=1),
+    Modifier('boost', 'boosted AI', 50, from_tier=4, mental=True),
 )
-# From the tier that fields three enemies onwards, the dearest offer asks
-# for the boosted AI instead of a fourth body on the field.
-BOOSTED_BONUS = Bonus(label='boosted AI, no ally', percent=110, alone=True, mental=True)
-BOOSTED_FROM_TIER = 4
+MODIFIERS_BY_KEY = {one.key: one for one in MODIFIERS}
+# How many may be asked for at once. Three at a time is not an offer, it
+# is a punishment, and the percentages add up faster than a run does.
+MAX_STACKED = 2
 # What the ally plays at, whatever the enemies play at. It is the player's
 # partner, and a partner on Easy develops a base and then stands in it: the
 # difficulty of a run is what it is fought against, not who it is fought
@@ -232,22 +271,87 @@ def challenge_offer(run, pool, maps_dir, countries):
     )
 
 
-def offer_bonuses(battle, count=OFFER_COUNT):
+def allowed_modifiers(battle):
+    """Return what this battle is allowed to ask for."""
+    if is_warmup(battle):
+        return ()
+    tier = tier_for(battle)
+    return tuple(one for one in MODIFIERS if tier >= one.from_tier)
+
+
+def _asks(allowed):
+    """Return every combination that may be asked for, easiest first.
+
+    The plain battle leads, and then every set of one or two, ordered by
+    what they add up to -- so an offer list reads from the fight a run can
+    take to the fight it is gambling on.
+    """
+    from itertools import combinations
+
+    sets = [()]
+    for size in range(1, MAX_STACKED + 1):
+        sets.extend(combinations(allowed, size))
+    sets[1:] = sorted(
+        sets[1:],
+        key=lambda ask: (sum(one.percent for one in ask), [
+            one.key for one in ask
+        ]),
+    )
+    return sets
+
+
+def offer_modifiers(battle, count=OFFER_COUNT, seed=''):
     """Return what each of this battle's offers asks for, in order.
+
+    The plain offer is always first and always present -- a run that has
+    nothing left should be able to take a battle that asks nothing of it.
+    The rest are drawn, so two runs at the same tier are not handed the
+    same list, and no two offers in one list ask for the same things.
 
     The warmup asks for nothing: it is the fight before the run starts
     counting, and a bonus on it would be a reward for not being warmed up.
     """
-    if is_warmup(battle):
-        return tuple(BONUSES[0] for _ in range(count))
-    table = list(BONUSES[:count])
-    if tier_for(battle) >= BOOSTED_FROM_TIER and len(table) > 2:
-        # Three enemies is already a crowd. What the dearest offer asks for
-        # from here on is a better opponent rather than another one.
-        table[-1] = BOOSTED_BONUS
-    while len(table) < count:
-        table.append(BONUSES[0])
-    return tuple(table)
+    count = max(1, int(count))
+    allowed = allowed_modifiers(battle)
+    if not allowed:
+        return tuple(() for _ in range(count))
+    asks = _asks(allowed)
+    generator = _rng(seed, battle, 'modifiers')
+    taken = generator.sample(asks[1:], min(count - 1, len(asks) - 1))
+    taken.sort(key=lambda ask: sum(one.percent for one in ask))
+    drawn = [()] + taken
+    while len(drawn) < count:
+        drawn.append(())
+    return tuple(drawn)
+
+
+def _enemy_upgrades(country, many, generator):
+    """Return the upgrades one enemy is handed, as ``unit:buff_type`` keys.
+
+    Drawn from the shelf its own country shops from, because an upgrade
+    for a unit this army cannot field is Ore spent on nothing -- and since
+    an enemy plays a different country nearly every battle, a run's
+    enemies are bought up out of every faction's list in turn.
+    """
+    if many <= 0 or not country:
+        return ()
+    from .ownership import STOLEN_TECH_GROUP
+    from .shop import country_upgrades
+
+    # Not the stolen-tech row. What puts those units on the field is an
+    # infiltration, which is not something a computer player is handed
+    # with its upgrades -- buying one for an enemy would improve a unit
+    # that never arrives.
+    shelf = [
+        one for one in country_upgrades(country)
+        if one.unit != STOLEN_TECH_GROUP
+    ]
+    if not shelf:
+        return ()
+    return tuple(sorted(
+        f'{one.unit}:{one.buff_type}'
+        for one in generator.sample(shelf, min(many, len(shelf)))
+    ))
 
 
 def battle_offers(run, pool, maps_dir, countries, *, count=OFFER_COUNT):
@@ -259,13 +363,17 @@ def battle_offers(run, pool, maps_dir, countries, *, count=OFFER_COUNT):
     ordered = sorted(pool, key=lambda entry: entry.path.name)
     offers = []
     chosen = set()
-    bonuses = offer_bonuses(run.battle, count)
+    asked = offer_modifiers(run.battle, count, seed=run.seed)
     for index in range(count):
-        bonus = bonuses[index]
+        ask = asked[index]
+        # The body an offer adds is one of the tier's own, not its worst:
+        # a fourth enemy at the difficulty the tier already fields is one
+        # more army, which is what the offer says it is.
+        extra = sum(one.extra_enemies for one in ask)
         handicaps = rules.enemies + tuple(
-            rules.enemies[-1] for _ in range(bonus.extra_enemies)
+            rules.enemies[0] for _ in range(extra)
         )
-        ally = not bonus.alone
+        ally = not any(one.alone for one in ask)
         enemies = len(handicaps)
         seats = 1 + enemies + (1 if ally else 0)
         candidates = [
@@ -278,21 +386,38 @@ def battle_offers(run, pool, maps_dir, countries, *, count=OFFER_COUNT):
             continue
         entry = generator.choice(candidates)
         chosen.add(str(entry.path))
+        enemy_countries = tuple(
+            generator.choice(countries).index for _ in range(enemies)
+        )
+        many = rules.enemy_upgrades + sum(one.enemy_upgrades for one in ask)
         offers.append(BattleOffer(
             map_path=_relative(entry.path, maps_dir),
             map_name=entry.name,
-            enemy_countries=tuple(
-                generator.choice(countries).index for _ in range(enemies)
-            ),
+            enemy_countries=enemy_countries,
             handicap=rules.handicap,
             handicaps=handicaps,
-            mental_ai=rules.mental or bonus.mental,
-            bonus_percent=bonus.percent,
+            mental_ai=rules.mental or any(one.mental for one in ask),
+            bonus_percent=sum(one.percent for one in ask),
+            modifiers=tuple(one.key for one in ask),
+            enemy_upgrades=tuple(
+                _enemy_upgrades(
+                    _country_id(countries, index), many, generator,
+                )
+                for index in enemy_countries
+            ),
             seed=generator.randrange(1, 2 ** 31),
             ally=ally,
             challenge=False,
         ))
     return tuple(offers)
+
+
+def _country_id(countries, index):
+    """Return the rules name of a country, when the caller has one."""
+    for country in countries:
+        if country.index == index:
+            return str(getattr(country, 'country_id', '') or '')
+    return ''
 
 
 def offers_for(run, standard_pool, challenge_pool, maps_dir, countries):
@@ -324,11 +449,22 @@ def describe_offer(offer):
     enemies = len(offer.enemy_countries)
     company = 'with your ally' if offer.ally else 'alone'
     boost = ', boosted AI' if offer.mental_ai else ''
+    # What each enemy brought that the rules did not give it. Said as a
+    # count rather than a list: the units are the enemy's business, and
+    # what a player needs to know before choosing is how many.
+    carried = max(
+        (len(bought) for bought in offer.enemy_upgrades), default=0,
+    )
+    armed = (
+        f', {"each " if enemies > 1 else ""}carrying {carried} '
+        f'{"upgrade" if carried == 1 else "upgrades"}'
+        if carried else ''
+    )
     reward = (
         f'\n+{offer.bonus_percent}% Ore for taking it'
         if offer.bonus_percent else ''
     )
     return (
         f'{" and ".join(parts)} {"enemy" if enemies == 1 else "enemies"}'
-        f'{boost}, {company}{reward}'
+        f'{boost}{armed}, {company}{reward}'
     )

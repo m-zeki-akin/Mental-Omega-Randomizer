@@ -13,7 +13,8 @@ the one before it left:
    ``ForbiddenHouses`` written by a house's copies would otherwise be read
    as the unit's own and extended to the seat;
 6. the spawn file, naming the seat rather than the country it stands for;
-7. the player's copies, then the ally's, each reading what the other left;
+7. the player's copies, then the ally's, then each armed enemy's, every
+   one reading what the ones before it left;
 8. the AI file, if any house has anything to build.
 
 The two callables are the parts that belong to the launcher rather than to
@@ -48,6 +49,7 @@ SPAWN_MAP_INI = GAME_ROOT / 'spawnmap.ini'
 # to one ID.
 PLAYER_CLONE_PREFIX = 'MOP'
 ALLY_CLONE_PREFIX = 'MOL'
+ENEMY_CLONE_PREFIX = 'MOE'
 
 
 # The player's house takes the first colour and every other house the
@@ -247,12 +249,68 @@ def prepare_battle(battle, *, before=None, after=None):
     }
 
 
+def enemy_purchases(offer):
+    """Return what each enemy country was handed, by that country.
+
+    The offer stores one set per enemy, but a copy is gated to a country
+    rather than to a house, so two enemies playing the same country are
+    one army as far as the rules are concerned. Their sets are put
+    together rather than written twice.
+    """
+    from .model import UpgradePurchase
+
+    by_country = {}
+    for index, bought in zip(offer.enemy_countries, offer.enemy_bought()):
+        country = country_by_index(index)
+        if country is None or not bought:
+            continue
+        for key in bought:
+            unit, _, buff_type = str(key).partition(':')
+            if not unit or not buff_type:
+                continue
+            by_country.setdefault(country.country_id, {})[key] = (
+                UpgradePurchase(unit.upper(), buff_type, 1)
+            )
+    return {
+        country: tuple(bought.values())
+        for country, bought in by_country.items()
+    }
+
+
+def ai_houses(battle, ally_clones, enemy_clones):
+    """Return every computer player with the copies it is to build.
+
+    The ally builds what it bought; an enemy builds what the offer handed
+    the country it is playing. A house the installed rules no longer have
+    is left out rather than named to the AI file as a country that is not
+    there.
+    """
+    ally = battle.get('ally')
+    houses = []
+    for house in battle['houses']:
+        country = country_by_index(house.country)
+        if country is None:
+            continue
+        friendly = ally is not None and country.index == ally.index
+        houses.append((
+            country.country_id,
+            side_number(country.side_id),
+            dict(ally_clones) if friendly
+            else dict(enemy_clones.get(country.country_id) or {}),
+        ))
+    return houses
+
+
 def prepare_ai(battle):
     """Give the computer players their copies, and the wish to build them.
 
     A human builds what the sidebar offers, so a copy gated to their seat
     is the whole of it. A computer player builds what its task forces name,
     so the copies are useless until those name them.
+
+    The ally's copies are what it bought with its own earnings. An enemy's
+    are what the offer handed it, which is how an opposition gets better
+    over a run without having a purse to keep it in.
     """
     remove_staged_ai_file()
     ally = battle.get('ally')
@@ -270,16 +328,29 @@ def prepare_ai(battle):
             # single house.
             forbid_source=False,
         )
-    houses = []
-    for house in battle['houses']:
-        country = country_by_index(house.country)
-        if country is None:
+    by_country = {}
+    for country_id, bought in enemy_purchases(battle['offer']).items():
+        if ally is not None and country_id == ally.country_id:
+            # The ally is playing what an enemy is playing. A copy is the
+            # country's, so arming the enemy here would arm the ally too;
+            # the enemy fights this one with what the rules gave it.
             continue
-        houses.append((
-            country.country_id,
-            side_number(country.side_id),
-            clones if ally is not None and country.index == ally.index else {},
-        ))
-    if houses and clones:
+        made = apply_house_clones(
+            SPAWN_MAP_INI,
+            bought,
+            country_id,
+            prefix=ENEMY_CLONE_PREFIX,
+            forbid_source=False,
+        )
+        if made:
+            by_country[country_id] = made
+    houses = ai_houses(battle, clones, by_country)
+    if houses and (clones or by_country):
         stage_ai_file(ai_house_code(houses))
+    log_event(
+        'skirmish_ai_prepared',
+        ally_clones=len(clones),
+        armed_enemies=len(by_country),
+        enemy_clones=sum(len(made) for made in by_country.values()),
+    )
     return clones

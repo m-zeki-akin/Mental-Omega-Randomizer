@@ -102,11 +102,29 @@ class BattleOffer:
     # What taking the harder of the offers is worth, as a percentage on
     # top of what the battle pays. Zero is the plain offer.
     bonus_percent: int = 0
+    # What this offer asks for, by the modifier keys that composed it. The
+    # percentage above is what they add up to; these are what they were.
+    modifiers: tuple[str, ...] = ()
+    # What each enemy carries that the rules did not give it, one entry
+    # per enemy, as the shelf's own ``unit:buff_type`` keys. Drawn when
+    # the offer was, so the battle that is played is the one that was
+    # offered rather than a fresh roll at launch.
+    enemy_upgrades: tuple[tuple[str, ...], ...] = ()
 
     @property
     def houses(self):
         """How many computer players this battle seats."""
         return len(self.enemy_countries) + (1 if self.ally else 0)
+
+    def enemy_bought(self):
+        """Return what each enemy carries, however old the stored offer is.
+
+        An offer stored before enemies were armed carries nothing, which
+        is what it was played as.
+        """
+        if len(self.enemy_upgrades) == len(self.enemy_countries):
+            return self.enemy_upgrades
+        return tuple(() for _ in self.enemy_countries)
 
     def enemy_handicaps(self):
         """Return one difficulty per enemy, however old the stored offer is."""
@@ -127,6 +145,8 @@ class BattleOffer:
             'handicaps': list(self.handicaps),
             'mental_ai': self.mental_ai,
             'bonus_percent': self.bonus_percent,
+            'modifiers': list(self.modifiers),
+            'enemy_upgrades': [list(one) for one in self.enemy_upgrades],
             'seed': self.seed,
             'ally': self.ally,
             'challenge': self.challenge,

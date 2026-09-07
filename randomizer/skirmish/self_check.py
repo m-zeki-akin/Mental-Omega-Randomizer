@@ -362,6 +362,19 @@ class SimpleCountry:
     """Stands in for an installed country when there are no rules to read."""
 
     index: int
+    country_id: str = ''
+    side_id: str = ''
+
+
+@dataclass(frozen=True)
+class SimpleHouse:
+    """One seat at a battle, for a check that only needs its country."""
+
+    country: int
+
+
+# What a house resolves to when the installed rules have no such country.
+_NO_COUNTRY = SimpleCountry(-1)
 
 
 def _fixture_pool(directory, count, *, prefix='map', seats=6):
@@ -446,8 +459,10 @@ def _run_checks():
         again = offers_for(
             run, standard_pool, challenge_pool, maps_dir, countries
         )
+        from .progression import OFFER_COUNT
+
         offers_valid = bool(
-            len(first) == 3
+            len(first) == OFFER_COUNT
             and first == again
             and not any(offer.challenge for offer in first)
             # Stored as a path relative to MapsMO, so a moved installation
@@ -456,7 +471,19 @@ def _run_checks():
                 offer.map_path.startswith('Standard/') for offer in first
             )
             and all(offer.enemy_countries for offer in first)
-            and len({offer.map_path for offer in first}) == 3
+            and len({offer.map_path for offer in first}) == OFFER_COUNT
+            # One battle per shape, and the plain one among them: five
+            # offers made of the same two bonuses would be the shuffle
+            # this replaced.
+            and len({
+                tuple(sorted(offer.modifiers)) for offer in first
+            }) == OFFER_COUNT
+            and any(not offer.modifiers for offer in first)
+            # And what each pays follows what it asks for.
+            and all(
+                (offer.bonus_percent > 0) == bool(offer.modifiers)
+                for offer in first
+            )
         )
 
         # Taking one and winning it moves the run on.
@@ -1220,26 +1247,57 @@ def _shop_checks():
         and not skip_warmup(opening).warmup
     )
 
-    # Three battles that differ only in which map they are on is a
-    # shuffle, not a choice. Two of the three ask for something and pay
-    # for the asking.
-    from .progression import BONUSES, offer_bonuses
+    # Battles that differ only in which map they are on are a shuffle, not
+    # a choice. Every offer but the first asks for something, no two ask
+    # for the same things, and what they pay follows what they ask.
+    from .progression import (
+        MAX_STACKED,
+        MODIFIERS_BY_KEY,
+        OFFER_COUNT,
+        allowed_modifiers,
+        offer_modifiers,
+    )
 
-    early = offer_bonuses(1)
-    late = offer_bonuses(16)
+    def _asked(battle, seed='CHECK'):
+        return offer_modifiers(battle, OFFER_COUNT, seed=seed)
+
+    early = _asked(1)
+    late = _asked(18)
+    percents = [
+        sum(one.percent for one in ask) for ask in early
+    ]
     bonus_valid = bool(
+        OFFER_COUNT == 5
+        and len(early) == OFFER_COUNT
         # The first offer is the plain one, and it is the only plain one.
-        early[0].percent == 0
-        and all(bonus.percent > 0 for bonus in early[1:])
-        # What they ask for is a harder battle, not a different map.
-        and any(bonus.extra_enemies for bonus in early)
-        and any(bonus.alone for bonus in early)
-        # From the tier that fields three, the dearest asks for a better
-        # opponent rather than another one.
-        and late[-1].mental and not early[-1].mental
-        and late[-1].percent > early[-1].percent
+        and not early[0]
+        and all(ask for ask in early[1:])
+        # No two offers ask for the same things, and none asks for more
+        # than a run can carry.
+        and len({
+            tuple(sorted(one.key for one in ask)) for ask in early
+        }) == OFFER_COUNT
+        and all(len(ask) <= MAX_STACKED for ask in early)
+        # They are listed from what a run can take to what it is gambling
+        # on, and the Ore follows in the same direction.
+        and percents == sorted(percents)
+        # What they ask for is a harder battle, not a different map: at
+        # least one wants the ally left at home, one more enemy, or an
+        # enemy that has been bought up.
+        and {
+            one.key for ask in early for one in ask
+        } & {'alone', 'extra_enemy', 'armed'}
+        # The boosted AI is not asked of a run that has met three enemies
+        # once, and is asked of one that has met them a while.
+        and 'boost' not in {one.key for one in allowed_modifiers(1)}
+        and 'boost' in {one.key for one in allowed_modifiers(18)}
+        and MODIFIERS_BY_KEY['extra_enemy'].percent
+        > MODIFIERS_BY_KEY['alone'].percent
+        and any('boost' in {one.key for one in ask} for ask in late)
+        # Two runs at the same tier are not handed the same list.
+        and _asked(1, seed='OTHER') != early
         # The warmup asks for nothing.
-        and all(bonus.percent == 0 for bonus in offer_bonuses(0))
+        and all(not ask for ask in _asked(0))
         # And the Ore follows the asking.
         and battle_reward(1, bonus_percent=0) == BATTLE_REWARD
         and battle_reward(1, bonus_percent=40)
@@ -1655,6 +1713,103 @@ def _shop_checks():
         )
     )
 
+    # An enemy used to field what the rules gave it and nothing more,
+    # which made a run easier the further it went: the player and the ally
+    # both spent it getting better. Each enemy is now handed upgrades for
+    # the country it happens to be playing, drawn when the offer is dealt.
+    from random import Random
+
+    from .ai import ai_house_code, installed_ai_sections, taskforce_units
+    from .launch import ai_houses, enemy_purchases
+    from .model import BattleOffer
+    from .ownership import STOLEN_TECH_GROUP
+    from .progression import TIERS, _enemy_upgrades
+
+    armed_country = 'UnitedStates'
+    handed = _enemy_upgrades(armed_country, 3, Random(7))
+    again = _enemy_upgrades(armed_country, 3, Random(7))
+    on_the_shelf = {
+        f'{one.unit}:{one.buff_type}'
+        for one in country_upgrades(armed_country)
+    }
+    stored = BattleOffer(
+        map_path='Standard/self-check.map', map_name='Self Check',
+        enemy_countries=(0, 0, 1), handicap=1, seed=1,
+        enemy_upgrades=(('GGI:speed',), ('GI:armor',), ('GI:armor',)),
+    )
+    grouped = enemy_purchases(stored)
+    armed_valid = bool(
+        len(handed) == 3
+        # Drawn from the seed, so the battle that is played is the one
+        # that was offered.
+        and handed == again
+        and set(handed) <= on_the_shelf
+        # Nothing gated behind an infiltration: a computer player cannot
+        # bring a stolen-tech unit, so improving one spends the offer on
+        # a unit that never arrives.
+        and not any(key.startswith(STOLEN_TECH_GROUP) for key in handed)
+        and _enemy_upgrades(armed_country, 0, Random(7)) == ()
+        # The opening tier fights the army the rules describe. After that
+        # an enemy is armed, and never less well armed than it was a tier
+        # ago -- what a run walks into has to keep pace with what it has
+        # been buying itself.
+        and TIERS[0].enemy_upgrades == 0
+        and [one.enemy_upgrades for one in TIERS]
+        == sorted(one.enemy_upgrades for one in TIERS)
+        and TIERS[len(TIERS) // 2].enemy_upgrades > 0
+        and TIERS[-1].enemy_upgrades >= 3
+        # Two enemies playing one country are one army as far as the
+        # rules are concerned, so their sets are put together rather than
+        # written twice.
+        and len(grouped) == 2
+        and len(grouped[next(iter(grouped))]) == 2
+        # An offer stored before enemies were armed is read back as the
+        # plain battle it was played as.
+        and replace(stored, enemy_upgrades=()).enemy_bought() == ((), (), ())
+    )
+
+    # And the copies reach the house that was handed them: the ally gets
+    # what it bought, the enemy gets what the offer gave it, and a house
+    # that was handed nothing is named with nothing.
+    seated = ai_houses(
+        {
+            'houses': (
+                SimpleHouse(country=0),
+                SimpleHouse(country=6),
+                SimpleHouse(country=7),
+            ),
+            'ally': country_by_index(0),
+        },
+        {'GGI': 'MOLGGI'},
+        {(country_by_index(6) or _NO_COUNTRY).country_id: {'FLAKT': 'MOEFLAKT'}},
+    )
+    carried = {country: units for country, _side, units in seated}
+    ai_sections = installed_ai_sections()
+    enemy_code = ai_house_code(
+        [(country, side, units) for country, side, units in seated if units],
+        sections=ai_sections,
+    )
+    asked_for = {
+        unit
+        for name, values in enemy_code.items()
+        if name not in {'AITriggerTypes', 'TaskForces', 'TeamTypes'}
+        for _count, unit in taskforce_units(values).values()
+    }
+    armed_valid = bool(
+        armed_valid
+        and len(seated) == 3
+        and carried.get((country_by_index(0) or _NO_COUNTRY).country_id)
+        == {'GGI': 'MOLGGI'}
+        and carried.get((country_by_index(6) or _NO_COUNTRY).country_id)
+        == {'FLAKT': 'MOEFLAKT'}
+        # A house nobody armed builds what it always built.
+        and carried.get((country_by_index(7) or _NO_COUNTRY).country_id) == {}
+        # And a task force asks for the enemy's copy by name, which is the
+        # whole point: a computer player builds what its task forces name.
+        and 'MOEFLAKT' in asked_for
+        and 'MOLGGI' in asked_for
+    )
+
     # The sentence on a shelf row is about this installation too, not only
     # the edit underneath it. Mental Omega gives the Barracuda one round
     # where the reviewed catalogue says two, and "Ammo 2 -> 3" was a
@@ -1779,6 +1934,7 @@ def _shop_checks():
         'skirmish_linked_forms_copied': forms_valid,
         'skirmish_upgrade_effect_valid': effect_valid,
         'skirmish_upgrade_effect_quotes_installed': quoted_valid,
+        'skirmish_enemy_is_armed_valid': armed_valid,
         'skirmish_upgrade_delivers_valid': delivers_valid,
         'skirmish_upgrade_rules_valid': rules_valid,
     }

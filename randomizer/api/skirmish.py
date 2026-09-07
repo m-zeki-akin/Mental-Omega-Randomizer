@@ -215,11 +215,12 @@ def preview(map_path=''):
 def tiers():
     from randomizer.skirmish.model import battles_in_tier
     from randomizer.skirmish.progression import (
-        BONUSES,
+        MODIFIERS,
+        OFFER_COUNT,
         SKILL_NAMES,
         TIERS,
         WARMUP,
-        offer_bonuses,
+        allowed_modifiers,
     )
 
     def described(tier, number):
@@ -241,17 +242,26 @@ def tiers():
             described(tier, number)
             for number, tier in enumerate(TIERS, 1)
         ],
-        'bonuses': [
+        # What an offer may ask for, and from which tier. An offer is
+        # composed of these rather than picked from a fixed list, so this
+        # is the table rather than one battle's draw.
+        'modifiers': [
             {
-                'label': bonus.label,
-                'percent': bonus.percent,
-                'extra_enemies': bonus.extra_enemies,
-                'alone': bonus.alone,
-                'mental_ai': bonus.mental,
+                'key': one.key,
+                'label': one.label,
+                'percent': one.percent,
+                'from_tier': one.from_tier,
+                'extra_enemies': one.extra_enemies,
+                'alone': one.alone,
+                'mental_ai': one.mental,
+                'enemy_upgrades': one.enemy_upgrades,
             }
-            for bonus in offer_bonuses(1)
+            for one in MODIFIERS
         ],
-        'plain_bonus_count': len(BONUSES),
+        'offer_count': OFFER_COUNT,
+        'opening_modifiers': [
+            one.key for one in allowed_modifiers(1)
+        ],
     }
 
 

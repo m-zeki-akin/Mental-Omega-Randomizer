@@ -90,6 +90,19 @@ def normalize_battle_offer(document, field='offer'):
             if isinstance(document.get('handicaps'), list)
         ),
         mental_ai=bool(document.get('mental_ai')),
+        # What the offer asked for, and what each enemy was handed for
+        # asking. A run stored before either existed has neither, and is
+        # read back as the plain battle it was.
+        modifiers=tuple(
+            str(key) for key in (document.get('modifiers') or [])
+            if isinstance(document.get('modifiers'), list)
+        ),
+        enemy_upgrades=tuple(
+            tuple(str(key) for key in (bought or []))
+            for bought in (document.get('enemy_upgrades') or [])
+            if isinstance(document.get('enemy_upgrades'), list)
+            and isinstance(bought, list)
+        ),
         bonus_percent=_int(
             document.get('bonus_percent'), f'{field}.bonus_percent',
             minimum=0, default=0,
