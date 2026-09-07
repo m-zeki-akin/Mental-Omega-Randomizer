@@ -53,7 +53,9 @@ function cell(row, key) {
 function header(run) {
   const lines = [
     `Seed ${run.seed}`,
-    run.mode,
+    // Named as what it was made as, because that is not always what the
+    // launcher is set to now. A run keeps the order it was dealt.
+    run.mode ? `Made as ${run.mode}` : '',
     run.campaign,
     `${run.won} of ${run.goal} missions finished`,
     `${run.rewards} rewards earned`,
@@ -73,6 +75,16 @@ async function render(root) {
     return;
   }
   const parts = [section(null, header(run))];
+  if (run.standing_mode && run.mode && run.standing_mode !== run.mode) {
+    // Worth saying plainly rather than leaving two words to contradict
+    // each other: the control above says one mode and the run says
+    // another, and both are true.
+    parts.push(section(null, notice(
+      `The launcher is set to ${run.standing_mode}, and this run was made `
+      + `as ${run.mode}. It keeps the order it was dealt; generating a `
+      + 'new run is what changes that.',
+    )));
+  }
   if (run.finished) {
     parts.push(section(null, notice(
       'This run is finished. Generate another to keep playing.',

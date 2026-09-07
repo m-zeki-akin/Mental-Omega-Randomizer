@@ -208,6 +208,10 @@ def run():
         'run': {
             'seed': str(state.get('seed') or ''),
             'mode': str(state.get(MODE_KEY) or ''),
+            # What the launcher is set to now, which is not always what
+            # this run was made as: a mode can be changed after a run
+            # exists, and the run keeps the order it was dealt.
+            'standing_mode': str(_settings().get(MODE_KEY) or ''),
             'campaign': str(state.get('campaign_filter') or ''),
             'goal': goal,
             'won': len(won),
