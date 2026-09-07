@@ -72,7 +72,19 @@ export async function show(name) {
 export async function refresh() {
   const render = views.get(showing);
   const panel = panels.get(showing);
-  if (!render || !panel) return;
+  if (!panel) return;
+  if (!render) {
+    // A page that did not load leaves nothing behind to say so: the
+    // module never ran, so it never registered, and a tab that quietly
+    // stops existing reads as a launcher that changed its mind. Say it
+    // instead -- the screen is named in the table either way.
+    panel.replaceChildren(errorNotice(new Error(
+      `The ${showing} screen did not load. The launcher is fine; this `
+      + 'page is not. Nothing else on this window is affected.',
+    )));
+    status(`The ${showing} screen did not load.`);
+    return;
+  }
   try {
     await render(panel);
     status('');
@@ -119,6 +131,12 @@ export async function act(name, args = {}) {
  * A screen the mode does not have is not hidden, it is not built: a panel
  * left behind would still be in the page for a view to draw into and for a
  * player to reach with a keyboard.
+ *
+ * A screen the mode *does* have is built whether or not its page loaded.
+ * Skipping it was quieter and worse: a page with a syntax error in it
+ * took its tab away with it, so the launcher looked like it had simply
+ * decided that mode has one screen fewer. The tab is drawn, and pressing
+ * it says what happened.
  */
 function buildScreens(screens) {
   const tabs = document.getElementById('tabs');
@@ -128,7 +146,6 @@ function buildScreens(screens) {
   main.replaceChildren();
   panels.clear();
   for (const screen of screens) {
-    if (!views.has(screen.name)) continue;
     const tab = document.createElement('button');
     tab.className = 'tab';
     tab.type = 'button';
