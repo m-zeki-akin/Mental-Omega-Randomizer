@@ -1497,6 +1497,93 @@ def _what_a_mission_looks_like_is_settable_valid():
     )
 
 
+def _what_a_run_handed_over_can_be_read_valid():
+    """Winning a mission moves things into the hand, and it can be seen.
+
+    The Run screen counts -- two of eight missions, sixteen rewards --
+    and a count is not an answer to what those sixteen were. Everything
+    needed to say it was already worked out for the classic window: what
+    a reward unlocks, whether this run can still reach it, which mission
+    would pay for it. None of that wanted a window, and one thing in it
+    turned out to: a grid run that hides its locked missions asked a
+    control whether it does.
+
+    So a run is generated, read, won once, and read again. The catalogue
+    does not change -- it is the catalogue -- but what is in hand does,
+    and everything in it is one of four things and nothing else.
+    """
+    from randomizer.campaign import generation, generator, progress
+    from randomizer.campaign import store as run_file
+    from randomizer.config import player as settings_file
+
+    from . import campaign as campaign_actions
+
+    standings = set(campaign_actions.UNLOCK_STANDINGS)
+    with _store_of_its_own():
+        config = settings_file.load_config()
+        config['campaign_filter'] = 'All Campaigns'
+        config['mission_goal'] = 6
+        # A board, and one that hides what it has not opened: the one
+        # question here that reached for a control.
+        config['progression_mode'] = 'Grid Mode'
+        config['hide_locked_grid_missions'] = True
+        config['seed'] = 'SELF-CHECK-UNLOCKS'
+        config['rewards_on_victory_only'] = False
+        settings_file.save_config(config)
+        missions = generator.installed_missions()
+        if not missions:
+            return False
+        maker = generator.build(config, missions)
+        state = maker.build_seed_generation(generation.options_from(
+            maker,
+            generation.controls_from_config(config),
+            missions=missions,
+            reward_settings=maker.config_reward_settings(),
+        ))['state']
+        run_file.keep(state)
+        before = call('campaign.unlocks')
+        # Win the mission the board opens with.
+        playing = generator.build(config, missions, state=state)
+        opened = [
+            code for code, tile in progress.grid_states(state).items()
+            if tile == 'unlocked'
+        ]
+        if not opened:
+            return False
+        playing.active_hook = {
+            'mission_code': opened[0],
+            'scenario': 'self-check',
+            'markers': {'MO-SELF-CHECK-VICTORY': 'victory'},
+            'seen': set(),
+            'completed_objective_checks': 0,
+            'objective_events_seen': 0,
+            'offset': 0,
+        }
+        playing.process_hook_log_text('MO-SELF-CHECK-VICTORY')
+        after = call('campaign.unlocks')
+    if not (before.get('ok') and after.get('ok')):
+        return False
+    was, now = before['result'], after['result']
+    try:
+        json.dumps(now)
+    except (TypeError, ValueError):
+        return False
+    return bool(
+        # The catalogue is the catalogue. Winning moves things about in
+        # it; it does not make it a different list.
+        len(was['entries']) == len(now['entries']) > 0
+        and [entry['key'] for entry in was['entries']]
+             == [entry['key'] for entry in now['entries']]
+        # And every one of them is one of the four things, not a fifth.
+        and all(entry['standing'] in standings for entry in now['entries'])
+        # Winning paid, and the payment shows.
+        and now['run']['earned'] > was['run']['earned']
+        and now['counts']['unlocked'] > was['counts']['unlocked']
+        # Every side the run can draw from is named, once each.
+        and now['factions'] and len(set(now['factions'])) == len(now['factions'])
+    )
+
+
 def _refuse_to_start(*_args, **_kwargs):
     raise ApiError('The self-check does not start games')
 
@@ -1690,6 +1777,7 @@ def validate_api_contract():
     rules_order = _a_named_list_is_in_the_order_the_rules_are_valid()
     mission_left_out = _a_mission_left_out_stays_out_valid()
     look_settable = _what_a_mission_looks_like_is_settable_valid()
+    unlocks_readable = _what_a_run_handed_over_can_be_read_valid()
     pictures_answer = _a_picture_comes_back_for_what_a_list_names_valid()
     after = _touched()
 
@@ -1772,6 +1860,7 @@ def validate_api_contract():
         'api_a_named_list_is_in_the_order_the_rules_are_valid': rules_order,
         'api_a_mission_left_out_stays_out_valid': mission_left_out,
         'api_what_a_mission_looks_like_is_settable_valid': look_settable,
+        'api_what_a_run_handed_over_can_be_read_valid': unlocks_readable,
         'api_a_picture_comes_back_for_what_a_list_names_valid': (
             pictures_answer
         ),
@@ -1803,6 +1892,7 @@ def validate_api_contract():
             and rules_order
             and mission_left_out
             and look_settable
+            and unlocks_readable
             and pictures_answer
             and before == after
             and unknown.get('ok') is False

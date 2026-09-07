@@ -407,3 +407,51 @@
 }
 
 .picker__drop:hover { color: var(--danger); }
+
+/* --- what a run has handed over ---------------------------------------
+ * A wall of icons, which is how a player reads a sidebar and how they
+ * read this. The name is under each one because a cameo alone is a
+ * memory test, and the state is the border rather than a word: four
+ * words repeated three hundred times is not a list, it is wallpaper. */
+.unlocks {
+  display: grid;
+  gap: var(--space-2);
+  grid-template-columns: repeat(auto-fill, minmax(84px, 1fr));
+}
+
+.unlock {
+  display: grid;
+  gap: var(--space-1);
+  justify-items: center;
+  padding: var(--space-1);
+  border: 2px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  text-align: center;
+}
+
+.unlock__name {
+  font-size: var(--size-xs);
+  color: var(--text-muted);
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+
+/* In hand, and it looks it. */
+.unlock--unlocked { border-color: var(--accent); }
+/* The next reward could be this one. */
+.unlock--available { border-color: var(--success); }
+/* Real, and behind something. */
+.unlock--locked { border-color: var(--line-strong); opacity: 0.75; }
+/* This run was never going to offer it. Still listed -- that is a fact
+ * about the seed -- but it should not compete with what is. */
+.unlock--unavailable { border-style: dashed; opacity: 0.4; }
+
+/* The same box as a search row's, at the size the game draws one. */
+.cameo--tile {
+  width: var(--cameo-width);
+  height: auto;
+  aspect-ratio: var(--cameo-aspect);
+}

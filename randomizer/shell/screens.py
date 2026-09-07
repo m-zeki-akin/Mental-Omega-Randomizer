@@ -43,12 +43,21 @@ BY_MODE = {
     #
     # Run comes first because it is what a player opens the launcher to
     # look at once a run exists: which mission is next, how much is
-    # behind them, and the button that starts the next one.
-    'Classic': (('run', 'Run'), ('campaign', 'Setup'), ('classic', 'Mode')),
-    'Mission List': (
-        ('run', 'Run'), ('campaign', 'Setup'), ('classic', 'Mode'),
+    # behind them, and the button that starts the next one. Unlocks is
+    # beside it because it answers the other half of the same question --
+    # the counts there, and what those counts were made of here.
+    'Classic': (
+        ('run', 'Run'), ('unlocks', 'Unlocks'), ('campaign', 'Setup'),
+        ('classic', 'Mode'),
     ),
-    'Grid Mode': (('run', 'Run'), ('campaign', 'Setup'), ('classic', 'Mode')),
+    'Mission List': (
+        ('run', 'Run'), ('unlocks', 'Unlocks'), ('campaign', 'Setup'),
+        ('classic', 'Mode'),
+    ),
+    'Grid Mode': (
+        ('run', 'Run'), ('unlocks', 'Unlocks'), ('campaign', 'Setup'),
+        ('classic', 'Mode'),
+    ),
     # Its setup is here and its run is not: what a run is started with
     # outlives the run, and both windows read it from one place. The
     # mode's own panel says where the run itself is played.

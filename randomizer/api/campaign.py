@@ -24,6 +24,8 @@ from randomizer.ui.campaign_settings import (
     SECTIONS,
 )
 
+from randomizer.core.diagnostics import event as log_event
+
 from .contract import COMMAND, ApiError, action
 from .pictures import data_uri
 from .settings import Settings
@@ -46,26 +48,30 @@ MAX_CAMEO_BYTES = 64 * 1024
 MAX_CAMEO_BATCH = 60
 
 
-def _sidebar_overrides():
-    """Return the icons the rules do not name but the rewards do.
+def _power_icons():
+    """Return, for each power, whatever the rewards say its icon is.
 
-    Four of the powers a run can hand out are the randomizer's own --
-    reinforcements, an engineering team -- and the installed rules have
-    no sidebar art for them, because the game never offers them from a
-    sidebar. The reward that invents the power names the icon instead,
-    and this is where that is read back out.
+    Two kinds, and the rules name neither. Four of the powers a run can
+    hand out are the randomizer's own -- reinforcements, an engineering
+    team -- and the game has no sidebar art for them because it never
+    offers them from a sidebar; the reward that invents the power names
+    an installed icon instead. And a power the Arsenal has rewritten may
+    carry a picture of its own that is not in the game at all.
     """
     from randomizer.rewards.catalogue import REWARD_POOL
 
-    named = {}
+    named, drawn = {}, {}
     for reward in REWARD_POOL:
         power = str(reward.get('superweapon') or '').upper()
-        if not power or power in named:
+        if not power:
             continue
+        image = reward.get('superweapon_sidebar_image')
+        if image and power not in drawn:
+            drawn[power] = str(image)
         icon = (reward.get('superweapon_rules') or {}).get('SidebarPCX')
-        if icon:
+        if icon and power not in named:
             named[power] = str(icon)
-    return named
+    return named, drawn
 
 
 def _enemy_capacity(config, row):
@@ -378,18 +384,32 @@ def cameos(units=(), powers=()):
                 pictures[str(asset_id)] = uri
         return pictures
 
+    named, own_picture = _power_icons()
+    # A power with a picture of its own is not looked for in the game's
+    # art at all: it is not there, and asking would answer nothing.
+    from randomizer.maps.assets import custom_sidebar_preview
+
+    powers = {}
+    for power in wanted_powers:
+        image = own_picture.get(power)
+        if not image:
+            continue
+        try:
+            powers[power] = custom_sidebar_preview(image)
+        except Exception:
+            log_event('campaign_power_picture_unreadable', power=power)
+    if wanted_powers:
+        powers.update(ensure_superweapon_cameos(
+            [power for power in wanted_powers if power not in powers],
+            named,
+            synchronous=True,
+        ))
     return {
         'units': drawn(
             ensure_unit_cameos(wanted_units, synchronous=True)
             if wanted_units else {}
         ),
-        'powers': drawn(
-            ensure_superweapon_cameos(
-                wanted_powers,
-                _sidebar_overrides(),
-                synchronous=True,
-            ) if wanted_powers else {}
-        ),
+        'powers': drawn(powers),
     }
 
 
@@ -550,3 +570,87 @@ def playing():
         return {'playing': False, 'finished': None}
     maker = generator.build(_settings(), generator.installed_missions(), state)
     return mission_session.poll(maker)
+
+
+# What a dashboard entry can be, in the order a player reads them: what
+# is in hand, what the next reward could be, what the run has locked
+# behind something, and what this run was never going to offer.
+UNLOCK_STANDINGS = ('unlocked', 'available', 'locked', 'unavailable')
+
+
+def _unlock_picture(entry):
+    """Return which picture stands for one thing on the dashboard."""
+    reward = entry.get('reward') or {}
+    if entry.get('kind') == 'unit':
+        return {'unit': str(entry.get('id') or '').upper()}
+    if entry.get('kind') == 'power':
+        return {'power': str(
+            reward.get('cameo_superweapon') or entry.get('id') or ''
+        ).upper()}
+    # A buff or a global is not a thing with art of its own: it is a
+    # change to something else, and the something else is not one thing.
+    return {}
+
+
+@action('campaign.unlocks', 'Everything this run could hand over, and what it has')
+def unlocks():
+    """Return the run as a catalogue of what is in hand and what is not.
+
+    The counts on the Run screen say how far a run has got; this says
+    what it got. Both come off the same stored run, and the deciding is
+    the classic window's own -- which reward a mission could pay, what a
+    reward would unlock, whether the run can still reach it -- run on a
+    launcher with nothing drawn.
+
+    Everything is listed, including what this run will never offer.
+    That is not noise: a seed that has left every Soviet aircraft out is
+    a fact about the run, and a list showing only what is reachable
+    cannot say it.
+    """
+    from randomizer.campaign import generator
+
+    state = store.standing()
+    if not state.get('seed'):
+        return {'run': None, 'entries': [], 'factions': []}
+    reading = generator.build(
+        _settings(), generator.installed_missions(), state,
+    )
+    try:
+        listed = reading.unlock_dashboard_entries()
+    except Exception as exc:
+        raise ApiError(f'This run cannot be read: {exc}') from exc
+    entries = [
+        {
+            'key': str(entry.get('key') or ''),
+            'id': str(entry.get('id') or ''),
+            'label': str(entry.get('label') or entry.get('id') or ''),
+            'kind': str(entry.get('kind') or ''),
+            'faction': str(entry.get('faction') or 'Other'),
+            'group': str(entry.get('category') or ''),
+            'standing': str(entry.get('status') or ''),
+            # Why it is where it is: which mission would pay for it, or
+            # what the run would have to do first.
+            'note': str(entry.get('condition') or ''),
+            'cameo': _unlock_picture(entry),
+        }
+        for entry in listed
+    ]
+    factions = []
+    for entry in entries:
+        if entry['faction'] not in factions:
+            factions.append(entry['faction'])
+    return {
+        'run': {
+            'seed': str(state.get('seed') or ''),
+            'mode': str(state.get(MODE_KEY) or ''),
+            'earned': len(state.get('earned_rewards') or ()),
+        },
+        'factions': factions,
+        'counts': {
+            standing: sum(
+                1 for entry in entries if entry['standing'] == standing
+            )
+            for standing in UNLOCK_STANDINGS
+        },
+        'entries': entries,
+    }

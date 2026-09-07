@@ -365,7 +365,14 @@ class ProgressionController:
             self.refresh_progress_view()
 
     def selected_mission(self):
-        if not self.missions:
+        """Which mission the player is pointing at, if anything is.
+
+        Nothing, where there is no tree to point with. That is an answer
+        rather than a gap: the one thing that changes with the selection
+        is which mission an Arsenal roster is shown for, and a launcher
+        with no window is not showing one.
+        """
+        if not self.missions or not hasattr(self, 'selected_index'):
             return None
         index = self.selected_index.get()
         if index < 0 or index >= len(self.missions):
