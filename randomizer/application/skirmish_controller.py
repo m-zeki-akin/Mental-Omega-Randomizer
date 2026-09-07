@@ -79,9 +79,6 @@ SKIRMISH_MODE = 'Skirmish Shop'
 # block the game writes at the end, which is how the launcher finds its own
 # result among the houses.
 SKIRMISH_PLAYER_NAME = 'Commander'
-# Colours are indexes into the client's own list. The player takes the first
-# and every other house takes the next, so no two houses share one.
-HOUSE_COLORS = (0, 2, 4, 6, 8, 10, 12, 14)
 # What a card's preview is allowed to take up, in pixels. Tk subsamples by
 # whole factors and nothing else, so the image steps down until it fits.
 PREVIEW_BOX = (300, 210)

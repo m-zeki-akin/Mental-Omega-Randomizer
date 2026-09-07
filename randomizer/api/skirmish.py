@@ -265,9 +265,21 @@ def tiers():
     }
 
 
+@action('skirmish.colors', 'Every colour a run may be played in')
+def colors():
+    from randomizer.skirmish.colors import UNCHOSEN, player_colors
+
+    return {
+        'unchosen': UNCHOSEN,
+        'colors': [
+            {'id': number, 'label': name} for number, name in player_colors()
+        ],
+    }
+
+
 @action('skirmish.start', 'Begin a new run as one army, allied with another',
         kind=COMMAND)
-def start(player=0, ally=3):
+def start(player=0, ally=3, color=-1):
     """Start a run and deal its warmup, and make it the run being played.
 
     The run that was being played is not thrown away -- it stays in the
@@ -294,6 +306,7 @@ def start(player=0, ally=3):
             seed=uuid4().hex[:12].upper(),
             player_country=chosen.index,
             ally_country=beside.index,
+            player_color=int(color),
             created=date.today().isoformat(),
             # So the ally is not empty-handed in the opening battle: it
             # shops out of what a victory pays, and at the start nothing
@@ -315,6 +328,7 @@ def start(player=0, ally=3):
         'seed': saved.seed,
         'army': chosen.display,
         'ally': beside.display,
+        'color': saved.player_color,
     }
 
 

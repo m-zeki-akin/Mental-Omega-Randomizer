@@ -23,6 +23,7 @@ and writing the difficulty into the game's own options file. They are
 passed in so that this module needs nothing from a window.
 """
 
+from dataclasses import replace
 import shutil
 
 from randomizer.core.diagnostics import event as log_event
@@ -36,6 +37,7 @@ from .challenges import (
     merge_map_code,
 )
 from .clones import apply_house_clones
+from .colors import UNCHOSEN, color_ids, house_colors, is_a_color
 from .factions import country_by_index, skirmish_countries
 from .options import merge_game_options
 from .seats import apply_seat
@@ -52,9 +54,10 @@ ALLY_CLONE_PREFIX = 'MOL'
 ENEMY_CLONE_PREFIX = 'MOE'
 
 
-# The player's house takes the first colour and every other house the
-# next, so no two share one.
-HOUSE_COLORS = (0, 2, 4, 6, 8, 10, 12, 14)
+# What the player wears when they have not said, and what everyone wears
+# when the installation's colour table cannot be read at all: the first
+# colour for the player and one of the others for each computer player.
+DEFAULT_PLAYER_COLOR = 0
 # The player's house is named in the spawn file and named again in the
 # score block the game writes at the end, which is how the launcher finds
 # its own result among the houses.
@@ -84,7 +87,7 @@ def houses_for(run, offer):
     if offer.ally:
         houses.append(SkirmishHouse(
             country=run.ally_country,
-            color=HOUSE_COLORS[1],
+            color=0,
             friendly=True,
             # Not the tier's difficulty. An ally on Easy builds a base and
             # stands in it; what a run is fought against is the dial, not
@@ -94,11 +97,38 @@ def houses_for(run, offer):
     for country, handicap in zip(offer.enemy_countries, offer.enemy_handicaps()):
         houses.append(SkirmishHouse(
             country=country,
-            color=HOUSE_COLORS[len(houses) + 1],
+            color=0,
             friendly=False,
             handicap=handicap,
         ))
-    return tuple(houses)
+    # The colours are handed out once the line-up is known, so that none of
+    # them is the player's and no two are each other's.
+    wearing = house_colors(
+        player=player_color(run, described),
+        taken=described.disallowed_colors if described is not None else (),
+        many=len(houses),
+    )
+    return tuple(
+        replace(house, color=color) for house, color in zip(houses, wearing)
+    )
+
+
+def player_color(run, described=None):
+    """Return the colour the player's army wears in this battle.
+
+    Their own choice, unless the map has spoken: a challenge names the
+    colours its armies wear, and the client keeps the player out of those.
+    """
+    disallowed = set(
+        described.disallowed_colors if described is not None else ()
+    )
+    chosen = int(getattr(run, 'player_color', UNCHOSEN))
+    if is_a_color(chosen) and chosen not in disallowed:
+        return chosen
+    return next(
+        (number for number in color_ids() if number not in disallowed),
+        DEFAULT_PLAYER_COLOR,
+    )
 
 
 def build_battle(run, offer, entry, *, difficulty, game_speed):
@@ -133,10 +163,7 @@ def build_battle(run, offer, entry, *, difficulty, game_speed):
         'player': player,
         # A challenge names a colour its own armies wear, and the client
         # keeps the player out of it.
-        'player_color': next(
-            color for color in HOUSE_COLORS
-            if described is None or color not in described.disallowed_colors
-        ),
+        'player_color': player_color(run, described),
         'houses': houses,
         'seat': pick_seat(
             player.country_id,

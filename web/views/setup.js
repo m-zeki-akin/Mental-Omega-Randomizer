@@ -25,7 +25,7 @@ const COLUMNS = [
  * otherwise sit in the control selecting nothing at all. */
 let picked = null;
 
-function armies(countries) {
+function armies(countries, unchosen) {
   const indexes = countries.map((country) => country.index);
   const installed = (value) => indexes.includes(value);
   if (picked && installed(picked.army) && installed(picked.ally)) {
@@ -36,16 +36,22 @@ function armies(countries) {
     // Somebody else's side to begin with: the fourth installed country,
     // which is what the classic window opens on too.
     ally: indexes[Math.min(3, indexes.length - 1)],
+    // Nobody having said, which is the launcher picking as it always did.
+    color: unchosen,
   };
   return picked;
 }
 
-function chooser(countries) {
+function chooser(countries, palette) {
   const options = countries.map((country) => ({
     value: country.index,
     label: country.display,
   }));
-  const standing = armies(countries);
+  const standing = armies(countries, palette.unchosen);
+  const colors = [
+    { value: palette.unchosen, label: 'Any colour' },
+    ...palette.colors.map((one) => ({ value: one.id, label: one.label })),
+  ];
   return panel('New run', {
     children: row([
       field('Army', select(options, {
@@ -56,16 +62,23 @@ function chooser(countries) {
         value: standing.ally,
         onChange: (value) => { standing.ally = Number(value); },
       })),
+      field('Colour', select(colors, {
+        value: standing.color,
+        onChange: (value) => { standing.color = Number(value); },
+      })),
     ]),
     body: 'A run begins with a warmup you may skip. The ally shops with '
-      + 'you, out of what your victories pay.',
+      + 'you, out of what your victories pay. Your colour stands for the '
+      + 'whole run, except on a challenge map that names its own.',
     footer: [
       el('span', { class: 'muted', text: 'The seed is drawn for you.' }),
       button('Start run', {
         variant: 'primary',
         onClick: async () => {
           const started = await act('skirmish.start', {
-            player: standing.army, ally: standing.ally,
+            player: standing.army,
+            ally: standing.ally,
+            color: standing.color,
           });
           // Straight to the battle it just dealt. Starting a run and then
           // having to find it is a step nobody wants twice.
@@ -154,9 +167,10 @@ function runList(runs, active) {
 
 async function render(root) {
   const countries = await call('skirmish.countries');
+  const palette = await call('skirmish.colors');
   const { runs, active } = await call('skirmish.runs');
   root.replaceChildren(
-    section('Start', chooser(countries)),
+    section('Start', chooser(countries, palette)),
     section('Runs', runList(runs, active)),
   );
 }

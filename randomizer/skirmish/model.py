@@ -179,6 +179,9 @@ class SkirmishRun:
     seed: str
     player_country: int
     ally_country: int
+    # What the player's army wears. -1 is nobody having said, which is
+    # what every run made before there was anything to say carries.
+    player_color: int = -1
     created: str = ''
     status: RunStatus = RunStatus.ACTIVE
     # The battle about to be played. Zero is the warmup: one fight to
@@ -251,6 +254,7 @@ class SkirmishRun:
             'status': self.status.value,
             'player_country': self.player_country,
             'ally_country': self.ally_country,
+            'player_color': self.player_color,
             'battle': self.battle,
             'lives': self.lives,
             'revivals_used': self.revivals_used,

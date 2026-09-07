@@ -539,6 +539,43 @@ def _run_checks():
             and after[0].challenge
         )
 
+        # A run is played in the colour it was started in, and nobody
+        # else in the battle wears it.
+        from .colors import UNCHOSEN, color_ids, is_a_color
+        from .launch import houses_for, player_color
+        from .challenges import Challenge
+
+        wanted = color_ids()[3]
+        wearing = replace(run, player_color=wanted)
+        crowded = replace(
+            first[-1],
+            enemy_countries=(1, 2, 3),
+            handicaps=(0, 0, 0),
+            ally=True,
+        )
+        seated = houses_for(wearing, crowded)
+        # A challenge names the colours its own armies wear, and the
+        # client keeps the player out of those.
+        spoken_for = Challenge(
+            map_path='Challenge/x.map', description='', houses=(), modes=(),
+            disallowed_colors=(wanted,),
+        )
+        color_valid = bool(
+            is_a_color(wanted)
+            and player_color(wearing) == wanted
+            # Not chosen, and not a colour this installation has, are the
+            # same thing: the launcher picks.
+            and player_color(replace(run, player_color=UNCHOSEN))
+            in color_ids()
+            and player_color(replace(run, player_color=9999)) in color_ids()
+            and player_color(wearing, spoken_for) != wanted
+            # Four houses, four colours, none of them the player's.
+            and len(seated) == 4
+            and len({house.color for house in seated}) == 4
+            and wanted not in {house.color for house in seated}
+            and all(house.color in color_ids() for house in seated)
+        )
+
         paths = SkirmishPersistencePaths(
             runs=root / 'skirmish_runs.dat',
             backup_dir=root / 'backups',
@@ -601,6 +638,7 @@ def _run_checks():
     return {
         'skirmish_tier_cadence_valid': cadence_valid,
         'skirmish_offers_deterministic_valid': offers_valid,
+        'skirmish_player_color_valid': color_valid,
         'skirmish_victory_valid': victory_valid,
         'skirmish_defeat_costs_a_life_valid': defeat_valid,
         'skirmish_challenge_pool_valid': challenge_valid,

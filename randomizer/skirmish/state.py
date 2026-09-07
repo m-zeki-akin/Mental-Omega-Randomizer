@@ -12,6 +12,7 @@ from copy import deepcopy
 from randomizer.core.integrity import strip_signature
 from randomizer.shop.model import RunStatus
 
+from .colors import UNCHOSEN
 from .stats import normalize_stats
 from .model import (
     WARMUP_BATTLE,
@@ -187,6 +188,13 @@ def normalize_skirmish_run(document):
         status=status,
         player_country=_int(document.get('player_country'), 'player_country'),
         ally_country=_int(document.get('ally_country'), 'ally_country'),
+        # A run stored before a colour could be chosen has none, and the
+        # launcher picks for it as it always did. A colour this
+        # installation does not have is the same as not having chosen.
+        player_color=_int(
+            document.get('player_color'), 'player_color',
+            minimum=UNCHOSEN, default=UNCHOSEN,
+        ),
         # Zero is the warmup, so a run may legitimately sit below one.
         battle=_int(
             document.get('battle'), 'battle',

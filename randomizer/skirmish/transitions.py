@@ -14,6 +14,7 @@ from dataclasses import replace
 
 from randomizer.shop.model import RunStatus
 
+from .colors import UNCHOSEN, is_a_color
 from .model import (
     DEFAULT_LIVES,
     WARMUP_BATTLE,
@@ -41,6 +42,7 @@ def start_run(
     seed,
     player_country,
     ally_country,
+    player_color=UNCHOSEN,
     created='',
     lives=DEFAULT_LIVES,
     ally_roster='',
@@ -55,6 +57,9 @@ def start_run(
         created=str(created or ''),
         player_country=int(player_country),
         ally_country=int(ally_country),
+        player_color=(
+            int(player_color) if is_a_color(player_color) else UNCHOSEN
+        ),
         lives=max(1, int(lives)),
         coins=STARTING_ORE,
         ally_coins=STARTING_ORE,
