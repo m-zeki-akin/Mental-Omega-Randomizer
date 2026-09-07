@@ -95,6 +95,40 @@ class LaunchController:
 
         return campaign_progress.unlocked_codes(self.state)
 
+    def launch_appearance_choices(self):
+        """How the mission being written out should look and sound.
+
+        Three settings that have nothing to do with the run -- what
+        colour the player is, whether the other houses are shuffled, and
+        whose voice reads the objectives -- read together because they
+        are read in one place, and read through this because a launcher
+        with no window still has to answer them. Without it a mission
+        written out headlessly lost its objective hooks entirely, and
+        quietly: the failure is caught and the game launches anyway, so
+        the only sign was a mission that could be won and never counted.
+        """
+        from randomizer.rewards.display import valid_choice
+        from randomizer.ui.config import EVA_VOICE_CHOICES, PLAYER_COLORS
+
+        config = self.config or {}
+        if hasattr(self, 'player_color_var'):
+            return (
+                self.player_color_var.get(),
+                bool(self.rainbowizer_var.get()),
+                self.eva_voice_var.get(),
+            )
+        return (
+            valid_choice(
+                config.get('player_color'), PLAYER_COLORS, PLAYER_COLORS[0],
+            ),
+            bool(config.get('rainbowizer', False)),
+            valid_choice(
+                config.get('eva_voice'),
+                EVA_VOICE_CHOICES,
+                EVA_VOICE_CHOICES[0],
+            ),
+        )
+
     def get_selected_difficulty_value(self):
         """Which difficulty a mission is written out at.
 

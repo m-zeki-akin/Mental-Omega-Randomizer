@@ -1217,6 +1217,56 @@ def _a_mission_is_not_started_until_it_starts_valid():
     )
 
 
+def _a_mission_is_written_out_without_a_window_valid():
+    """Writing a mission out asks the settings, not the controls.
+
+    A mission is not simply launched: a copy of its map is written with
+    objective triggers planted in it, and reading those back out of the
+    game's log is the only way the run ever learns anything. That
+    writing reached for three controls on the classic window -- the
+    player's colour, whether the houses are shuffled, whose voice reads
+    the briefing -- and on a launcher with none it stopped.
+
+    Not loudly. The failure is caught and the game is launched anyway,
+    without automatic objective detection, which is the right thing when
+    a map cannot be hooked and a very wrong thing to do quietly: the
+    mission would be played, and won, and counted for nothing.
+
+    So the three are read through one accessor that answers from the
+    settings when there is no control to ask, and the writing asks it
+    rather than them.
+    """
+    from randomizer.campaign import generator
+    from randomizer.config import player as settings_file
+    from randomizer.maps.pipeline import prepare_hooked_map
+    from randomizer.ui.config import EVA_VOICE_CHOICES, PLAYER_COLORS
+
+    named = prepare_hooked_map.__code__.co_names
+    with _store_of_its_own():
+        config = settings_file.load_config()
+        config['player_color'] = PLAYER_COLORS[-1]
+        config['rainbowizer'] = True
+        config['eva_voice'] = EVA_VOICE_CHOICES[-1]
+        maker = generator.build(config, [])
+        chosen = maker.launch_appearance_choices()
+        # And a colour that is not a colour any more falls back to one
+        # that is, rather than reaching the map as itself.
+        config['player_color'] = 'not a colour'
+        fallback = generator.build(config, []).launch_appearance_choices()
+    return bool(
+        # Asked through the accessor, and not around it.
+        'launch_appearance_choices' in named
+        and not any(
+            control in named for control in (
+                'player_color_var', 'rainbowizer_var', 'eva_voice_var',
+            )
+        )
+        # Which answers from the settings, with no control anywhere.
+        and chosen == (PLAYER_COLORS[-1], True, EVA_VOICE_CHOICES[-1])
+        and fallback[0] == PLAYER_COLORS[0]
+    )
+
+
 def _refuse_to_start(*_args, **_kwargs):
     raise ApiError('The self-check does not start games')
 
@@ -1406,6 +1456,7 @@ def validate_api_contract():
     )
     mission_kept = _a_mission_left_running_is_found_again_valid()
     mission_not_started = _a_mission_is_not_started_until_it_starts_valid()
+    mission_written = _a_mission_is_written_out_without_a_window_valid()
     after = _touched()
 
     json_safe = True
@@ -1481,6 +1532,9 @@ def validate_api_contract():
         'api_a_mission_is_not_started_until_it_starts_valid': (
             mission_not_started
         ),
+        'api_a_mission_is_written_out_without_a_window_valid': (
+            mission_written
+        ),
         # Asking the launcher what it can do is not playing it. Every
         # command was called above; the runs, the board, the battle files
         # and the game itself are all where they were.
@@ -1505,6 +1559,7 @@ def validate_api_contract():
             and mission_recorded
             and mission_kept
             and mission_not_started
+            and mission_written
             and before == after
             and unknown.get('ok') is False
             and described

@@ -246,10 +246,11 @@ def prepare_hooked_map(self, mission, extra_rules=None):
 
     source_path = self.extract_campaign_map(scenario)
     lines = IniLines(read_text(source_path).splitlines())
+    player_color, rainbowizer, eva_voice = self.launch_appearance_choices()
     color_rules = mission_house_color_rules(
         lines,
-        player_color=self.player_color_var.get(),
-        rainbowizer=bool(self.rainbowizer_var.get()),
+        player_color=player_color,
+        rainbowizer=rainbowizer,
         rainbow_colors=RAINBOWIZER_COLORS,
         random_key=f'{self.active_launch_seed()}|{code}',
     )
@@ -264,7 +265,7 @@ def prepare_hooked_map(self, mission, extra_rules=None):
         eva_action_index,
         eva_appearance_applied,
     ) = mission_eva_voice_rules(
-        self.eva_voice_var.get(),
+        eva_voice,
         EVA_VOICE_TAGS,
         appearance_profiles=EVA_APPEARANCE_PROFILES,
         random_key=f'{self.active_launch_seed()}|{code}',
