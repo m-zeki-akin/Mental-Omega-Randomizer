@@ -4,10 +4,12 @@ Every question here is answered from the stored run and nothing else --
 no window, no controller, no installed rules. That is what lets both
 interfaces ask, and it is why the answers are the same in both.
 
-The one question that is not answered here is Grid Mode's. A grid decides
-what is open from a layout it also keeps up to date, which is a change to
-the run rather than a reading of it; the classic window owns that, and
-this module answers the ordered modes only.
+Grid Mode is read here too, but only read. A grid decides what is open
+from a layout it keeps beside the run, and finishing a mission changes
+that layout -- which is a change to the run rather than a reading of it,
+so it happens where the mission is recorded and not here. Both interfaces
+record through the same code, so the tiles this reports are the tiles
+either one settled.
 """
 
 from randomizer.missions.catalogue import STARTING_UNLOCKED_MISSIONS

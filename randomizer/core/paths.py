@@ -134,6 +134,12 @@ SKIRMISH_RUNS_PATH = APP_DIR / 'skirmish_runs.dat'
 # the launcher on purpose: a game closed after the launcher was is a
 # game whose outcome nobody was left to write down.
 SKIRMISH_LAUNCH_PATH = APP_DIR / 'skirmish_launch.dat'
+# The campaign mission a launcher started and has not yet recorded. Kept
+# apart from the battle above because the two can never be the same game
+# and their tickets say different things -- but kept for the same reason:
+# a mission whose victory nobody was left to read is a mission the run
+# never counted.
+CAMPAIGN_LAUNCH_PATH = APP_DIR / 'campaign_launch.dat'
 BACKUP_DIR = APP_DIR / 'backups'
 EXTRACTED_MAP_DIR = APP_DIR / 'extracted_maps'
 GENERATED_MAP_DIR = APP_DIR / 'generated_maps'

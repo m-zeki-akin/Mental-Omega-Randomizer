@@ -96,7 +96,18 @@ class LaunchController:
         return campaign_progress.unlocked_codes(self.state)
 
     def get_selected_difficulty_value(self):
-        return dict(DIFFICULTIES).get(self.difficulty_var.get(), 1)
+        """Which difficulty a mission is written out at.
+
+        The control when there is one, and the setting it was last saved
+        into when there is not -- the same seam the generation questions
+        use, for the same reason: a launcher with no window still has to
+        answer this before it can write a spawn file.
+        """
+        if hasattr(self, 'difficulty_var'):
+            chosen = self.difficulty_var.get()
+        else:
+            chosen = (self.config or {}).get('difficulty', 'Normal')
+        return dict(DIFFICULTIES).get(chosen, 1)
 
     def get_selected_game_speed_value(self):
         # Fixed, not read from the control: the control is disabled and a
@@ -863,26 +874,36 @@ class LaunchController:
             detail = (result.stderr or result.stdout or str(exc)).strip()
             self.append_log(f'Could not close the game after victory: {detail}', error=True)
 
-    def poll_hook_log(self):
-        if self.active_hook and DEBUG_LOG.exists():
-            try:
-                size = DEBUG_LOG.stat().st_size
-                offset = self.active_hook.get('offset', 0)
-                if size < offset:
-                    offset = 0
-                    # A truncated/recreated debug log starts a new startup
-                    # sequence. Do not carry an earlier Capture_Mouse state
-                    # across that boundary or the first Init_Clear in the new
-                    # file is misclassified as an in-game restart.
-                    self.active_hook['scenario_ready'] = False
-                with DEBUG_LOG.open('r', encoding='utf-8', errors='ignore') as handle:
-                    handle.seek(offset)
-                    text = handle.read()
-                    self.active_hook['offset'] = handle.tell()
-                self.process_hook_log_text(text)
-            except OSError as exc:
-                self.append_log(f'Hook log read failed: {exc}', error=True)
+    def read_hook_log_once(self):
+        """Read what the game has said since the last read, and act on it.
 
+        One pass, not a loop: a window schedules the next one on a timer
+        and a page asks for it again when the player is still there, but
+        what happens in between is the same read either way, so it lives
+        here rather than in each of them.
+        """
+        if not self.active_hook or not DEBUG_LOG.exists():
+            return
+        try:
+            size = DEBUG_LOG.stat().st_size
+            offset = self.active_hook.get('offset', 0)
+            if size < offset:
+                offset = 0
+                # A truncated/recreated debug log starts a new startup
+                # sequence. Do not carry an earlier Capture_Mouse state
+                # across that boundary or the first Init_Clear in the new
+                # file is misclassified as an in-game restart.
+                self.active_hook['scenario_ready'] = False
+            with DEBUG_LOG.open('r', encoding='utf-8', errors='ignore') as handle:
+                handle.seek(offset)
+                text = handle.read()
+                self.active_hook['offset'] = handle.tell()
+            self.process_hook_log_text(text)
+        except OSError as exc:
+            self.append_log(f'Hook log read failed: {exc}', error=True)
+
+    def poll_hook_log(self):
+        self.read_hook_log_once()
         self.process_pending_restart_failure()
 
         process = self.active_game_process

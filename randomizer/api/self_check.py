@@ -72,7 +72,8 @@ def _touched():
     written by a check that was only supposed to be asking; the settings
     are here because a command that writes one now exists, and the
     campaign run because it is the one thing here somebody may have been
-    playing for weeks.
+    playing for weeks. A mission is watched the same way a battle is:
+    whether one is up, and the ticket that says which one.
     """
     from randomizer.config.player import load_config
     from randomizer.core.paths import GAME_ROOT, SPAWN_INI, STATE_PATH
@@ -83,7 +84,7 @@ def _touched():
         SkirmishRepository,
     )
 
-    from . import session
+    from . import mission_session, session
 
     def stamp(path):
         try:
@@ -105,9 +106,11 @@ def _touched():
         tuple(sorted(entry.run_id for entry in load_board())),
         # A check that leaves a game running is a check that started one.
         session.running(),
+        mission_session.running(),
         tuple(stamp(path) for path in (
             SPAWN_INI, SPAWN_MAP_INI, GAME_ROOT / 'aimo.ini',
-            session.SKIRMISH_LAUNCH_PATH, STATE_PATH,
+            session.SKIRMISH_LAUNCH_PATH, mission_session.CAMPAIGN_LAUNCH_PATH,
+            STATE_PATH,
         )),
         tuple(sorted(
             (key, repr(value)) for key, value in load_config().items()
@@ -976,6 +979,11 @@ def _a_mission_is_recorded_from_what_the_game_said_valid():
     the run has to go from nothing to a mission finished, its rewards in
     hand, and the mission after it open -- which is the whole of what
     finishing a mission means.
+
+    Then again on a grid, because a grid opens missions differently: not
+    the next one in a list but whatever the finished one is next to on
+    the board. That is a change to the board itself, and the point of
+    checking it here is that it happens with no window to redraw.
     """
     from randomizer.campaign import generation, generator, progress
     from randomizer.config import player as settings_file
@@ -1025,6 +1033,36 @@ def _a_mission_is_recorded_from_what_the_game_said_valid():
         mid_complete = progress.is_complete(playing.state, code)
         playing.process_hook_log_text('and then MO-SELF-CHECK-VICTORY')
         done, total = progress.check_counts(playing.state, code)
+
+        # And the same again on a board.
+        config['progression_mode'] = 'Grid Mode'
+        config['mission_goal'] = 8
+        config['seed'] = 'SELF-CHECK-RECORD-GRID'
+        board = generator.build(config, missions)
+        grid = board.build_seed_generation(generation.options_from(
+            board,
+            generation.controls_from_config(config),
+            missions=missions,
+            reward_settings=board.config_reward_settings(),
+        ))['state']
+        tiles_before = progress.grid_states(grid)
+        open_tiles = [
+            tile for tile, standing in tiles_before.items()
+            if standing == 'unlocked'
+        ]
+        on_the_board = generator.build(config, missions, state=grid)
+        on_the_board.active_hook = {
+            'mission_code': open_tiles[0] if open_tiles else None,
+            'scenario': 'self-check',
+            'markers': {'MO-SELF-CHECK-VICTORY': 'victory'},
+            'seen': set(),
+            'completed_objective_checks': 0,
+            'objective_events_seen': 0,
+            'offset': 0,
+        }
+        if open_tiles:
+            on_the_board.process_hook_log_text('MO-SELF-CHECK-VICTORY')
+        tiles_after = progress.grid_states(on_the_board.state)
     return bool(
         # One objective is some of the way, not all of it and not none.
         0 < part_way[0] < part_way[1]
@@ -1035,9 +1073,76 @@ def _a_mission_is_recorded_from_what_the_game_said_valid():
         and len(playing.state.get('earned_rewards') or ()) == done
         # The mission after it is open, which is what finishing one is for.
         and len(progress.unlocked_codes(playing.state)) == opened_before + 1
-        # And the window's courtesy is noted rather than attempted: there
-        # is no timer here to close the game on.
+        # And the window's courtesy is noted rather than attempted: the
+        # win and when it landed are written down for whoever polls next,
+        # because there is no timer here to close the game on.
         and playing.active_hook.get('won') is True
+        and playing.active_hook.get('won_at')
+        # One tile to start from, that tile finished, and the board
+        # opened around it -- with nothing drawn and nobody watching.
+        and len(open_tiles) == 1
+        and tiles_after.get(open_tiles[0]) == 'completed'
+        and sum(
+            1 for tile, standing in tiles_after.items()
+            if standing == 'unlocked' and tiles_before.get(tile) != 'unlocked'
+        ) > 0
+    )
+
+
+def _a_mission_left_running_is_found_again_valid():
+    """A mission outlives the launcher that started it, whole.
+
+    A window watched a mission for as long as it was open, and a mission
+    still being played when the launcher was closed was a mission
+    nothing ever recorded: the objectives kept firing into a log with
+    nobody reading it, and the run never moved. So the launcher writes
+    down what it is watching, and the next one picks it up.
+
+    What makes that work is that nothing is lost in the writing. The
+    watcher's notes are not all plain data -- the markers already seen
+    are a set, the hooked map is a path -- and a key quietly dropped on
+    the way to disk is an objective the next launcher stops counting.
+    So the whole of it goes out and the whole of it has to come back.
+    """
+    from pathlib import Path as APath
+
+    from . import mission_session
+
+    hook = {
+        'mission_code': 'SELFCHK',
+        'scenario': 'selfchk.map',
+        'markers': {'MO-A': 'objective_1', 'MO-B': 'victory'},
+        'seen': {'MO-A'},
+        'completed_objective_checks': 1,
+        'objective_events_seen': 2,
+        'offset': 4096,
+        'root_map': APath('nowhere') / 'selfchk.map',
+        'scenario_ready': True,
+        'won': False,
+        'won_at': None,
+        'polls_since_restart': 1,
+    }
+    with _store_of_its_own():
+        # Nothing has been started, so nothing is waiting to be found.
+        nothing_yet = mission_session._kept()
+        mission_session._keep(mission_session._ticket(hook, 'A-SEED', 4242))
+        found = mission_session._kept()
+        came_back = mission_session._hook_from(found or {})
+        mission_session._drop()
+        gone = mission_session._kept()
+    return bool(
+        nothing_yet is None
+        and gone is None
+        and found
+        and found.get('seed') == 'A-SEED'
+        and found.get('pid') == 4242
+        and found.get('started_at')
+        # Every key that went in came back, meaning the same thing.
+        and came_back == hook
+        # And the two that are not plain data came back as themselves
+        # rather than as whatever they were written down as.
+        and isinstance(came_back.get('seen'), set)
+        and isinstance(came_back.get('root_map'), APath)
     )
 
 
@@ -1061,7 +1166,9 @@ def _store_of_its_own():
 
     from . import skirmish as actions_module
 
-    from . import session
+    from . import mission_session, session
+
+    from randomizer.application.launch_controller import LaunchController
 
     original = actions_module._repository
     # The board is the other thing a command can write: a run given up is
@@ -1103,6 +1210,18 @@ def _store_of_its_own():
     from randomizer.campaign import store as run_file
 
     standing, keeping = run_file.standing, run_file.keep
+    # And a campaign mission, which reaches further than a battle does. A
+    # mission is written into the game folder before it starts -- a hooked
+    # copy of the map at the root, a spawn file, the launch options -- and
+    # cleaned up out of it when it ends. So all of it is refused: writing
+    # the files, opening the game, and the two removals that follow. They
+    # are taken off the class rather than the module, because what a check
+    # would call them on is an instance that inherits them.
+    mission_ticket = mission_session.CAMPAIGN_LAUNCH_PATH
+    preparing = LaunchController.prepare_mission_launch_files
+    tidying = LaunchController.cleanup_generated_root_maps
+    unruling = LaunchController.disable_generated_rules_for_client
+    mission_starter = mission_session.start
     with TemporaryDirectory(prefix='mo-api-check-') as folder:
         paths = SkirmishPersistencePaths(
             runs=Path(folder) / 'runs.dat',
@@ -1113,6 +1232,11 @@ def _store_of_its_own():
         session.SKIRMISH_LAUNCH_PATH = Path(folder) / 'launch.dat'
         session.start = _refuse_to_start
         launch.prepare_battle = _refuse_to_start
+        mission_session.CAMPAIGN_LAUNCH_PATH = Path(folder) / 'mission.dat'
+        mission_session.start = _refuse_to_start
+        LaunchController.prepare_mission_launch_files = _refuse_to_start
+        LaunchController.cleanup_generated_root_maps = _refuse_to_start
+        LaunchController.disable_generated_rules_for_client = _refuse_to_start
         ai.remove_staged_ai_file = lambda *_a, **_k: None
         run_maker.clear_generated_rules = lambda *_a, **_k: None
         held = reading()
@@ -1139,6 +1263,11 @@ def _store_of_its_own():
             session.SKIRMISH_LAUNCH_PATH = ticket_path
             session.start = starter
             launch.prepare_battle = preparer
+            mission_session.CAMPAIGN_LAUNCH_PATH = mission_ticket
+            mission_session.start = mission_starter
+            LaunchController.prepare_mission_launch_files = preparing
+            LaunchController.cleanup_generated_root_maps = tidying
+            LaunchController.disable_generated_rules_for_client = unruling
             ai.remove_staged_ai_file = staged
             run_maker.clear_generated_rules = clearing
             settings_file.load_config = reading
@@ -1204,6 +1333,7 @@ def validate_api_contract():
     mission_recorded = (
         _a_mission_is_recorded_from_what_the_game_said_valid()
     )
+    mission_kept = _a_mission_left_running_is_found_again_valid()
     after = _touched()
 
     json_safe = True
@@ -1275,6 +1405,7 @@ def validate_api_contract():
         'api_a_run_is_generated_from_the_settings_valid': run_generated,
         'api_the_same_settings_make_the_same_run_valid': same_run,
         'api_a_mission_is_recorded_from_the_log_valid': mission_recorded,
+        'api_a_mission_left_running_is_found_again_valid': mission_kept,
         # Asking the launcher what it can do is not playing it. Every
         # command was called above; the runs, the board, the battle files
         # and the game itself are all where they were.
@@ -1297,6 +1428,7 @@ def validate_api_contract():
             and run_generated
             and same_run
             and mission_recorded
+            and mission_kept
             and before == after
             and unknown.get('ok') is False
             and described

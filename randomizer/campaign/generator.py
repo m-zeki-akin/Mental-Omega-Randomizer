@@ -20,6 +20,12 @@ here is worth doing and is a job of its own; until then this is the seam,
 and it is a narrow one.
 """
 
+import time
+
+# How many polls a victory marker is given to arrive after the engine
+# says the map cleared. The classic window waits the same two, on a clock.
+RESTART_GRACE_POLLS = 2
+
 
 def build(config, missions, state=None):
     """Return something that can generate and record a run."""
@@ -122,16 +128,53 @@ def build(config, missions, state=None):
         def update_header_summary(self, *_args, **_kwargs):
             return None
 
-        def schedule_game_close_after_victory(self):
-            """Note that the game may be closed, and leave it open.
+        def process_pending_restart_failure(self):
+            """The grace before a restart counts, measured in polls.
 
-            A window closes the game as a courtesy a couple of seconds
-            after victory, on its own timer. There is no timer here and
-            it was never part of recording the win -- so the fact is
-            written on the ticket and the game is left alone.
+            The original measures it on a monotonic clock, which is the
+            right thing when one window watches one game from start to
+            finish. It is the wrong thing here: the ticket outlives the
+            launcher that wrote it, and a monotonic reading from a process
+            that has since exited means nothing to the one that reads it
+            back. Polls are counted instead -- the same two the comment
+            over there is about, and a number that still means two polls
+            tomorrow.
             """
-            if isinstance(self.active_hook, dict):
-                self.active_hook['won'] = True
+            hook = self.active_hook
+            if not isinstance(hook, dict):
+                return False
+            if hook.get('restart_detected_at') is None:
+                return False
+            code = hook['mission_code']
+            if self.is_mission_complete(code):
+                hook.pop('restart_detected_at', None)
+                hook['polls_since_restart'] = 0
+                return False
+            waited = int(hook.get('polls_since_restart') or 0) + 1
+            hook['polls_since_restart'] = waited
+            if waited < RESTART_GRACE_POLLS:
+                return False
+            hook.pop('restart_detected_at', None)
+            hook['polls_since_restart'] = 0
+            return self.record_failed_mission_attempt(
+                code, 'In-game mission restart detected',
+            )
+
+        def schedule_game_close_after_victory(self):
+            """Note the win and when it landed. Somebody else closes.
+
+            A window closes the game a couple of seconds after victory,
+            and not out of politeness: left alone, Mental Omega walks on
+            into the next mission of its own campaign. There is no timer
+            here to schedule that on, so the two facts a closer needs --
+            that it was won, and when -- are written on the ticket, and
+            the poll that reads the ticket does the closing.
+            """
+            hook = self.active_hook
+            if not isinstance(hook, dict) or hook.get('won'):
+                return
+            hook['won'] = True
+            hook['won_at'] = time.time()
 
         def after(self, _delay, callback=None, *args):
             """There is no event loop to schedule against.
