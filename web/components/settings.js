@@ -20,7 +20,10 @@ import {
 const WIDE = new Set(['set', 'search', 'weights', 'limits', 'map']);
 
 /** One setting, whatever kind it is: what it is, and what changes it. */
-function control(setting, { onChange, catalogues, queries, pending, refresh }) {
+function control(setting, tools) {
+  const {
+    onChange, catalogues, queries, opens, pending, cameos, refresh,
+  } = tools;
   const change = (value) => onChange(setting.key, value);
   if (setting.kind === 'switch') {
     return toggle({ value: setting.value, onChange: change });
@@ -50,8 +53,11 @@ function control(setting, { onChange, catalogues, queries, pending, refresh }) {
       chosen: setting.chosen || [],
       catalogue: (catalogues && catalogues.get(setting.catalogue_name)) || [],
       query: (queries && queries.get(setting.key)) || '',
+      open: Boolean(opens && opens.get(setting.key)),
+      cameos,
       placeholder: `Search ${setting.catalogue_size} of them`,
       onQuery: (text) => queries && queries.set(setting.key, text),
+      onOpen: (down) => opens && opens.set(setting.key, down),
       onChange: change,
     });
   }
@@ -128,9 +134,12 @@ function control(setting, { onChange, catalogues, queries, pending, refresh }) {
         chosen: listed.map((entry) => ({ id: entry.id, label: entry.label })),
         catalogue: known,
         query: (queries && queries.get(setting.key)) || '',
+        open: Boolean(opens && opens.get(setting.key)),
+        cameos,
         placeholder: `Search ${setting.catalogue_size} of them`,
         pills: false,
         onQuery: (text) => queries && queries.set(setting.key, text),
+        onOpen: (down) => opens && opens.set(setting.key, down),
         onChange: (ids) => {
           const added = ids[ids.length - 1];
           if (!added) return null;

@@ -318,26 +318,76 @@
   gap: var(--space-2);
 }
 
-/* Picking out of a list too long to draw: what is picked, a box to
- * search in, and what the search found. The found list scrolls on its
- * own so that a panel below it stays where the player left it. */
+/* Picking out of a list too long to read at once: what is picked, a box
+ * to search in, and the list itself under that box. The list is drawn
+ * over what follows rather than pushing it down -- a panel that grows by
+ * eighteen rems every time somebody clicks a search box is a screen that
+ * will not hold still. It scrolls on its own and closes when the focus
+ * leaves. */
 .picker {
   display: grid;
   gap: var(--space-2);
 }
 
+.picker__field {
+  position: relative;
+}
+
 .picker__matches {
+  position: absolute;
+  z-index: 20;
+  top: calc(100% + var(--space-1));
+  left: 0;
+  right: 0;
   display: grid;
   gap: var(--space-1);
-  max-height: 18rem;
+  max-height: 20rem;
   overflow-y: auto;
+  padding: var(--space-1);
+  background: var(--surface);
+  border: var(--border) solid var(--line);
+  border-radius: var(--radius);
+  box-shadow: 0 0.75rem 2rem rgb(0 0 0 / 35%);
 }
 
 .picker__match {
   display: flex;
-  justify-content: space-between;
+  align-items: center;
   gap: var(--space-2);
   text-align: left;
+}
+
+/* The name takes the room left over, so the faction and kind sit against
+ * the right edge and read as one column down the list. */
+.picker__name {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* As tall as the line it sits on, and holding its place before the
+ * picture arrives: a row that grows when its icon loads is a row that
+ * moves out from under the pointer. */
+.cameo {
+  flex: 0 0 auto;
+  display: inline-grid;
+  place-items: center;
+  width: 1.6em;
+  height: 1.25em;
+  border-radius: var(--radius-sm);
+  background: var(--bg);
+  overflow: hidden;
+}
+
+.cameo img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  /* Cameos are small and drawn pixel by pixel; smoothing them on the way
+   * up turns a sixty-pixel icon into a smear. */
+  image-rendering: pixelated;
 }
 
 .picker__taken {

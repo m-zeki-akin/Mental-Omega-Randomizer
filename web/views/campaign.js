@@ -33,17 +33,65 @@ async function fetchCatalogue(name) {
   return catalogues.get(name);
 }
 
+/* Which search boxes had their list down. Kept for the same reason the
+ * typing is: picking one entry saves a setting, saving draws the screen
+ * again, and a list that shut every time somebody used it would make
+ * excluding five things a matter of fifteen presses. */
+const opens = new Map();
+
 /* Things named on a screen that the launcher has nothing to keep for
  * yet: a unit picked out to bar an upgrade from, before any upgrade has
  * been barred. Kept here so that naming one and turning something off
  * for it are two presses rather than one impossible one. */
 const pending = new Map();
 
+/* The pictures, by the thing they are of. They are asked for as rows
+ * come into view rather than with the list, because the list is three
+ * hundred rows and a screenful is twenty -- so what is kept here is
+ * whatever has been looked at, which is the right amount. A thing with
+ * no picture is remembered as having none, or it would be asked about
+ * again every time it scrolled past. */
+const pictures = new Map();
+
+/** The key a picture is kept under, which is what was asked for. */
+function nameOf(wanted) {
+  return JSON.stringify(wanted);
+}
+
+const cameos = {
+  get: (wanted) => pictures.get(nameOf(wanted)) || '',
+  load: async (wanted) => {
+    const asking = wanted.filter((one) => !pictures.has(nameOf(one)));
+    if (asking.length) {
+      let answer;
+      try {
+        answer = await call('campaign.cameos', {
+          units: asking.filter((one) => one.unit).map((one) => one.unit),
+          powers: asking.filter((one) => one.power).map((one) => one.power),
+        });
+      } catch {
+        // The pictures are not the point of the screen. A list that
+        // still says what everything is called is a list that works.
+        return null;
+      }
+      for (const one of asking) {
+        const found = one.unit
+          ? answer.units[one.unit]
+          : answer.powers[one.power];
+        pictures.set(nameOf(one), found || '');
+      }
+    }
+    return new Map(wanted.map((one) => [nameOf(one), cameos.get(one)]));
+  },
+};
+
 const tools = {
   onChange: (name, value) => act('campaign.use_setting', { name, value }),
   catalogues,
   queries,
+  opens,
   pending,
+  cameos,
   refresh,
 };
 

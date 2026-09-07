@@ -251,51 +251,143 @@ export function stats(lines) {
   ));
 }
 
+/* Whether every word typed is somewhere in one entry.
+ *
+ * Word by word rather than as one string: "allied dog" should find the
+ * Allied Attack Dog, and it does not appear anywhere as those two words
+ * together. Each word may land in the name, the id, or the faction and
+ * kind -- so "soviet naval" is a search for a group and "mtnk" is a
+ * search for one thing, in the same box. */
+function matches(entry, words) {
+  const hay = `${entry.label} ${entry.id} ${entry.group || ''}`.toLowerCase();
+  return words.every((word) => hay.includes(word));
+}
+
+/* The picture for one row, and the box it sits in whether or not there
+ * is one yet. The box is there from the start on purpose: a picture
+ * arriving into a row with no room for it moves every row below it, and
+ * a list that moves while it is being read is a list nothing can be
+ * clicked in. */
+function cameoBox(entry, cameos) {
+  const wanted = entry.cameo && (entry.cameo.unit || entry.cameo.power)
+    ? entry.cameo : null;
+  const held = wanted && cameos && cameos.get ? cameos.get(wanted) : '';
+  const box = el('span', { class: 'cameo' });
+  if (held) box.append(el('img', { src: held, alt: '' }));
+  else if (wanted) box.dataset.wanted = JSON.stringify(wanted);
+  return box;
+}
+
+/* Ask for the pictures of the rows somebody can actually see.
+ *
+ * Three hundred rows is three hundred pictures and a megabyte and a
+ * half; a screenful is twenty. So a row asks for its own as it scrolls
+ * into view, the answers arrive together, and each picture is put into
+ * the row that wanted it rather than by drawing the list again -- which
+ * would put the list away mid-read. */
+function watchForCameos(box, cameos) {
+  if (!cameos || !cameos.load || typeof IntersectionObserver !== 'function') {
+    return null;
+  }
+  let waiting = [];
+  let asked = null;
+  const settle = async () => {
+    asked = null;
+    const rows = waiting;
+    waiting = [];
+    const found = await cameos.load(
+      rows.map((row) => JSON.parse(row.dataset.wanted)),
+    );
+    if (!found) return;
+    for (const row of rows) {
+      const uri = found.get(row.dataset.wanted);
+      if (!uri || !row.isConnected) continue;
+      delete row.dataset.wanted;
+      row.replaceChildren(el('img', { src: uri, alt: '' }));
+    }
+  };
+  const watcher = new IntersectionObserver((seen) => {
+    for (const row of seen) {
+      if (!row.isIntersecting || !row.target.dataset.wanted) continue;
+      watcher.unobserve(row.target);
+      waiting.push(row.target);
+    }
+    if (waiting.length && asked === null) asked = setTimeout(settle, 60);
+  }, { root: box });
+  return watcher;
+}
+
 /**
- * Picking several out of a list too long to draw.
+ * Picking several out of a list too long to read at once.
  *
- * What is picked is shown as itself and taken out by pressing it; what
- * could be picked is found by typing. The list is filtered here rather
- * than by the launcher, because a search that has to ask something is a
- * search that answers a letter late.
+ * What is picked is shown as itself and taken out by pressing it. What
+ * could be picked is under the box: the whole list, in the order the
+ * installed rules read it, scrolling on its own -- and typing narrows it
+ * rather than being the only way to see anything. Showing nothing until
+ * something was typed was a bigger mistake than it looks: it meant you
+ * could only exclude what you already knew the name of, which is not
+ * what an exclusion list is for.
  *
- * `chosen` are `{id, label}`, `catalogue` are `{id, label, group}`, and
- * `query` is what was last typed -- kept by the caller, so that adding
- * one entry does not clear the word that found it.
+ * Filtered here rather than by the launcher, because a search that has
+ * to ask something is a search that answers a letter late. The launcher
+ * sends each list once and this reads it.
+ *
+ * `chosen` are `{id, label}`, `catalogue` are `{id, label, group, cameo}`,
+ * `query` is what was last typed and `open` whether the list was down --
+ * both kept by the caller, because picking one entry draws the screen
+ * again and neither should be lost when it does.
  */
 export function picker({
-  chosen = [], catalogue = [], query = '', limit = 20,
-  placeholder, pills = true, onQuery, onChange,
+  chosen = [], catalogue = [], query = '', open = false, limit = 400,
+  placeholder, pills = true, cameos, onQuery, onOpen, onChange,
 } = {}) {
   const ids = chosen.map((entry) => entry.id);
   const taken = new Set(ids);
-  const matches = el('div', { class: 'picker__matches' });
+  const matchBox = el('div', { class: 'picker__matches' });
+  const watcher = watchForCameos(matchBox, cameos);
+  const field = el('input', {
+    class: 'input',
+    type: 'search',
+    value: query,
+    placeholder: placeholder || 'Search',
+  });
+
   const show = (typed) => {
-    const wanted = String(typed || '').trim().toLowerCase();
-    // Nothing until something is typed. Twenty names off the top of a
-    // list of three hundred is not a catalogue and not an answer -- it
-    // is a wall to scroll past on the way to the next setting.
-    if (!wanted) {
-      fill(matches, [el('div', {
-        class: 'faint',
-        text: `Type a name to find one of ${catalogue.length}.`,
-      })]);
-      return;
-    }
-    const found = catalogue.filter((entry) => !taken.has(entry.id) && (
-      String(entry.label).toLowerCase().includes(wanted)
-      || String(entry.id).toLowerCase().includes(wanted)
-      || String(entry.group || '').toLowerCase().includes(wanted)
+    // The rows about to be thrown away are still being watched for
+    // scrolling into view, and a watcher holding onto rows that are no
+    // longer anywhere would ask for their pictures forever.
+    if (watcher) watcher.disconnect();
+    const words = String(typed || '').trim().toLowerCase().split(/\s+/)
+      .filter(Boolean);
+    const found = catalogue.filter((entry) => (
+      !taken.has(entry.id) && (!words.length || matches(entry, words))
     ));
     const rest = found.length - limit;
-    fill(matches, [
-      ...found.slice(0, limit).map((entry) => el('button', {
+    const rows = found.slice(0, limit).map((entry) => {
+      const box = cameoBox(entry, cameos);
+      const line = el('button', {
         class: 'button picker__match',
-        onClick: () => onChange([...ids, entry.id]),
+        type: 'button',
+        // Not a click: pressing a row takes the focus off the box, and
+        // the box losing focus is what puts the list away -- so by the
+        // time a click landed there was nothing under the pointer. This
+        // fires first and keeps the focus where it was, which is also
+        // what lets several be picked without reaching for the box
+        // again between them.
+        onMousedown: (event) => {
+          event.preventDefault();
+          onChange([...ids, entry.id]);
+        },
       }, [
-        el('span', { text: entry.label }),
+        box,
+        el('span', { class: 'picker__name', text: entry.label }),
         el('span', { class: 'faint', text: entry.group || entry.id }),
-      ])),
+      ]);
+      if (watcher && box.dataset.wanted) watcher.observe(box);
+      return line;
+    });
+    fill(matchBox, [
+      ...rows,
       el('div', {
         class: 'faint',
         text: found.length === 0
@@ -304,8 +396,27 @@ export function picker({
       }),
     ]);
   };
+
+  const setOpen = (wanted) => {
+    matchBox.hidden = !wanted;
+    if (onOpen) onOpen(wanted);
+  };
+  field.addEventListener('focus', () => setOpen(true));
+  field.addEventListener('input', (event) => {
+    if (onQuery) onQuery(event.target.value);
+    show(event.target.value);
+    setOpen(true);
+  });
+  field.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape') {
+      setOpen(false);
+      field.blur();
+    }
+  });
+
   show(query);
-  return el('div', { class: 'picker' }, [
+  matchBox.hidden = !open;
+  const node = el('div', { class: 'picker' }, [
     // What is picked is drawn here unless the screen is drawing it
     // itself -- which it does when each pick is a block of its own
     // rather than a name.
@@ -322,18 +433,23 @@ export function picker({
         }),
       ])))
       : el('div', { class: 'faint', text: 'None named.' }),
-    el('input', {
-      class: 'input',
-      type: 'search',
-      value: query,
-      placeholder: placeholder || 'Search',
-      onInput: (event) => {
-        if (onQuery) onQuery(event.target.value);
-        show(event.target.value);
-      },
-    }),
-    matches,
+    el('div', { class: 'picker__field' }, [field, matchBox]),
   ]);
+  // Away when the focus leaves the picker altogether, and not when it
+  // moves about inside it.
+  node.addEventListener('focusout', (event) => {
+    if (!node.contains(event.relatedTarget)) setOpen(false);
+  });
+  if (open) {
+    // The box is not in the page yet, so it cannot be focused yet. After
+    // one frame it is -- and it has to be, because the list was left
+    // down, and a list under a box nobody is typing in closes on the
+    // next thing that takes the focus.
+    requestAnimationFrame(() => {
+      if (field.isConnected) field.focus();
+    });
+  }
+  return node;
 }
 
 /**
