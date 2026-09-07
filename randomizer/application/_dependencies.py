@@ -258,6 +258,7 @@ from randomizer.ui.config import (
     family_description,
     mode_family,
     mode_family_names,
+    mode_label,
     modes_in_family,
 )
 from randomizer.launch.game import MAX_OPTION_INI_BYTES

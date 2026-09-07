@@ -1186,6 +1186,22 @@ class AdvancedSettingsController:
         if not self.state:
             self.redraw_progression_views()
 
+    def on_mode_label_chosen(self, event=None):
+        """Take the mode a kind of game calls by the name that was picked.
+
+        The control offers labels because that is what the kind calls its
+        modes; a workspace stores the mode. Translating here rather than
+        anywhere else keeps every other reader on the stored name.
+        """
+        from randomizer.ui.config import mode_by_label
+
+        wanted = mode_by_label(
+            self.mode_family_var.get(), self.mode_label_var.get()
+        )
+        if wanted and self.progression_mode_var.get() != wanted:
+            self.progression_mode_var.set(wanted)
+        return self.on_progression_mode_changed(event)
+
     def follow_mode_family(self, *_args):
         """Keep the kind of game showing whatever the mode is one of.
 
@@ -1196,11 +1212,18 @@ class AdvancedSettingsController:
         """
         from randomizer.ui.config import mode_family, modes_in_family
 
+        from randomizer.ui.config import labels_in_family, mode_label
+
         mode = self.progression_mode_var.get()
         kind = mode_family(mode)
         if self.mode_family_var.get() != kind:
             self.mode_family_var.set(kind)
-        within = modes_in_family(kind)
+        # The control shows what the kind calls it; everything else reads
+        # the stored name. Both follow the mode, from wherever it was set.
+        shown = mode_label(mode)
+        if self.mode_label_var.get() != shown:
+            self.mode_label_var.set(shown)
+        within = labels_in_family(kind)
         for name in ('progression_mode_combo', 'shop_progression_mode_combo'):
             combo = getattr(self, name, None)
             if combo is not None:

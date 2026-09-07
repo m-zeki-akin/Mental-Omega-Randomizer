@@ -84,6 +84,26 @@ def modes_in_family(name):
     return []
 
 
+def labels_in_family(name):
+    """Return what one kind of game calls each of its modes.
+
+    What a control offers, where the modes themselves are what a
+    workspace stores. Inside the Roguelike kind the two are called
+    Campaign and Skirmish; a dropdown offering "Shop Mode" and "Skirmish
+    Shop" beside a kind called Roguelike is three names for two things.
+    """
+    return [mode_label(mode) for mode in modes_in_family(name)]
+
+
+def mode_by_label(name, label):
+    """Return the mode one kind of game calls by that name, if it has one."""
+    wanted = str(label or '')
+    for mode in modes_in_family(name):
+        if mode_label(mode) == wanted:
+            return mode
+    return ''
+
+
 def family_description(name):
     """Return what a kind of game is, for the control that offers it."""
     for family in MODE_FAMILIES:

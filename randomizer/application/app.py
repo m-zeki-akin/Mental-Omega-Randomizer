@@ -33,6 +33,7 @@ from ._dependencies import (
     clamp_int,
     load_config,
     mode_family,
+    mode_label,
     log_event,
     normalize_reward_weights,
     normalize_arsenal_settings,
@@ -344,6 +345,12 @@ class LauncherApp(
         # workspace keeps a mode, and the kind is how the five are offered.
         self.mode_family_var = tk.StringVar(
             value=mode_family(progression_mode_default)
+        )
+        # And what that kind calls the mode. Also derived: the control
+        # shows it, the workspace stores the mode itself, and one of the
+        # two is not a translation of the other anywhere but here.
+        self.mode_label_var = tk.StringVar(
+            value=mode_label(progression_mode_default)
         )
         self.progression_mode_var.trace_add('write', self.follow_mode_family)
         grid_state = self.state.get('grid', {}) if isinstance(self.state.get('grid'), dict) else {}

@@ -3,8 +3,8 @@
 from randomizer.shop.config import PACING_LABELS, RUN_PACING_SETTINGS
 from randomizer.ui.config import (
     family_description,
+    labels_in_family,
     mode_family_names,
-    modes_in_family,
 )
 
 from ._builder_dependencies import (
@@ -506,15 +506,22 @@ def _build_right_panel(self, main_frame):
             for name in mode_family_names()
         ),
     )
+    # Showing what the kind calls the mode, not what the settings store
+    # it as. The stored name is still what everything reads; this control
+    # is the one place the two are told apart.
     self.progression_mode_combo = ttk.Combobox(
         progression_cell,
         state='readonly',
-        textvariable=self.progression_mode_var,
-        values=modes_in_family(self.mode_family_var.get()) or PROGRESSION_MODES,
+        textvariable=self.mode_label_var,
+        values=(
+            labels_in_family(self.mode_family_var.get()) or PROGRESSION_MODES
+        ),
         width=12,
     )
     self.progression_mode_combo.grid(row=0, column=1, sticky='ew')
-    self.progression_mode_combo.bind('<<ComboboxSelected>>', self.on_progression_mode_changed, add='+')
+    self.progression_mode_combo.bind(
+        '<<ComboboxSelected>>', self.on_mode_label_chosen, add='+'
+    )
     WidgetTooltip(
         self.progression_mode_combo,
         'Classic follows the installed campaign order and opens one mission at a time. '
@@ -602,13 +609,15 @@ def _build_right_panel(self, main_frame):
     self.shop_progression_mode_combo = ttk.Combobox(
         shop_progression_cell,
         state='readonly',
-        textvariable=self.progression_mode_var,
-        values=modes_in_family(self.mode_family_var.get()) or PROGRESSION_MODES,
+        textvariable=self.mode_label_var,
+        values=(
+            labels_in_family(self.mode_family_var.get()) or PROGRESSION_MODES
+        ),
         width=18,
     )
     self.shop_progression_mode_combo.grid(row=0, column=1, sticky='ew')
     self.shop_progression_mode_combo.bind(
-        '<<ComboboxSelected>>', self.on_progression_mode_changed, add='+'
+        '<<ComboboxSelected>>', self.on_mode_label_chosen, add='+'
     )
 
     ttk.Separator(shop_settings_frame, orient='horizontal').grid(

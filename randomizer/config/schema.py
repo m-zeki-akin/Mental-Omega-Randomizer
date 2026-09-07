@@ -785,6 +785,14 @@ def _validate_ui(sections, path):
         )
         or sorted(grouped) != sorted(progression_modes)
         or len({family['name'] for family in families}) != len(families)
+        # And no kind of game calls two of its modes the same thing. Both
+        # windows offer the modes by those labels now, so a repeated one
+        # is a mode there is no way to pick.
+        or any(
+            len({entry['label'] for entry in family['modes']})
+            != len(family['modes'])
+            for family in families
+        )
     ):
         _invalid('Invalid mode families', path)
 
