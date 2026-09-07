@@ -35,7 +35,12 @@ from randomizer.rewards.weights import (
     SUB_WEIGHT_SECTIONS,
 )
 
-from .campaign_catalogues import REWARD_NAME, SUPERWEAPON, UNIT_ACCESS
+from .campaign_catalogues import (
+    MISSION,
+    REWARD_NAME,
+    SUPERWEAPON,
+    UNIT_ACCESS,
+)
 
 from .config import CAMPAIGN_FILTERS, DIFFICULTIES, GAME_SPEEDS, REWARD_MODES
 from .settings_rows import (  # noqa: F401  (the table's own vocabulary)
@@ -356,7 +361,52 @@ GRID_SETTINGS = (
     ),
 )
 
+# Which of the installed missions a run may be dealt at all -- the three
+# both kinds of run read. Shared with the Shop table rather than written
+# twice: a Shop run is dealt out of the same installed campaign, and a
+# setting worded differently in two places is a setting a player cannot
+# ask one question about.
+MISSION_POOL_SETTINGS = (
+    _row(
+        'include_no_build_missions', 'No-build missions', SWITCH,
+        'Missions fought with what the map gives you, with no base.',
+        where=GENERATION,
+    ),
+    _row(
+        'include_no_build_production_missions',
+        'No-build missions with production', SWITCH,
+        'The ones with no base but some way of making units.',
+        where=GENERATION,
+    ),
+    _row(
+        'include_operation_missions', 'Special Operations', SWITCH,
+        'The optional operations, alongside the campaign proper.',
+        where=GENERATION,
+    ),
+)
+
+# And one the campaign has that a Shop run does not: a Shop run deals its
+# own missions and never reads this. A control on a screen where nothing
+# reads it is worse than a missing one -- it can be changed, and nothing
+# happens.
+CAMPAIGN_MISSION_SETTINGS = MISSION_POOL_SETTINGS + (
+    _row(
+        'prioritize_no_build_missions',
+        'Open with the no-build missions', SWITCH,
+        'Fills the first few places of a run with the easier no-build '
+        'missions among those allowed above, rather than leaving what a '
+        'run opens with to the seed.',
+        where=GENERATION,
+    ),
+)
+
 EXCLUSION_SETTINGS = (
+    _row(
+        'excluded_mission_codes', 'Missions left out', SEARCH,
+        'Named here, a mission is never dealt into a run, whatever the '
+        'seed and whatever the switches above allow.',
+        where=GENERATION, catalogue_name=MISSION,
+    ),
     _row(
         'excluded_unit_access_ids', 'Units left out', SEARCH,
         'Named here, a unit is never unlocked by a reward and never turns '
@@ -524,6 +574,7 @@ ENEMY_SETTINGS = (
 
 SECTIONS = (
     ('Run', RUN_SETTINGS),
+    ('Missions a run may be dealt', CAMPAIGN_MISSION_SETTINGS),
     ('Rewards', REWARD_SETTINGS),
     ('Reward pool', POOL_SETTINGS),
     ('Access limits', LIMIT_SETTINGS),

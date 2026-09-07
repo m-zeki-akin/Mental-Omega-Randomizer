@@ -349,6 +349,7 @@ def _a_setting_kept_is_a_setting_read_back_valid():
     meant to catch.
     """
     from randomizer.ui.campaign_settings import NUMBER, SECTIONS, SWITCH
+    from randomizer.ui.settings_rows import full_key
 
     switch = next(
         (row for _name, rows in SECTIONS for row in rows
@@ -360,6 +361,12 @@ def _a_setting_kept_is_a_setting_read_back_valid():
     )
     if switch is None or number is None:
         return False
+    # By the name the boundary knows it by, which is not always the name
+    # on the row: two blocks of settings both have a 'units', so a row
+    # inside one is addressed through it. This read the bare name and got
+    # away with it for as long as the first switch in the table happened
+    # to be one of the few that live at the top.
+    switch_name, number_name = full_key(switch), full_key(number)
 
     def held(reply, key):
         for part in reply.get('result', {}).get('sections', ()):
@@ -372,27 +379,27 @@ def _a_setting_kept_is_a_setting_read_back_valid():
         before = call('campaign.settings')
         flipped = call(
             'campaign.use_setting',
-            name=switch['key'],
-            value=not held(before, switch['key']),
+            name=switch_name,
+            value=not held(before, switch_name),
         )
         over = call(
             'campaign.use_setting',
-            name=number['key'],
+            name=number_name,
             value=number['maximum'] + 50,
         )
         under = call(
-            'campaign.use_setting', name=number['key'], value=-50,
+            'campaign.use_setting', name=number_name, value=-50,
         )
         refused = call(
-            'campaign.use_setting', name=switch['key'], value=None,
+            'campaign.use_setting', name=switch_name, value=None,
         )
         unknown = call('campaign.use_setting', name='no.such.setting', value=1)
         after = call('campaign.settings')
     return bool(
         before.get('ok')
-        and held(flipped, switch['key']) is not held(before, switch['key'])
-        and held(over, number['key']) == number['maximum']
-        and held(under, number['key']) == number['minimum']
+        and held(flipped, switch_name) is not held(before, switch_name)
+        and held(over, number_name) == number['maximum']
+        and held(under, number_name) == number['minimum']
         and refused.get('kind') == 'ApiError'
         and unknown.get('kind') == 'ApiError'
         # And the sweep's own settings are thrown away with it: what the
@@ -1379,6 +1386,66 @@ def _a_picture_comes_back_for_what_a_list_names_valid():
     )
 
 
+def _a_mission_left_out_stays_out_valid():
+    """A mission named as left out is never dealt into a run.
+
+    The setting has always worked -- the classic window has had it for as
+    long as it has had an advanced pool -- but the new window had no way
+    to say it, which for a player is the same as not having it. So this
+    is checked from the settings rather than from the control: written
+    into the settings the way the screen writes it, and read back off the
+    run that was generated from them.
+
+    Named rather than counted, and named against a run small enough that
+    the mission would otherwise certainly be in it: a run of four out of
+    ninety-seven proves nothing if the one taken out was never going to
+    be dealt anyway.
+    """
+    from randomizer.campaign import generation, generator
+    from randomizer.config import player as settings_file
+    from randomizer.ui.campaign_catalogues import catalogue
+
+    listed = catalogue('mission')
+    if len(listed) < 8:
+        return False
+    with _store_of_its_own():
+        config = settings_file.load_config()
+        config['campaign_filter'] = 'All Campaigns'
+        config['mission_goal'] = 8
+        config['progression_mode'] = 'Mission List'
+        config['seed'] = 'SELF-CHECK-LEFT-OUT'
+        block = config.setdefault('generation', {})
+        block['excluded_mission_codes'] = []
+        missions = generator.installed_missions()
+        if not missions:
+            return False
+
+        def dealt():
+            maker = generator.build(config, missions)
+            return list(maker.build_seed_generation(generation.options_from(
+                maker,
+                generation.controls_from_config(config),
+                missions=missions,
+                reward_settings=maker.config_reward_settings(),
+            ))['state'].get('mission_order') or ())
+
+        before = dealt()
+        if not before:
+            return False
+        # One the seed really does deal, so leaving it out has to change
+        # something rather than agreeing with what would have happened.
+        unwanted = before[0]
+        block['excluded_mission_codes'] = [unwanted]
+        after = dealt()
+    return bool(
+        unwanted in before
+        and unwanted not in after
+        # And a run of the same size still: leaving one out takes it out
+        # of the pool rather than out of the run.
+        and len(after) == len(before)
+    )
+
+
 def _refuse_to_start(*_args, **_kwargs):
     raise ApiError('The self-check does not start games')
 
@@ -1570,6 +1637,7 @@ def validate_api_contract():
     mission_not_started = _a_mission_is_not_started_until_it_starts_valid()
     mission_written = _a_mission_is_written_out_without_a_window_valid()
     rules_order = _a_named_list_is_in_the_order_the_rules_are_valid()
+    mission_left_out = _a_mission_left_out_stays_out_valid()
     pictures_answer = _a_picture_comes_back_for_what_a_list_names_valid()
     after = _touched()
 
@@ -1650,6 +1718,7 @@ def validate_api_contract():
             mission_written
         ),
         'api_a_named_list_is_in_the_order_the_rules_are_valid': rules_order,
+        'api_a_mission_left_out_stays_out_valid': mission_left_out,
         'api_a_picture_comes_back_for_what_a_list_names_valid': (
             pictures_answer
         ),
@@ -1679,6 +1748,7 @@ def validate_api_contract():
             and mission_not_started
             and mission_written
             and rules_order
+            and mission_left_out
             and pictures_answer
             and before == after
             and unknown.get('ok') is False

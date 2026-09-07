@@ -56,7 +56,8 @@ FACTION_ORDER = {
 UNIT_ACCESS = 'unit_access'
 SUPERWEAPON = 'superweapon'
 REWARD_NAME = 'reward_name'
-CATALOGUE_NAMES = (UNIT_ACCESS, SUPERWEAPON, REWARD_NAME)
+MISSION = 'mission'
+CATALOGUE_NAMES = (UNIT_ACCESS, SUPERWEAPON, REWARD_NAME, MISSION)
 
 # The rules sections that are lists of things, in the order the game
 # reads them. Their order inside the file is the order of the catalogue.
@@ -213,6 +214,32 @@ def _superweapon_entries():
     return _sorted(entries.values())
 
 
+def _mission_entries():
+    """Every mission this install has, in the order the game lists them.
+
+    Not sorted, and not put through the rules order either: a mission is
+    not a type the rules name, and the campaign already has an order of
+    its own -- the one in ``BattleClient.ini``, which is the order the
+    game itself offers them in and the order a player has seen them in
+    for as long as they have played it.
+
+    An install the launcher cannot read the campaign of answers with
+    nothing, which is the honest answer: the alternative is a list of
+    missions that are not there.
+    """
+    from randomizer.campaign.generator import installed_missions
+
+    return tuple(
+        _entry(
+            mission['code'],
+            mission.get('title') or mission['code'],
+            str(mission.get('side') or 'Other'),
+        )
+        for mission in installed_missions()
+        if mission.get('code')
+    )
+
+
 def _first_in_rules(tech_ids):
     """Return the one of these the installed rules name first.
 
@@ -272,7 +299,12 @@ _BUILDERS = {
     UNIT_ACCESS: _unit_access_entries,
     SUPERWEAPON: _superweapon_entries,
     REWARD_NAME: _reward_name_entries,
+    MISSION: _mission_entries,
 }
+# The lists whose order the installed rules decide. The campaign is not
+# one of them: it has an order of its own and the rules have never named
+# a mission.
+RULES_ORDERED = frozenset({UNIT_ACCESS, SUPERWEAPON, REWARD_NAME})
 
 
 def catalogue(name):
@@ -287,7 +319,7 @@ def catalogue(name):
     # Ordered here rather than when it was built: the rules may not have
     # been readable then, and a list built once would keep whatever order
     # that moment could manage for the rest of the launcher's life.
-    return _in_rules_order(held)
+    return _in_rules_order(held) if wanted in RULES_ORDERED else held
 
 
 def labels(name, ids):

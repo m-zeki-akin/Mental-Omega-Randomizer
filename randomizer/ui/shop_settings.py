@@ -17,7 +17,11 @@ from randomizer.shop.config import (
     SHOP_FACTION_POOLS,
 )
 
-from .campaign_settings import GENERATION, MAXIMUM_SEED_LENGTH
+from .campaign_settings import (
+    GENERATION,
+    MAXIMUM_SEED_LENGTH,
+    MISSION_POOL_SETTINGS,
+)
 from .settings_rows import (
     CHOICE,
     SWITCH,
@@ -46,26 +50,9 @@ RUN_SETTINGS = (
     ),
 )
 
-# The same three switches the campaign modes read, because a Shop run is
-# dealt out of the same installed missions. One setting, two screens.
-MISSION_SETTINGS = (
-    _row(
-        'include_no_build_missions', 'No-build missions', SWITCH,
-        'Missions fought with what the map gives you, with no base.',
-        where=GENERATION,
-    ),
-    _row(
-        'include_no_build_production_missions',
-        'No-build missions with production', SWITCH,
-        'The ones with no base but some way of making units.',
-        where=GENERATION,
-    ),
-    _row(
-        'include_operation_missions', 'Special Operations', SWITCH,
-        'The optional operations, alongside the campaign proper.',
-        where=GENERATION,
-    ),
-)
+# The same switches the campaign modes read, from the same table: a Shop
+# run is dealt out of the same installed missions.
+MISSION_SETTINGS = MISSION_POOL_SETTINGS
 
 # Each hides its rewards from the shelf, from the permanent loadout, and
 # from every buff that would have improved them. Chosen before a run and
