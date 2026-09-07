@@ -50,8 +50,14 @@ function tile(entry) {
 /* Ask for the pictures of the tiles somebody can see, and put each one
  * into the tile that wanted it -- rather than drawing the screen again,
  * which would lose where they had scrolled to. */
+let watcher = null;
+
 function watch(root) {
   if (typeof IntersectionObserver !== 'function') return;
+  // Picking a side draws the screen again, and the tiles that were being
+  // watched are gone. A watcher still holding them would keep asking for
+  // pictures nothing is going to show.
+  if (watcher) watcher.disconnect();
   let waiting = [];
   let asked = null;
   const settle = async () => {
@@ -69,7 +75,7 @@ function watch(root) {
       box.replaceChildren(el('img', { src: uri, alt: '' }));
     }
   };
-  const watcher = new IntersectionObserver((seen) => {
+  watcher = new IntersectionObserver((seen) => {
     for (const one of seen) {
       if (!one.isIntersecting || !one.target.dataset.wanted) continue;
       watcher.unobserve(one.target);
