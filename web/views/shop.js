@@ -13,6 +13,14 @@ import { act, call, register } from '../app.js';
 import {
   button, card, el, grid, notice, panel, pill, row, section,
 } from '../components/index.js';
+import { settingsSections } from '../components/settings.js';
+
+/* The rest of the setup is a table like the campaign's, and the same
+ * drawing answers for it. Nothing here searches a long list yet, so
+ * there is nothing to remember between redraws. */
+const tools = {
+  onChange: (name, value) => act('shop.use_setting', { name, value }),
+};
 
 /** One pacing control: what it is, where it stands, and two presses. */
 function control(setting) {
@@ -93,7 +101,10 @@ function modifierCard(modifier) {
 async function render(root) {
   const settings = await call('shop.settings');
   root.replaceChildren(
-    section('The next run', pacingPanel(settings)),
+    section('The next run', [
+      pacingPanel(settings),
+      ...settingsSections(settings.sections, tools),
+    ]),
     section('Optional run modifiers', [
       notice(
         'Each one pairs an advantage with a drawback, so none of them '

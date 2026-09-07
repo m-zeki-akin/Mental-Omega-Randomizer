@@ -26,8 +26,16 @@ from randomizer.shop.modifiers import (
     pacing_gem_scale_percent,
     run_difficulty,
 )
+from randomizer.ui.shop_settings import SECTIONS
 
 from .contract import COMMAND, ApiError, action
+from .settings import Settings
+
+
+# The rest of the setup -- the seed, the faction pool, which missions a
+# run may be dealt, which rewards are kept off the shelf -- is a table
+# like the campaign's, answered by the same piece in the middle.
+SHOP = Settings(SECTIONS)
 
 
 def _settings():
@@ -85,6 +93,7 @@ def _answer(config):
         'difficulty': format_difficulty(run_difficulty((), chosen)),
         'gem_scale_percent': pacing_gem_scale_percent(chosen),
         'default': not pacing_to_store(chosen, SHOP_CONFIG) and not enabled,
+        'sections': SHOP.answer(config),
     }
 
 
@@ -143,6 +152,21 @@ def use_modifier(name='', enabled=None):
     config[MODIFIER_SETTING_KEY] = [
         known for known in SHOP_CONFIG.modifiers if known in chosen
     ]
+    _keep(config)
+    return _answer(config)
+
+
+@action('shop.use_setting', 'Change one Shop Mode setting', kind=COMMAND)
+def use_setting(name='', value=None):
+    """Keep one of the settings the pacing controls are not.
+
+    Separate from ``shop.use_pacing`` because they are different
+    questions: pacing is a number with a baseline behind it that scores
+    towards a run's difficulty, and these are the plain settings a run is
+    dealt from.
+    """
+    config = _settings()
+    SHOP.write(config, name, value)
     _keep(config)
     return _answer(config)
 

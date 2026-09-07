@@ -275,6 +275,18 @@ def run_pacing_overrides(reward_settings, config: ShopModeConfig = SHOP_CONFIG):
 # A run is untouched by any of this once it starts. Its pacing is
 # snapshotted into its own reward_settings, which is what run_shop_config
 # above reads.
+# What a run's shelf may be drawn from. Kept here rather than in a
+# window because both interfaces offer it, and a list of factions
+# written twice is a list that will not agree with itself.
+SHOP_FACTION_POOLS = (
+    'All Factions',
+    'Allies Only',
+    'Soviets Only',
+    'Epsilon Only',
+    'Foehn Only',
+)
+FACTION_POOL_SETTING_KEY = 'shop_faction_pool'
+
 PACING_SETTING_KEY = 'shop_pacing'
 MODIFIER_SETTING_KEY = 'shop_modifiers'
 

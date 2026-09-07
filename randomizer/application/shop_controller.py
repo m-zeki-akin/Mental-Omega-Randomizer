@@ -92,16 +92,11 @@ from randomizer.shop.service import ShopProgressionService
 from randomizer.shop.text import gem_text
 from randomizer.shop.transitions import ShopTransitionError
 from randomizer.ui.cameos import ARCHIPELAGO_CAMEO_PATH
+from randomizer.shop.config import SHOP_FACTION_POOLS
+
 from .shop_polish_controller import ShopPolishController
 
 
-SHOP_FACTION_POOLS = (
-    'All Factions',
-    'Allies Only',
-    'Soviets Only',
-    'Epsilon Only',
-    'Foehn Only',
-)
 SHOP_FACTION_CAMPAIGNS = {
     'All Factions': 'All Campaigns',
     'Allies Only': 'Allies',

@@ -1295,8 +1295,13 @@ def run_self_check():
                     return False
             return row['key'] in block
 
+        from randomizer.ui.shop_settings import BY_KEY as SHOP_BY_KEY
+        from randomizer.ui.shop_settings import SECTIONS as SHOP_SECTIONS
+
         campaign_setting_rows = [
-            row for _name, rows in SECTIONS for row in rows
+            row
+            for table in (SECTIONS, SHOP_SECTIONS)
+            for _name, rows in table for row in rows
         ]
         # Two groups have defaults that do not live in the settings file:
         # the reward weights and the enemy's per-bonus limits. The file
@@ -1320,6 +1325,8 @@ def run_self_check():
         # condition naming a setting that no longer exists would hide the
         # row for good, silently.
         from randomizer.ui.campaign_settings import BY_KEY as CAMPAIGN_BY_KEY
+        # Both tables, because a condition can only name a row of its own.
+        CAMPAIGN_BY_KEY = {**SHOP_BY_KEY, **CAMPAIGN_BY_KEY}
         campaign_conditions_named = all(
             row['needs'] is None
             or (
