@@ -16,9 +16,25 @@ only has to tell the player reads ``error``.
 """
 
 from dataclasses import dataclass
+from threading import RLock
 from typing import Any, Callable
 
 from randomizer.core.diagnostics import event as log_event
+
+
+# The launcher does one thing at a time.
+#
+# The window hands a page's calls to whatever thread it happens to have,
+# so two presses a moment apart can arrive at once. Nearly every command
+# reads the settings, changes one of them and writes them back, and two
+# of those interleaved lose one of the two changes: the second reads
+# before the first has written, and writes over it. Which the player sees
+# as a control that sprang back on its own.
+#
+# Re-entrant because an action may well call another; held across the
+# whole action, so what a command reads to decide with is what it is
+# still deciding against when it writes.
+_ONE_AT_A_TIME = RLock()
 
 
 class ApiError(RuntimeError):
@@ -100,7 +116,8 @@ def call(name, /, **arguments):
             'kind': 'UnknownAction',
         }
     try:
-        return {'ok': True, 'result': entry(**(arguments or {}))}
+        with _ONE_AT_A_TIME:
+            return {'ok': True, 'result': entry(**(arguments or {}))}
     except ApiError as exc:
         return {'ok': False, 'error': str(exc), 'kind': 'ApiError'}
     except Exception as exc:  # noqa: BLE001 - the bridge cannot carry one
@@ -117,15 +134,34 @@ def call(name, /, **arguments):
         }
 
 
+def _import_action_modules():
+    """Import the modules that register actions.
+
+    Importing is what registers. Nothing else in the package imports
+    these, so nothing else would.
+    """
+    from . import campaign, launcher, shop, skirmish  # noqa: F401
+
+
 def _load_actions():
-    """Import the modules that register actions, once."""
+    """Import them once, however many callers arrive at once.
+
+    The flag is set after the importing rather than before it. Set
+    first, a second call arriving while the first was still importing
+    would find the flag true, skip the import and read a registry that
+    was still being filled -- and be told the launcher has no action by
+    that name. Which is what a page opening several screens at once
+    does: it asks for a handful of things in the same breath.
+    """
     global _LOADED
     if _LOADED:
         return
-    _LOADED = True
-    from . import campaign, launcher, shop, skirmish  # noqa: F401
-    # Importing is what registers. Nothing else in the package
-    # imports these, so nothing else would.
+    with _LOADING:
+        if _LOADED:
+            return
+        _import_action_modules()
+        _LOADED = True
 
 
 _LOADED = False
+_LOADING = RLock()

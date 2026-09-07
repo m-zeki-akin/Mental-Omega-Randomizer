@@ -25,6 +25,8 @@ where they were.
 """
 
 import json
+import threading
+import time
 from contextlib import contextmanager
 from copy import deepcopy
 from pathlib import Path
@@ -512,6 +514,141 @@ def _all_of_them_is_kept_as_all_of_them_valid():
     )
 
 
+def _the_registry_is_never_half_ready_valid():
+    """A call arriving while the actions are still being imported waits.
+
+    The window hands a page's calls to whatever thread it has, and a page
+    opening asks for several things in the same breath. The registry used
+    to mark itself loaded before it did the loading, so the second of
+    those calls read a registry that was still being filled and was told
+    the launcher had no action by that name -- a screen that failed for a
+    moment at startup and worked ever after, which is the hardest kind of
+    fault to be shown.
+
+    Checked against a stand-in for the importing, because the real one
+    has already happened by the time anything can ask.
+    """
+    from randomizer.api import contract
+
+    finished = []
+    returned = []
+    lock = threading.Lock()
+
+    def slow_import():
+        time.sleep(0.05)
+        with lock:
+            finished.append(time.monotonic())
+
+    held_import = contract._import_action_modules
+    held_flag = contract._LOADED
+    contract._import_action_modules = slow_import
+    contract._LOADED = False
+    try:
+        def ask():
+            contract._load_actions()
+            with lock:
+                returned.append(time.monotonic())
+
+        threads = [threading.Thread(target=ask) for _ in range(4)]
+        for thread in threads:
+            thread.start()
+        for thread in threads:
+            thread.join()
+    finally:
+        contract._import_action_modules = held_import
+        contract._LOADED = held_flag
+    return bool(
+        # Imported once, however many asked.
+        len(finished) == 1
+        and len(returned) == 4
+        # And nobody was told it was ready before it was.
+        and all(moment >= finished[0] for moment in returned)
+    )
+
+
+def _two_presses_at_once_keep_both_valid():
+    """Two controls moved at once are two settings kept, not one.
+
+    Nearly every command reads the settings, changes one and writes them
+    back. Two of those on two threads -- which is what two presses a
+    moment apart are, because the window answers on whatever thread it
+    has -- would interleave, and the second would write over the first
+    with the copy it had read before the first had saved. The player sees
+    a control spring back on its own, and nothing anywhere says why.
+
+    Written against two weights because they are the two controls most
+    likely to be pressed in a row.
+    """
+    from randomizer.config import player as settings_file
+    from randomizer.ui.campaign_settings import REWARD_WEIGHTS
+
+    first = f'{REWARD_WEIGHTS}.main.unit_unlocks'
+    second = f'{REWARD_WEIGHTS}.main.power_unlocks'
+
+    def held(key):
+        block = settings_file.load_config()
+        for step in key.split('.')[:-1]:
+            block = block.get(step) or {}
+        return block.get(key.split('.')[-1])
+
+    with _store_of_its_own():
+        # Keeping settings is a file write in the launcher and a dict
+        # update here, so the window a lost write slips through is much
+        # narrower than the real one. This is what widens it back.
+        keeping = settings_file.save_config
+
+        def slowly(config):
+            time.sleep(0.03)
+            keeping(config)
+
+        settings_file.save_config = slowly
+        threads = [
+            threading.Thread(
+                target=call, args=('campaign.use_setting',),
+                kwargs={'name': key, 'value': value},
+            )
+            for key, value in ((first, 5), (second, 10))
+        ]
+        for thread in threads:
+            thread.start()
+        for thread in threads:
+            thread.join()
+        kept = (held(first), held(second))
+    return kept == (5, 10)
+
+
+def _a_ceiling_answers_the_other_settings_valid():
+    """What a number is offered is what it could actually reach.
+
+    The enemy's total is capped by the bonuses that are allowed: turning
+    most of them off lowers what the run could ever hand out, and the
+    generator has always clamped the number there. A screen that went on
+    offering the full range would be offering a number that is quietly
+    cut on the way to the seed.
+    """
+    from randomizer.ui.campaign_settings import BY_KEY, ENEMY_SCALING
+
+    total = f'{ENEMY_SCALING}.maximum_total_buffs'
+    allowed = f'{ENEMY_SCALING}.allowed_buff_ids'
+    names = [entry['id'] for entry in BY_KEY[allowed]['catalogue']]
+    with _store_of_its_own():
+        call('campaign.use_setting', name=allowed, value=names)
+        whole = _held(call('campaign.settings'), total) or {}
+        call('campaign.use_setting', name=allowed, value=names[:4])
+        narrowed = _held(call('campaign.settings'), total) or {}
+        call('campaign.use_setting', name=allowed, value=[])
+        # Nothing allowed is the one case the row's own maximum stands
+        # in for, so that the list a player emptied stays reachable.
+        emptied = _held(call('campaign.settings'), total) or {}
+    return bool(
+        whole.get('maximum') == BY_KEY[total]['maximum']
+        and 0 < narrowed.get('maximum', 0) < whole['maximum']
+        # And the number itself is offered no higher than the ceiling.
+        and narrowed['value'] <= narrowed['maximum']
+        and emptied.get('maximum') == whole['maximum']
+    )
+
+
 def _refuse_to_start(*_args, **_kwargs):
     raise ApiError('The self-check does not start games')
 
@@ -636,6 +773,9 @@ def validate_api_contract():
     # Called once, not once per row that reads it: it deals a table.
     settled_first = _finished_battle_settled_first_valid()
     settings_kept = _a_setting_kept_is_a_setting_read_back_valid()
+    one_at_a_time = _two_presses_at_once_keep_both_valid()
+    ready_or_waiting = _the_registry_is_never_half_ready_valid()
+    ceilings_answer = _a_ceiling_answers_the_other_settings_valid()
     named_lists_kept = _a_named_list_keeps_what_it_was_given_valid()
     all_of_them_kept = _all_of_them_is_kept_as_all_of_them_valid()
     after = _touched()
@@ -698,6 +838,9 @@ def validate_api_contract():
             _battle_outlives_the_launcher_valid(),
         'api_finished_battle_settled_first_valid': settled_first,
         'api_settings_kept_are_read_back_valid': settings_kept,
+        'api_two_presses_at_once_keep_both_valid': one_at_a_time,
+        'api_registry_is_never_half_ready_valid': ready_or_waiting,
+        'api_ceilings_answer_the_settings_valid': ceilings_answer,
         'api_named_lists_keep_their_names_valid': named_lists_kept,
         'api_all_of_them_stays_all_of_them_valid': all_of_them_kept,
         # Asking the launcher what it can do is not playing it. Every
@@ -711,6 +854,9 @@ def validate_api_contract():
             and _battle_outlives_the_launcher_valid()
             and settled_first
             and settings_kept
+            and one_at_a_time
+            and ready_or_waiting
+            and ceilings_answer
             and named_lists_kept
             and all_of_them_kept
             and before == after

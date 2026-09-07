@@ -1281,7 +1281,15 @@ def run_self_check():
         # row for good, silently.
         from randomizer.ui.campaign_settings import BY_KEY as CAMPAIGN_BY_KEY
         campaign_conditions_named = all(
-            row['needs'] is None or row['needs'][0] in CAMPAIGN_BY_KEY
+            row['needs'] is None
+            or (
+                row['needs'][0] in CAMPAIGN_BY_KEY
+                # And what it names holds a value to depend on. A
+                # group of weights holds none -- it is read through
+                # the settings it draws -- so a row waiting on one
+                # would ask a question with no answer.
+                and CAMPAIGN_BY_KEY[row['needs'][0]]['kind'] != WEIGHTS
+            )
             for row in campaign_setting_rows
         )
         campaign_settings_exist = bool(

@@ -428,6 +428,10 @@ WEIGHT_SETTINGS = tuple(
 # each is stacked as far as it goes. Asking for more than this is asking
 # for something the generator cannot hand out.
 ENEMY_BUFF_CAPACITY = enemy_buff_capacity({})
+# A ceiling that is not a number but a question: how much the bonuses
+# that are allowed right now could add up to. The boundary works it
+# out; the table only says which rows are asking.
+ENEMY_CAPACITY = 'enemy_capacity'
 _ENEMY_GROUP_BY_ID = {
     effect_id: group['label']
     for group in ENEMY_BUFF_GROUP_DEFINITIONS
@@ -456,10 +460,12 @@ def _enemy_buff_entry(definition):
 ENEMY_SETTINGS = (
     _row(
         'maximum_total_buffs', 'Bonuses the enemy collects', NUMBER,
-        'How many the run hands the enemy over its whole length. Zero is '
-        'an enemy that never grows.',
+        'How many the run hands the enemy over its whole length, out of '
+        'what the bonuses below could add up to. Zero is an enemy that '
+        'never grows.',
         where=ENEMY_SCALING,
         minimum=0, maximum=ENEMY_BUFF_CAPACITY, step=1, default=0,
+        ceiling=ENEMY_CAPACITY,
     ),
     _row(
         'allowed_buff_ids', 'Bonuses the enemy may be given', SET,

@@ -17,6 +17,8 @@ from randomizer.ui.campaign_catalogues import (
 from randomizer.ui.campaign_settings import (
     BY_KEY,
     CHOICE,
+    ENEMY_CAPACITY,
+    ENEMY_SCALING,
     NUMBER,
     SEARCH,
     SET,
@@ -81,7 +83,7 @@ def _value(config, row):
             number = int(held)
         except (TypeError, ValueError):
             number = default
-        return max(row['minimum'], min(row['maximum'], number))
+        return max(row['minimum'], min(_ceiling(config, row), number))
     if row['kind'] == TEXT:
         return str(held or '').strip()[:row['maximum_length']]
     if row['kind'] == SET:
@@ -100,8 +102,43 @@ def _value(config, row):
         return [
             entry['id'] for entry in labels(row['catalogue_name'], held)
         ]
-    wanted = str(held or '')
-    return wanted if wanted in row['choices'] else row['choices'][0]
+    if row['kind'] == CHOICE:
+        wanted = str(held or '')
+        return wanted if wanted in row['choices'] else row['choices'][0]
+    # Every kind is named above. A group of weights is the one row
+    # that holds nothing of its own, and asking it for a value used to
+    # fall through to the choices a group has none of -- which is a
+    # KeyError, which is a screen that says nothing at all.
+    raise ApiError(f'{row["label"]} is not one setting with one value')
+
+
+def _ceiling(config, row):
+    """Return the highest a number may go as the rest of the settings stand.
+
+    Most numbers have one ceiling and the row says what it is. The
+    enemy's total is the exception: what it can reach is the capacity of
+    the bonuses that are actually allowed, so a run with two thirds of
+    them turned off cannot collect what the row's own maximum says. The
+    generator has always clamped it there; this is the screen no longer
+    offering what would be quietly cut.
+
+    With nothing allowed the capacity is zero, and a zero ceiling would
+    trap the setting: the list of bonuses is shown only while the total
+    is not zero, so a player who had turned every one of them off could
+    never turn one back on. The row's own maximum stands in for that,
+    and the help beside it already says the number means nothing while
+    nothing is allowed.
+    """
+    if row.get('ceiling') != ENEMY_CAPACITY:
+        return row['maximum']
+    from randomizer.rewards.enemy_scaling import enemy_buff_capacity
+
+    block = config
+    for step in ENEMY_SCALING.split('.'):
+        held = block.get(step)
+        block = held if isinstance(held, dict) else {}
+    capacity = enemy_buff_capacity(block)
+    return min(row['maximum'], capacity) if capacity else row['maximum']
 
 
 def _weights(config, row):
@@ -159,7 +196,9 @@ def _shown(row, config, standing=''):
     )
     if row['kind'] == NUMBER:
         shown.update(
-            minimum=row['minimum'], maximum=row['maximum'], step=row['step'],
+            minimum=row['minimum'],
+            maximum=_ceiling(config, row),
+            step=row['step'],
         )
     elif row['kind'] == CHOICE:
         shown['choices'] = list(row['choices'])
@@ -208,7 +247,7 @@ def _needed(config, row):
         return True
     key, expected = wanted
     other = BY_KEY.get(key)
-    if other is None:
+    if other is None or other['kind'] == WEIGHTS:
         return True
     held = _value(config, other)
     return bool(held) if expected is True else held == expected
@@ -289,7 +328,7 @@ def use_setting(name='', value=None):
             number = int(value)
         except (TypeError, ValueError):
             raise ApiError(f'{row["label"]} needs a number') from None
-        kept = max(row['minimum'], min(row['maximum'], number))
+        kept = max(row['minimum'], min(_ceiling(config, row), number))
     elif row['kind'] == TEXT:
         # Trimmed and capped rather than refused: what a player typed is
         # worth keeping even when they typed a space at the end of it.
