@@ -244,6 +244,18 @@ def generate():
     mode = str(config.get(MODE_KEY) or '')
     if mode not in CAMPAIGN_MODES:
         raise ApiError(f'{mode or "This mode"} does not generate a campaign run')
+    # A run an Archipelago server is playing along with is not this
+    # window's to replace. The classic window locks its own controls
+    # while a session is up; the mark on the run outlives that window,
+    # and it is what there is to ask here.
+    playing = store.standing().get('archipelago')
+    if isinstance(playing, dict) and str(
+        playing.get('activation') or ''
+    ).strip().lower() == 'active':
+        raise ApiError(
+            'This run is being played with Archipelago. Finish or '
+            'disconnect it in the classic window before generating another.'
+        )
     missions = generator.installed_missions()
     if not missions:
         raise ApiError('No missions are installed to generate a run from')

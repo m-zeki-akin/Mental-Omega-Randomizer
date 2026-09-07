@@ -4,7 +4,6 @@ from randomizer.campaign import generation as campaign_generation
 
 from ._dependencies import (
     ARSENAL_MODE,
-    CAMPAIGN_FILTERS,
     CHECK_SCHEMA_VERSION,
     CONFIG_PATH,
     DEFAULT_MISSION_GOAL,
@@ -22,12 +21,10 @@ from ._dependencies import (
     check_rewards,
     classic_mission_order,
     create_grid,
-    filter_missions_by_build_settings,
     generate_mission_arsenals,
     grid_opening_mission_count,
     log_event,
     messagebox,
-    normalize_faction,
     now_stamp,
     plan_enemy_check_rewards,
     random,
@@ -711,23 +708,28 @@ class SeedController:
             self.disable_generated_rules_for_client()
 
     def filtered_missions_for_seed(self):
-        selected = self.campaign_var.get()
-        missions = list(self.missions) if selected == CAMPAIGN_FILTERS[0] else [
-            mission
-            for mission in self.missions
-            if normalize_faction(mission.get('side', '')) == selected
-        ]
-        missions = [
-            mission for mission in missions
-            if mission.get('code', '').upper() not in self.excluded_mission_codes
-        ]
-        return filter_missions_by_build_settings(
-            missions,
-            include_true_no_build=self.include_no_build_missions_var.get(),
-            include_no_build_production=(
-                self.include_no_build_production_missions_var.get()
-            ),
-            include_operation_missions=self.include_operation_missions_var.get(),
+        """Return the missions a run may be dealt from, as the controls say.
+
+        The filtering itself is shared: this window reads its four
+        controls, and what they mean is decided beside the run. Written
+        twice it would agree today and disagree the week one of them
+        changes.
+        """
+        return campaign_generation.missions_for(
+            self.missions,
+            {
+                'campaign_filter': self.campaign_var.get(),
+                'include_no_build_missions': (
+                    self.include_no_build_missions_var.get()
+                ),
+                'include_no_build_production_missions': (
+                    self.include_no_build_production_missions_var.get()
+                ),
+                'include_operation_missions': (
+                    self.include_operation_missions_var.get()
+                ),
+            },
+            self.excluded_mission_codes,
         )
 
     def randomizer_order_map(self):

@@ -1180,6 +1180,13 @@ def run_self_check():
             + seed_controller_module.SeedController
             .seed_generation_options_from_settings.__code__.co_names
         )
+        # Which missions a run may be dealt from is the same question in
+        # both windows, and was written out twice for a while. The
+        # classic window asks now.
+        filtering_shared = (
+            'missions_for' in seed_controller_module.SeedController
+            .filtered_missions_for_seed.__code__.co_names
+        )
         unknown_starting_unlocks_kept_valid = bool(
             # Kept where it is stored, by both paths that store it.
             unknown_name in kept_unlocks
@@ -1201,6 +1208,7 @@ def run_self_check():
                 name.endswith('_var') for name in
                 generation_module.options_from.__code__.co_names
             )
+            and filtering_shared
         )
         state_stub = object.__new__(state_controller_module.StateController)
         state_stub.config = {'generation': {}}

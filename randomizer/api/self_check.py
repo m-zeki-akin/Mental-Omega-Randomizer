@@ -897,6 +897,70 @@ def _a_run_is_generated_from_the_settings_valid():
     )
 
 
+def _the_same_settings_make_the_same_run_valid():
+    """The same settings make the same run, from either window.
+
+    Two things this has to be true of, and neither was checked. A seed
+    typed in twice is the whole point of a seed. And the classic window
+    generates while the run it is replacing is still in front of it,
+    where this generates with nothing there -- so anything on the path
+    that reads the old run would make the two windows deal different
+    missions from one settings file, and only for a player replacing a
+    run rather than starting their first.
+
+    Grid is generated too, because its board is built here and nowhere
+    else: a mode whose openings are a shape rather than a count has more
+    to go wrong than the two that share an order.
+    """
+    from randomizer.campaign import generation, generator
+
+    def made(seed, state=None, mode='Mission List', goal=6):
+        from randomizer.config import player as settings_file
+
+        config = settings_file.load_config()
+        config['campaign_filter'] = 'All Campaigns'
+        config['mission_goal'] = goal
+        config['progression_mode'] = mode
+        config['seed'] = seed
+        missions = generator.installed_missions()
+        maker = generator.build(config, missions, state=state)
+        options = generation.options_from(
+            maker,
+            generation.controls_from_config(config),
+            missions=missions,
+            reward_settings=maker.config_reward_settings(),
+        )
+        return maker.build_seed_generation(options)['state']
+
+    def alike(one, other):
+        return all(
+            json.dumps(one.get(key), sort_keys=True, default=str)
+            == json.dumps(other.get(key), sort_keys=True, default=str)
+            for key in (
+                'mission_order', 'reward_queue', 'mission_checks',
+                'starting_rewards',
+            )
+        )
+
+    with _store_of_its_own():
+        once = made('SELF-CHECK-SEED')
+        twice = made('SELF-CHECK-SEED')
+        after = made('SELF-CHECK-SEED', state=made('SOMETHING-ELSE'))
+        grid = made('SELF-CHECK-GRID', mode='Grid Mode', goal=8)
+    nodes = (grid.get('grid') or {}).get('nodes') or {}
+    return bool(
+        alike(once, twice)
+        and alike(once, after)
+        # A board of the size asked for, with somewhere to start on it.
+        and len(grid.get('mission_order') or ()) == 8
+        and len(nodes) == 8
+        and any(
+            (node or {}).get('state') == 'unlocked'
+            for node in nodes.values()
+        )
+    )
+
+
 def _refuse_to_start(*_args, **_kwargs):
     raise ApiError('The self-check does not start games')
 
@@ -1056,6 +1120,7 @@ def validate_api_contract():
     all_of_them_kept = _all_of_them_is_kept_as_all_of_them_valid()
     one_rule = _one_rule_says_how_far_a_run_got_valid()
     run_generated = _a_run_is_generated_from_the_settings_valid()
+    same_run = _the_same_settings_make_the_same_run_valid()
     after = _touched()
 
     json_safe = True
@@ -1125,6 +1190,7 @@ def validate_api_contract():
         'api_all_of_them_stays_all_of_them_valid': all_of_them_kept,
         'api_one_rule_says_how_far_a_run_got_valid': one_rule,
         'api_a_run_is_generated_from_the_settings_valid': run_generated,
+        'api_the_same_settings_make_the_same_run_valid': same_run,
         # Asking the launcher what it can do is not playing it. Every
         # command was called above; the runs, the board, the battle files
         # and the game itself are all where they were.
@@ -1145,6 +1211,7 @@ def validate_api_contract():
             and all_of_them_kept
             and one_rule
             and run_generated
+            and same_run
             and before == after
             and unknown.get('ok') is False
             and described
