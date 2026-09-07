@@ -39,6 +39,45 @@ BORROWED = re.compile(r"class:\s*'[^']*(card__|titlebar__|panel__)")
 # What a screen asks the launcher for. Both spellings: a screen reads with
 # one and acts with the other, and both name an action.
 ASKED = re.compile(r"\b(?:call|act)\(\s*'([a-z_]+\.[a-z_]+)'")
+# The one place a screen changes anything, and the flag that keeps a
+# second press out while the first is still landing.
+ACTING = re.compile(
+    r'export async function act\([^)]*\)\s*\{(?P<body>.*?)\n\}', re.S
+)
+FLAGS = re.compile(r'\blet\s+(\w+)\s*=\s*false;')
+
+
+def _presses_wait_their_turn(root):
+    """Return what is wrong with the gate on a screen's own presses.
+
+    Every change a screen makes goes through one function: it sends the
+    change, waits for the launcher, and redraws from the answer. A second
+    press arriving before that answer decides from a screen that is
+    already out of date -- and where a control sends a whole list rather
+    than the one thing that moved, that is a change quietly lost. Adding
+    two units to an exclusion list quickly would send the second list
+    without the first unit in it, and the launcher would keep what it was
+    told.
+
+    So a press while one is landing is turned away, and the flag that
+    does it is cleared however the press ends. Both halves are checked:
+    the launcher itself running one action at a time cannot help here,
+    because the second press is not early, it is wrong.
+    """
+    text = _read(root / 'app.js')
+    found = ACTING.search(text)
+    if not found:
+        return ['app.js: no act() to gate']
+    body = found.group('body')
+    flags = [name for name in FLAGS.findall(text) if f'{name} = true' in body]
+    wrong = []
+    if not flags:
+        wrong.append('app.js: act() turns no second press away')
+    elif not any(f'if ({name})' in body for name in flags):
+        wrong.append('app.js: act() sets a flag it never reads')
+    if 'finally' not in body:
+        wrong.append('app.js: act() can leave the gate shut')
+    return wrong
 
 
 def _read(path):
@@ -281,6 +320,7 @@ def validate_shell_contract():
     borrowing = _views_keep_to_themselves(root)
     misnamed = _views_register_their_own_name(root)
     unanswered = _actions_the_screens_ask_for(root)
+    impatient = _presses_wait_their_turn(root)
 
     return {
         'shell_pages_present_valid': present,
@@ -295,6 +335,7 @@ def validate_shell_contract():
         'shell_components_are_pure_valid': bool(components and components_pure),
         'shell_every_screen_a_mode_names_exists_valid': screens_valid,
         'shell_every_action_asked_for_exists_valid': not unanswered,
+        'shell_presses_wait_their_turn_valid': not impatient,
         'shell_every_mode_is_one_kind_of_game_valid': families_valid,
         'shell_contract_valid': bool(
             present
@@ -308,6 +349,7 @@ def validate_shell_contract():
             and not borrowing
             and not misnamed
             and not unanswered
+            and not impatient
             and families_valid
         ),
     }

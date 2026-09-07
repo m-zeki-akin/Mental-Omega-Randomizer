@@ -82,8 +82,22 @@ export async function refresh() {
   }
 }
 
+/* Whether a press is still landing.
+ *
+ * One press at a time. A change is sent, the launcher answers, and the
+ * screen is drawn again from that answer -- so a second press arriving
+ * before the answer decides from a screen that is already out of date.
+ * Where a control sends a whole list, that is a change lost: adding two
+ * units to an exclusion list quickly would send the second list without
+ * the first unit in it, and the launcher would keep exactly what it was
+ * told. The turned-away press leaves the title bar saying the launcher
+ * is working, which it is. */
+let pressing = false;
+
 /** Run one launcher action and redraw, saying so if it refuses. */
 export async function act(name, args = {}) {
+  if (pressing) return null;
+  pressing = true;
   try {
     status('...');
     const result = await call(name, args);
@@ -92,6 +106,8 @@ export async function act(name, args = {}) {
   } catch (error) {
     status(error.message);
     return null;
+  } finally {
+    pressing = false;
   }
 }
 
