@@ -213,6 +213,7 @@ def preview(map_path=''):
 
 @action('skirmish.tiers', 'What each tier of a run is made of')
 def tiers():
+    from randomizer.skirmish.model import battles_in_tier
     from randomizer.skirmish.progression import (
         BONUSES,
         SKILL_NAMES,
@@ -224,6 +225,10 @@ def tiers():
     def described(tier, number):
         return {
             'tier': number,
+            # How long this tier is, challenge included. Not every tier is
+            # the same length, so a screen cannot work it out from one
+            # number any more.
+            'battles': battles_in_tier(number),
             'enemies': [SKILL_NAMES.get(item, '') for item in tier.enemies],
             'challenge': SKILL_NAMES.get(tier.challenge, ''),
             'mental_ai': tier.mental,

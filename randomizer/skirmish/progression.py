@@ -1,9 +1,11 @@
 """How a run gets harder, and what it offers next.
 
-The shape follows Shop Mode: battles are grouped into tiers of five, and the
-battle that closes a tier is a challenge -- fought on a challenge map, with
-no choice of which. Everything a tier decides is in one table, so what the
-mode does at battle twelve can be read rather than traced.
+Battles are grouped into tiers, and the battle that closes a tier is a
+challenge -- fought on a challenge map, with no choice of which. The early
+tiers are short: two battles and a challenge, then three, then four for the
+rest of the run, because five fights against one enemy is four repeats of
+the same fight. Everything a tier decides is in one table, so what the mode
+does at battle twelve can be read rather than traced.
 
 What rises with the tier is the number of enemies, how well they play, and
 how often the ally is missing. What does not rise here is the enemy's own
@@ -19,7 +21,12 @@ from dataclasses import dataclass
 import random
 
 from .challenges import challenge_for
-from .model import BATTLES_PER_TIER, WARMUP_BATTLE, BattleOffer
+from .model import (
+    WARMUP_BATTLE,
+    BattleOffer,
+    closes_tier,
+    tier_of,
+)
 from .spawn import (
     AI_DIFFICULTY_EASY,
     AI_DIFFICULTY_HARD,
@@ -143,10 +150,7 @@ def is_warmup(battle):
 
 def tier_for(battle):
     """Which tier a battle belongs to. The warmup is tier zero."""
-    battle = int(battle)
-    if is_warmup(battle):
-        return WARMUP_BATTLE
-    return (battle - 1) // BATTLES_PER_TIER + 1
+    return tier_of(battle)
 
 
 def tier_rules(battle):
@@ -158,9 +162,7 @@ def tier_rules(battle):
 
 def is_challenge_battle(battle):
     """Whether this battle closes a tier. The warmup closes nothing."""
-    if is_warmup(battle):
-        return False
-    return int(battle) % BATTLES_PER_TIER == 0
+    return closes_tier(battle)
 
 
 def _rng(seed, battle, salt=''):

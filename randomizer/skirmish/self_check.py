@@ -420,14 +420,24 @@ def _run_checks():
             ),
             battle=1,
         )
-        # A tier is five battles and the fifth is the challenge.
+        # A tier is as long as its own entry says, and its last battle is
+        # the challenge. The early tiers are the short ones: two battles
+        # and a challenge, then three, then four for the rest of the run.
+        from .model import TIER_LENGTHS, cycle_battles
+
         cadence_valid = bool(
-            [tier_for(battle) for battle in (1, 5, 6, 10, 11)]
-            == [1, 1, 2, 2, 3]
-            and not is_challenge_battle(4)
-            and is_challenge_battle(5)
-            and not is_challenge_battle(6)
-            and is_challenge_battle(10)
+            TIER_LENGTHS == (3, 4, 5)
+            and [tier_for(battle) for battle in (1, 3, 4, 7, 8, 12, 13)]
+            == [1, 1, 2, 2, 3, 3, 4]
+            and [
+                battle for battle in range(1, 18)
+                if is_challenge_battle(battle)
+            ] == [3, 7, 12, 17]
+            and not is_challenge_battle(0)
+            and tier_for(0) == 0
+            # And the walk is as long as its tiers add up to, not nine of
+            # any one length.
+            and cycle_battles() == 3 + 4 + 5 * 7
         )
 
         first = offers_for(
@@ -473,7 +483,7 @@ def _run_checks():
 
         # The challenge battle offers one map and no choice, and the pool
         # comes back whole once it has been through.
-        closing = replace(won, battle=5)
+        closing = replace(won, battle=3)
         seen = []
         for _round in range(len(challenge_pool)):
             offers = offers_for(
@@ -483,7 +493,11 @@ def _run_checks():
                 commit_offer(offer_battles(closing, offers), 0)
             )
             seen.append(offers[0].map_path)
-            closing = replace(closing, battle=closing.battle + 4)
+            # Wherever the win left it, walk it forward to the next
+            # battle that closes a tier -- which is a different distance
+            # each time now that the tiers are not one length.
+            while not is_challenge_battle(closing.battle):
+                closing = replace(closing, battle=closing.battle + 1)
         after = offers_for(
             closing, standard_pool, challenge_pool, maps_dir, countries
         )
@@ -709,11 +723,13 @@ def _challenge_checks():
     from .progression import TIERS
 
     level_valid = bool(
-        challenge_level(5) == AI_DIFFICULTY_EASY
-        and challenge_level(10) == AI_DIFFICULTY_EASY
-        and challenge_level(15) == AI_DIFFICULTY_MEDIUM
-        and challenge_level(25) == AI_DIFFICULTY_HARD
-        and challenge_level(45) == AI_DIFFICULTY_HARD
+        # Read at the battles that actually close a tier: 3, 7, 12, 17, 22.
+        challenge_level(3) == AI_DIFFICULTY_EASY
+        and challenge_level(7) == AI_DIFFICULTY_EASY
+        and challenge_level(12) == AI_DIFFICULTY_MEDIUM
+        and challenge_level(17) == AI_DIFFICULTY_MEDIUM
+        and challenge_level(22) == AI_DIFFICULTY_HARD
+        and challenge_level(42) == AI_DIFFICULTY_HARD
         and challenge_level(400) == TIERS[-1].challenge
         # Nothing is fought on Easy but the first two challenges: an easy
         # AI does not make an easy battle, it makes a quiet one.
@@ -742,7 +758,7 @@ def _challenge_checks():
             ally_country=3,
         )
         offer = challenge_offer(
-            replace(run, battle=5), pool, maps_dir,
+            replace(run, battle=3), pool, maps_dir,
             skirmish_countries() or (SimpleCountry(0),),
         )
         offer_valid = bool(
@@ -1228,12 +1244,15 @@ def _shop_checks():
         and battle_reward(1, bonus_percent=0) == BATTLE_REWARD
         and battle_reward(1, bonus_percent=40)
         > battle_reward(1, bonus_percent=0)
-        and battle_reward(5, challenge=True, bonus_percent=0)
+        # Battle three closes the first tier, so it pays that tier's own
+        # reward doubled -- and the tier after it pays more than that.
+        and battle_reward(3, challenge=True, bonus_percent=0)
         == BATTLE_REWARD * 2
+        and battle_reward(7, challenge=True) > battle_reward(3, challenge=True)
     )
 
     # The ninth tier does not end the run: it starts it again, harder.
-    from .model import BATTLES_PER_TIER as _per_tier, TIER_COUNT
+    from .model import cycle_battles
     from .transitions import enter_nightmare
 
     last = replace(
@@ -1241,7 +1260,7 @@ def _shop_checks():
             run_id='nightmare-check', seed='NIGHTMARE', player_country=0,
             ally_country=3,
         ),
-        battle=TIER_COUNT * _per_tier,
+        battle=cycle_battles(),
         coins=900,
         purchases=(UpgradePurchase('GGI', 'speed', 1),),
         used_challenge_maps=('a.map', 'b.map'),
@@ -1349,10 +1368,10 @@ def _shop_checks():
 
     reward_valid = bool(
         battle_reward(1) == BATTLE_REWARD
-        and battle_reward(4) == BATTLE_REWARD
-        and battle_reward(6) == BATTLE_REWARD + REWARD_PER_TIER
-        and battle_reward(11) == BATTLE_REWARD + 2 * REWARD_PER_TIER
-        and battle_reward(5, challenge=True) == BATTLE_REWARD * 2
+        and battle_reward(3) == BATTLE_REWARD
+        and battle_reward(4) == BATTLE_REWARD + REWARD_PER_TIER
+        and battle_reward(8) == BATTLE_REWARD + 2 * REWARD_PER_TIER
+        and battle_reward(3, challenge=True) == BATTLE_REWARD * 2
     )
 
     # Past the warmup: nothing is bought during it, so a shop check has

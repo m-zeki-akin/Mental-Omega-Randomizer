@@ -21,10 +21,12 @@ from .stats import RunStats
 SKIRMISH_RUN_SCHEMA_VERSION = 1
 SKIRMISH_RUN_COLLECTION_SCHEMA_VERSION = 1
 
-# How many battles share one difficulty tier, and which battle in that group
-# is fought on a challenge map. The two are the same number on purpose: the
-# challenge is what closes a tier.
-BATTLES_PER_TIER = 5
+# How many battles each tier is, counting the challenge that closes it,
+# with the last entry standing for every tier after. The early tiers are
+# short on purpose: five battles at one enemy is four battles of the same
+# battle, and a run should reach its third opponent before it reaches its
+# tenth fight.
+TIER_LENGTHS = (3, 4, 5)
 # How many tiers one walk through the run is. The tenth tier does not
 # exist: finishing the ninth starts the walk again, harder.
 TIER_COUNT = 9
@@ -32,6 +34,51 @@ TIER_COUNT = 9
 # battle; zero is the warmup, which is none of them.
 WARMUP_BATTLE = 0
 DEFAULT_LIVES = 3
+
+
+def battles_in_tier(tier):
+    """How many battles one tier is, the challenge included."""
+    tier = int(tier)
+    if tier <= WARMUP_BATTLE:
+        return 0
+    return TIER_LENGTHS[min(tier, len(TIER_LENGTHS)) - 1]
+
+
+def cycle_battles():
+    """How many battles one walk through the tiers is."""
+    return sum(battles_in_tier(tier) for tier in range(1, TIER_COUNT + 1))
+
+
+def tier_of(battle):
+    """Which tier a battle belongs to. The warmup is tier zero.
+
+    Tiers are no longer all the same length, so this counts rather than
+    divides -- and it keeps counting past the ninth, because a battle
+    number beyond the walk still has to name a tier for the table to read.
+    """
+    battle = int(battle)
+    if battle <= WARMUP_BATTLE:
+        return WARMUP_BATTLE
+    tier = 1
+    while battle > battles_in_tier(tier):
+        battle -= battles_in_tier(tier)
+        tier += 1
+    return tier
+
+
+def closes_tier(battle):
+    """Whether this battle is the challenge that ends its tier."""
+    battle = int(battle)
+    if battle <= WARMUP_BATTLE:
+        return False
+    return battle == battles_before(tier_of(battle)) + battles_in_tier(
+        tier_of(battle)
+    )
+
+
+def battles_before(tier):
+    """How many battles are fought before this tier's first."""
+    return sum(battles_in_tier(one) for one in range(1, int(tier)))
 
 
 @dataclass(frozen=True)
@@ -148,7 +195,7 @@ class SkirmishRun:
     @property
     def cycle_battles(self):
         """How many battles one walk through the tiers is."""
-        return TIER_COUNT * BATTLES_PER_TIER
+        return cycle_battles()
 
     @property
     def warmup(self):
@@ -157,16 +204,12 @@ class SkirmishRun:
     @property
     def tier(self):
         """Which tier this battle belongs to. The warmup is tier zero."""
-        if self.warmup:
-            return WARMUP_BATTLE
-        return (self.battle - 1) // BATTLES_PER_TIER + 1
+        return tier_of(self.battle)
 
     @property
     def challenge_battle(self):
         """Whether this battle closes a tier. The warmup closes nothing."""
-        if self.warmup:
-            return False
-        return self.battle % BATTLES_PER_TIER == 0
+        return closes_tier(self.battle)
 
     @property
     def lives_left(self):

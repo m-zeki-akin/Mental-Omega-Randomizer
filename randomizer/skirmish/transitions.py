@@ -15,11 +15,10 @@ from dataclasses import replace
 from randomizer.shop.model import RunStatus
 
 from .model import (
-    BATTLES_PER_TIER,
     DEFAULT_LIVES,
-    TIER_COUNT,
     WARMUP_BATTLE,
     SkirmishRun,
+    cycle_battles,
 )
 from .progression import is_challenge_battle, is_warmup
 from .stats import record_battle, record_purchase
@@ -146,7 +145,7 @@ def record_victory(run, *, ally_country=None, result=None):
         committed_offer=None,
         used_challenge_maps=used,
     )
-    if won.battle <= TIER_COUNT * BATTLES_PER_TIER:
+    if won.battle <= cycle_battles():
         return won
     return enter_nightmare(won, ally_country=ally_country)
 

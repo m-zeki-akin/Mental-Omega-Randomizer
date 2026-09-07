@@ -20,7 +20,7 @@ from dataclasses import dataclass
 from functools import lru_cache
 import random
 
-from .model import BATTLES_PER_TIER, UpgradePurchase
+from .model import UpgradePurchase, tier_of
 
 
 # What a battle pays, by the tier it was fought in. Fixed rather than scaled
@@ -76,7 +76,7 @@ def battle_reward(battle, *, challenge=False, bonus_percent=0):
     ``bonus_percent`` is what the offer asked for: a battle taken with one
     more enemy on the field, or without the ally, pays for the asking.
     """
-    tier = (max(1, int(battle)) - 1) // BATTLES_PER_TIER + 1
+    tier = tier_of(max(1, int(battle)))
     reward = BATTLE_REWARD + REWARD_PER_TIER * (tier - 1)
     if challenge:
         reward *= CHALLENGE_REWARD_MULTIPLIER

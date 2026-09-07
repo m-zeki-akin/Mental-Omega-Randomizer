@@ -1,6 +1,6 @@
 """Skirmish Shop workspace widgets: the run, and the battles it offers."""
 
-from randomizer.skirmish.model import BATTLES_PER_TIER
+from randomizer.skirmish.model import TIER_LENGTHS
 
 from ._builder_dependencies import WidgetTooltip, tk, ttk
 from .scrolling import claim_wheel, scroll_owner
@@ -202,9 +202,11 @@ def _build_setup(self, parent):
             'Your army and your ally are chosen once and stand for the whole '
             'run -- the same country twice is fine. Which battles you are '
             'offered, how many enemies they hold and whether your ally is '
-            'beside you are the run\'s business from then on -- every '
-            f'{BATTLES_PER_TIER}th battle is a challenge, fought on a '
-            'challenge map with no choice of which.'
+            'beside you are the run\'s business from then on -- the last '
+            'battle of every tier is a challenge, fought on a challenge map '
+            'with no choice of which, and a tier runs '
+            f'{" then ".join(str(one) for one in TIER_LENGTHS)} battles '
+            'long and that length for the rest of the run.'
         ),
         style='Muted.TLabel',
         wraplength=620,
