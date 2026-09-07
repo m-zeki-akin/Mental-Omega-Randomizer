@@ -1083,6 +1083,7 @@ def run_self_check():
             advanced_settings as advanced_settings_module,
             app as application_module,
             reward_controller as reward_controller_module,
+            seed_controller as seed_controller_module,
             starting_unlocks as starting_unlocks_module,
             state_controller as state_controller_module,
         )
@@ -1168,13 +1169,25 @@ def run_self_check():
             BothControllers.config_reward_settings(keeping_stub)
             .get('starting_unlock_rewards', ())
         )
+        # The one place a run is settled on its settings. Read from the
+        # bytecode, because the frozen launcher has no source to read.
+        settling_on_settings = (
+            seed_controller_module.SeedController
+            .seed_generation_options_from_settings.__code__.co_names
+        )
         unknown_starting_unlocks_kept_valid = bool(
             # Kept where it is stored, by both paths that store it.
             unknown_name in kept_unlocks
             and unknown_name in keeping_stub.canonical_starting_unlock_names()
-            # And nowhere near what a run is generated with.
+            # And nowhere near what a run is generated with: not in what
+            # is applied, and not in what the run records of itself --
+            # its state, its manifest, and where each starting reward
+            # came from all read the settings the run was built from.
             and unknown_name not in
             keeping_stub.filter_permanent_starting_unlock_names(kept_unlocks)
+            and 'current_reward_settings' in settling_on_settings
+            and 'filter_permanent_starting_unlock_names'
+            in settling_on_settings
         )
         state_stub = object.__new__(state_controller_module.StateController)
         state_stub.config = {'generation': {}}

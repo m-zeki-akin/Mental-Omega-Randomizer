@@ -96,6 +96,18 @@ class SeedController:
         )
         unlock_all_grid_rewards = bool(self.unlock_all_grid_rewards_var.get())
         reward_settings = self.current_reward_settings()
+        # A run is generated with the names this install can actually
+        # find. What the player typed is kept in the settings file
+        # whether the name is known here or not -- a submod may be off
+        # today and on tomorrow -- but the run's own record of itself,
+        # its manifest and the account of where each starting reward
+        # came from should say what it was really given.
+        reward_settings = dict(reward_settings)
+        reward_settings['starting_unlock_rewards'] = (
+            self.filter_permanent_starting_unlock_names(
+                reward_settings.get('starting_unlock_rewards')
+            )
+        )
         arsenal_mode = self.reward_mode_var.get() == ARSENAL_MODE
         if arsenal_mode:
             reward_settings = dict(reward_settings)

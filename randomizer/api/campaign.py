@@ -32,12 +32,11 @@ def _enemy_capacity(config, row):
     the number there. A screen going on offering the full range would be
     offering a number that is quietly cut on the way to the seed.
 
-    With nothing allowed the capacity is nought, and a nought ceiling
-    would trap the setting -- the bonuses are shown only while the total
-    is not nought, so a player who had turned every one off could never
-    turn one back on. The row's own maximum stands in for that, and the
-    help beside it already says the number means nothing while nothing is
-    allowed.
+    With nothing allowed the number means nothing at all, and the help
+    beside it says so. The row's own range is what is offered then: a
+    stepper pinned dead at nought reads as a broken control, and the
+    number it holds is not asked of anything until a bonus is allowed
+    again.
     """
     from randomizer.rewards.enemy_scaling import enemy_buff_capacity
 
