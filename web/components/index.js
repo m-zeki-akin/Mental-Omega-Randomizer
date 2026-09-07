@@ -250,3 +250,105 @@ export function stats(lines) {
     (line) => el('div', { text: line }),
   ));
 }
+
+/**
+ * Picking several out of a list too long to draw.
+ *
+ * What is picked is shown as itself and taken out by pressing it; what
+ * could be picked is found by typing. The list is filtered here rather
+ * than by the launcher, because a search that has to ask something is a
+ * search that answers a letter late.
+ *
+ * `chosen` are `{id, label}`, `catalogue` are `{id, label, group}`, and
+ * `query` is what was last typed -- kept by the caller, so that adding
+ * one entry does not clear the word that found it.
+ */
+export function picker({
+  chosen = [], catalogue = [], query = '', limit = 20,
+  placeholder, onQuery, onChange,
+} = {}) {
+  const ids = chosen.map((entry) => entry.id);
+  const taken = new Set(ids);
+  const matches = el('div', { class: 'picker__matches' });
+  const show = (typed) => {
+    const wanted = String(typed || '').trim().toLowerCase();
+    const found = catalogue.filter((entry) => !taken.has(entry.id) && (
+      !wanted
+      || String(entry.label).toLowerCase().includes(wanted)
+      || String(entry.id).toLowerCase().includes(wanted)
+      || String(entry.group || '').toLowerCase().includes(wanted)
+    ));
+    const rest = found.length - limit;
+    fill(matches, [
+      ...found.slice(0, limit).map((entry) => el('button', {
+        class: 'button picker__match',
+        onClick: () => onChange([...ids, entry.id]),
+      }, [
+        el('span', { text: entry.label }),
+        el('span', { class: 'faint', text: entry.group || entry.id }),
+      ])),
+      el('div', {
+        class: 'faint',
+        text: found.length === 0
+          ? 'Nothing here is called that.'
+          : (rest > 0 ? `${rest} more; type to narrow it down.` : ''),
+      }),
+    ]);
+  };
+  show(query);
+  return el('div', { class: 'picker' }, [
+    chosen.length
+      ? row(chosen.map((entry) => el('span', {
+        class: 'pill pill--accent picker__taken',
+      }, [
+        entry.label,
+        el('button', {
+          class: 'picker__drop',
+          text: '×',
+          title: `Take ${entry.label} out`,
+          onClick: () => onChange(ids.filter((id) => id !== entry.id)),
+        }),
+      ])))
+      : el('div', { class: 'faint', text: 'None named.' }),
+    el('input', {
+      class: 'input',
+      type: 'search',
+      value: query,
+      placeholder: placeholder || 'Search',
+      onInput: (event) => {
+        if (onQuery) onQuery(event.target.value);
+        show(event.target.value);
+      },
+    }),
+    matches,
+  ]);
+}
+
+/**
+ * Numbers that only mean anything against each other.
+ *
+ * Each says what share of its group it is, because that is the question a
+ * weight answers and no single number answers it. `onChange` is given the
+ * one that moved, by name: the group is how they are read, not how they
+ * are written.
+ */
+export function weights({ entries = [], onChange } = {}) {
+  return grid(entries.map((entry) => row([
+    el('div', {}, [
+      el('div', { text: entry.label }),
+      el('div', {
+        class: 'faint',
+        text: entry.value
+          ? `${entry.share}% of this group`
+          : 'never comes up',
+      }),
+    ]),
+    stepper({
+      value: entry.value,
+      minimum: entry.minimum,
+      maximum: entry.maximum,
+      step: entry.step,
+      onChange: (value) => onChange(entry.key, value),
+    }),
+  ], { spread: true })), { wide: true });
+}

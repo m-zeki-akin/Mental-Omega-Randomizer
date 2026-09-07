@@ -181,16 +181,17 @@ Roguelike two are not (`shop_*` keys beside skirmish's own).
   Setup screen and an action beside `shop.use_pacing`; nothing has to be
   decided first.
 
-- **What the Campaign kind's Setup screen still leaves out.** The screen
-  is there: the run, the reward rules and mode, the reward pool, the
-  access limits, the starting rewards, the arsenal, which buff types a
-  reward may be, and Grid's own three. Three are left, and each needs a
-  control this interface still lacks -- the exclusion lists and the
-  starting unlocks name units and powers out of the installed rules, so
-  the control is a search rather than a catalogue; the reward weights are
-  twenty-odd numbers that mean something only against each other, so a
-  row each would be a wall; and enemy scaling is a list of buff ids with
-  a wildcard in it, which is a rule rather than a value.
+- **What the Campaign kind's Setup screen still leaves out.** Nothing of
+  the setup itself: the run, the reward rules and mode, the reward pool,
+  the access limits, the starting rewards and the ones named outright,
+  the arsenal, which buff types a reward may be, what is left out, how
+  often each kind of reward comes up, what the enemy is given, and Grid's
+  own three. What is left are two settings of a different shape --
+  `excluded_unit_buff_types` and `excluded_power_buff_types` are a map of
+  unit to the upgrades it may not get, and `enemy_scaling.caps` is a
+  ceiling per bonus rather than a list of them. Both are a control this
+  interface has not needed yet, and neither is a wall the way the three
+  that were just built would have been.
 
 - **The classic window's mode control names the modes, not the labels.**
   It is two controls now, like the new interface, but its second one lists

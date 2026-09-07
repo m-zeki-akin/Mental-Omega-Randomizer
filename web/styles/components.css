@@ -311,3 +311,49 @@
   outline: 2px solid var(--accent);
   outline-offset: -1px;
 }
+
+/* Things one under another, the way a row is things side by side. */
+.stack {
+  display: grid;
+  gap: var(--space-2);
+}
+
+/* Picking out of a list too long to draw: what is picked, a box to
+ * search in, and what the search found. The found list scrolls on its
+ * own so that a panel below it stays where the player left it. */
+.picker {
+  display: grid;
+  gap: var(--space-2);
+}
+
+.picker__matches {
+  display: grid;
+  gap: var(--space-1);
+  max-height: 18rem;
+  overflow-y: auto;
+}
+
+.picker__match {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-2);
+  text-align: left;
+}
+
+.picker__taken {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+}
+
+.picker__drop {
+  font: inherit;
+  line-height: 1;
+  color: inherit;
+  background: none;
+  border: 0;
+  padding: 0;
+  cursor: pointer;
+}
+
+.picker__drop:hover { color: var(--danger); }

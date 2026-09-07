@@ -38,7 +38,7 @@ TOOLKIT_NAMES = ('tkinter', 'import tk', 'ttk.', 'webview')
 # so the sweep asks it without one to prove it refuses cleanly rather than
 # to read it. No screen calls it yet -- it and `skirmish.tiers` are there
 # for the shelf and tier tables that are not drawn.
-ARGUMENT_REQUIRED = frozenset({'skirmish.upgrades'})
+ARGUMENT_REQUIRED = frozenset({'campaign.catalogue', 'skirmish.upgrades'})
 
 
 def _package_files():
@@ -384,6 +384,134 @@ def _a_setting_kept_is_a_setting_read_back_valid():
     )
 
 
+def _held(reply, key):
+    """Return one setting out of a settings reply, whatever kind it is."""
+    for part in reply.get('result', {}).get('sections', ()):
+        for setting in part['settings']:
+            if setting['key'] == key:
+                return setting
+    return None
+
+
+def _a_named_list_keeps_what_it_was_given_valid():
+    """A setting that names things keeps the names it was handed.
+
+    Three settings name units, powers and rewards out of the installed
+    rules rather than holding a value, and what they may name is a few
+    hundred entries long -- so the screen is a search, and the reply
+    carries only what has been picked. What is checked is that picking
+    survives the round trip, and that a name the rules no longer know is
+    kept rather than quietly dropped: a submod renaming a unit must not
+    empty a list somebody built.
+    """
+    from randomizer.ui.campaign_catalogues import catalogue
+    from randomizer.ui.campaign_settings import SEARCH, SECTIONS
+
+    named = None
+    for row in (row for _name, rows in SECTIONS for row in rows
+                if row['kind'] == SEARCH):
+        # A catalogue whose entries are called what they are called,
+        # rather than one whose names are their own labels: resolving
+        # a name is the thing being checked.
+        entry = next(
+            (entry for entry in catalogue(row['catalogue_name'])
+             if entry['label'] != entry['id']), None
+        )
+        if entry is not None:
+            named = (row, entry)
+            break
+    if named is None:
+        return False
+    row, entry = named
+    key = f"{row['where']}.{row['key']}" if row['where'] else row['key']
+
+    with _store_of_its_own():
+        listed = call('campaign.catalogue', name=row['catalogue_name'])
+        entries = (listed.get('result') or {}).get('entries') or []
+        if not entries:
+            return False
+        first = entry['id']
+        kept = call(
+            'campaign.use_setting', name=key, value=[first, 'NO-SUCH-THING'],
+        )
+        emptied = call('campaign.use_setting', name=key, value=[])
+        refused = call('campaign.use_setting', name=key, value=first)
+        unnamed = call('campaign.catalogue', name='no-such-catalogue')
+    chosen = (_held(kept, key) or {}).get('chosen') or []
+    return bool(
+        [entry['id'] for entry in chosen] == [first, 'NO-SUCH-THING']
+        # The one the rules know is named; the one they do not is shown
+        # as itself, which is what makes it possible to take out.
+        and chosen[0]['label'] == entry['label']
+        and chosen[1]['label'] == 'NO-SUCH-THING'
+        and (_held(emptied, key) or {}).get('value') == []
+        and refused.get('kind') == 'ApiError'
+        and unnamed.get('kind') == 'ApiError'
+    )
+
+
+def _all_of_them_is_kept_as_all_of_them_valid():
+    """Everything allowed stays written as everything, not as a list.
+
+    The enemy's bonuses are stored as a wildcard when they are all
+    allowed, which is what makes a settings file still mean all of them
+    after a submod adds one. Turning one off has to write the list out,
+    and turning it back on has to collapse it again -- otherwise a player
+    who looked at the setting once would be pinned to the bonuses that
+    existed the day they looked.
+    """
+    from randomizer.ui.campaign_settings import BY_KEY, ENEMY_SCALING
+
+    allowed = f'{ENEMY_SCALING}.allowed_buff_ids'
+    total = f'{ENEMY_SCALING}.maximum_total_buffs'
+    # Every bonus there is, rather than the ones this player has left
+    # on: what is being checked is what happens when they are all on,
+    # and a player who has turned four of them off would otherwise be
+    # checking something else.
+    names = [entry['id'] for entry in BY_KEY[allowed]['catalogue']]
+
+    def stored():
+        # Asked for by name each time: the settings this reads are the
+        # sweep's own, and they are put in place around the calls
+        # below rather than around this function.
+        from randomizer.config.player import load_config
+
+        block = load_config()
+        for step in ENEMY_SCALING.split('.'):
+            block = block.get(step) or {}
+        return block.get('allowed_buff_ids')
+
+    with _store_of_its_own():
+        # The list is only worth showing while the enemy collects
+        # anything at all, so this is what makes it visible.
+        call('campaign.use_setting', name=total, value=5)
+        every = call('campaign.use_setting', name=allowed, value=None)
+        if every.get('ok'):
+            return False
+        opened = call('campaign.settings')
+        # And it is a setting the screen can see: the list means
+        # nothing while the enemy collects nothing, so it is shown
+        # only once the number above it is not zero.
+        if _held(opened, allowed) is None or len(names) < 2:
+            return False
+        whole = call('campaign.use_setting', name=allowed, value=names)
+        as_wildcard = stored()
+        fewer = call(
+            'campaign.use_setting', name=allowed, value=names[1:],
+        )
+        as_list = stored()
+        again = call('campaign.use_setting', name=allowed, value=names)
+        collapsed = stored()
+    return bool(
+        (_held(whole, allowed) or {}).get('value') == names
+        and as_wildcard == ['*']
+        and (_held(fewer, allowed) or {}).get('value') == names[1:]
+        and as_list == names[1:]
+        and (_held(again, allowed) or {}).get('value') == names
+        and collapsed == ['*']
+    )
+
+
 def _refuse_to_start(*_args, **_kwargs):
     raise ApiError('The self-check does not start games')
 
@@ -449,7 +577,12 @@ def _store_of_its_own():
         ai.remove_staged_ai_file = lambda *_a, **_k: None
         held = reading()
         settings_file.load_config = lambda: deepcopy(held)
-        settings_file.save_config = lambda config: None
+
+        def keep_settings(config):
+            held.clear()
+            held.update(deepcopy(config))
+
+        settings_file.save_config = keep_settings
         try:
             yield
         finally:
@@ -503,6 +636,8 @@ def validate_api_contract():
     # Called once, not once per row that reads it: it deals a table.
     settled_first = _finished_battle_settled_first_valid()
     settings_kept = _a_setting_kept_is_a_setting_read_back_valid()
+    named_lists_kept = _a_named_list_keeps_what_it_was_given_valid()
+    all_of_them_kept = _all_of_them_is_kept_as_all_of_them_valid()
     after = _touched()
 
     json_safe = True
@@ -563,6 +698,8 @@ def validate_api_contract():
             _battle_outlives_the_launcher_valid(),
         'api_finished_battle_settled_first_valid': settled_first,
         'api_settings_kept_are_read_back_valid': settings_kept,
+        'api_named_lists_keep_their_names_valid': named_lists_kept,
+        'api_all_of_them_stays_all_of_them_valid': all_of_them_kept,
         # Asking the launcher what it can do is not playing it. Every
         # command was called above; the runs, the board, the battle files
         # and the game itself are all where they were.
@@ -574,6 +711,8 @@ def validate_api_contract():
             and _battle_outlives_the_launcher_valid()
             and settled_first
             and settings_kept
+            and named_lists_kept
+            and all_of_them_kept
             and before == after
             and unknown.get('ok') is False
             and described

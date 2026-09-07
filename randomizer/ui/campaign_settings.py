@@ -21,8 +21,21 @@ from randomizer.rewards.arsenal import (
     ARSENAL_UNIT_TYPES,
 )
 from randomizer.rewards.definitions import BUFF_TYPES, MAX_REWARDS_PER_CHECK
+from randomizer.rewards.enemy_scaling import (
+    ENEMY_BUFF_DEFINITIONS,
+    ENEMY_BUFF_GROUP_DEFINITIONS,
+    enemy_buff_capacity,
+)
 from randomizer.rewards.power_buff_definitions import POWER_BUFF_TYPES
 from randomizer.rewards.starting import STARTING_REWARD_TYPE_DEFINITIONS
+from randomizer.rewards.weights import (
+    DEFAULT_REWARD_WEIGHTS,
+    MAIN_REWARD_WEIGHT_TYPES,
+    MAX_REWARD_WEIGHT,
+    SUB_WEIGHT_SECTIONS,
+)
+
+from .campaign_catalogues import REWARD_NAME, SUPERWEAPON, UNIT_ACCESS
 
 from .config import CAMPAIGN_FILTERS, DIFFICULTIES, GAME_SPEEDS, REWARD_MODES
 
@@ -39,6 +52,15 @@ TEXT = 'text'
 # Several of one catalogue at once, each on or off. A list rather than a
 # choice: turning one off is not picking another.
 SET = 'set'
+# Several out of a list too long to draw: what has been picked, and a
+# box to find the next one in. The list itself is asked for by name,
+# because there are a few hundred units and a screen filtering them as
+# somebody types must not ask the launcher once per letter.
+SEARCH = 'search'
+# One group of numbers that only mean anything against each other. A
+# weight of 50 is not half of anything until you know what it sits
+# beside, so they are drawn together and each says its share.
+WEIGHTS = 'weights'
 # Long enough for any name a player would type, short enough that a
 # settings file cannot be filled with one.
 MAXIMUM_SEED_LENGTH = 64
@@ -52,6 +74,8 @@ GENERATION = 'generation'
 ACCESS_LIMITS = 'generation.access_limits'
 ARSENAL = 'generation.arsenal'
 ARSENAL_POWERS = 'generation.arsenal.power_counts'
+REWARD_WEIGHTS = 'generation.reward_weights'
+ENEMY_SCALING = 'generation.enemy_scaling'
 
 # How many starting rewards a control offers. The launcher itself allows
 # far more; a spinner that can reach four figures is a spinner nobody
@@ -268,6 +292,14 @@ STARTING_SETTINGS = (
         ],
         needs=(f'{GENERATION}.starting_reward_count', True),
     ),
+    _row(
+        'starting_unlock_rewards', 'Rewards to start with, by name',
+        SEARCH,
+        'Named here, a reward is handed over at the start whatever the '
+        'seed rolls -- on top of the ones drawn above, not instead of '
+        'them.',
+        where=GENERATION, catalogue_name=REWARD_NAME,
+    ),
 )
 
 ARSENAL_SETTINGS = (
@@ -322,12 +354,147 @@ GRID_SETTINGS = (
     ),
 )
 
+EXCLUSION_SETTINGS = (
+    _row(
+        'excluded_unit_access_ids', 'Units left out', SEARCH,
+        'Named here, a unit is never unlocked by a reward and never turns '
+        'up in the pool a run draws from.',
+        where=GENERATION, catalogue_name=UNIT_ACCESS,
+    ),
+    _row(
+        'excluded_superweapon_ids', 'Powers left out', SEARCH,
+        'The same, for superweapons and support powers. A power several '
+        'sides share is not one side\'s to leave out, so it is not listed.',
+        where=GENERATION, catalogue_name=SUPERWEAPON,
+    ),
+)
+
+# What a weight is worth is decided against the others in its group, so a
+# group is one control rather than a run of them. Every weight is still a
+# setting of its own underneath: that is what is written when one moves.
+WEIGHT_GROUPS = (
+    (
+        'main',
+        'Kinds of reward',
+        tuple(
+            (item['id'], item['label'], item['description'])
+            for item in MAIN_REWARD_WEIGHT_TYPES
+        ),
+    ),
+) + tuple(
+    (
+        section['id'],
+        section['title'],
+        tuple((item[0], item[1], '') for item in section['types']),
+    )
+    for section in SUB_WEIGHT_SECTIONS
+)
+
+
+def _weight_rows(group, title, items):
+    """Return one group's control and the settings it draws."""
+    where = f'{REWARD_WEIGHTS}.{group}'
+    numbers = tuple(
+        _row(
+            item_id, label, NUMBER,
+            description or f'How often {label.lower()} comes up.',
+            where=where, minimum=0, maximum=MAX_REWARD_WEIGHT, step=5,
+            default=DEFAULT_REWARD_WEIGHTS.get(group, {}).get(
+                item_id, MAX_REWARD_WEIGHT
+            ),
+            # Drawn by the group above rather than one row each.
+            hidden=True,
+        )
+        for item_id, label, description in items
+    )
+    return (
+        _row(
+            group, title, WEIGHTS,
+            'How often each of these comes up, against the others here. '
+            'Zero never comes up at all.',
+            where=REWARD_WEIGHTS,
+            entries=[f'{where}.{item_id}' for item_id, _l, _d in items],
+        ),
+    ) + numbers
+
+
+WEIGHT_SETTINGS = tuple(
+    row
+    for group, title, items in WEIGHT_GROUPS
+    for row in _weight_rows(group, title, items)
+)
+
+# What the enemy can be given at most, when every bonus is allowed and
+# each is stacked as far as it goes. Asking for more than this is asking
+# for something the generator cannot hand out.
+ENEMY_BUFF_CAPACITY = enemy_buff_capacity({})
+_ENEMY_GROUP_BY_ID = {
+    effect_id: group['label']
+    for group in ENEMY_BUFF_GROUP_DEFINITIONS
+    for effect_id in group['effect_ids']
+}
+_ENEMY_GROUP_ORDER = {
+    group['label']: index
+    for index, group in enumerate(ENEMY_BUFF_GROUP_DEFINITIONS)
+}
+
+
+def _enemy_buff_entry(definition):
+    stacks = int(definition.get('maximum_stacks', 1))
+    percent = definition.get('per_stack_percent')
+    return {
+        'id': str(definition['id']),
+        'label': str(definition.get('name') or definition['id']),
+        'group': _ENEMY_GROUP_BY_ID.get(str(definition['id']), 'Other'),
+        'note': (
+            f'{percent}% a stack, up to {stacks}' if percent
+            else f'up to {stacks}'
+        ),
+    }
+
+
+ENEMY_SETTINGS = (
+    _row(
+        'maximum_total_buffs', 'Bonuses the enemy collects', NUMBER,
+        'How many the run hands the enemy over its whole length. Zero is '
+        'an enemy that never grows.',
+        where=ENEMY_SCALING,
+        minimum=0, maximum=ENEMY_BUFF_CAPACITY, step=1, default=0,
+    ),
+    _row(
+        'allowed_buff_ids', 'Bonuses the enemy may be given', SET,
+        'Turn one off and the enemy is never handed it. Turning them all '
+        'off is an enemy that never grows, whatever the number above says.',
+        where=ENEMY_SCALING,
+        catalogue=sorted(
+            (
+                _enemy_buff_entry(definition)
+                for definition in ENEMY_BUFF_DEFINITIONS
+            ),
+            key=lambda entry: (
+                _ENEMY_GROUP_ORDER.get(entry['group'], 9),
+                entry['label'].casefold(),
+            ),
+        ),
+        # Everything, written as one entry rather than as forty-eight.
+        # What the launcher keeps has always said it this way, and a
+        # settings file that says "all of them" still means all of them
+        # after a submod adds one.
+        wildcard='*',
+        needs=(f'{ENEMY_SCALING}.maximum_total_buffs', True),
+    ),
+)
+
+
 SECTIONS = (
     ('Run', RUN_SETTINGS),
     ('Rewards', REWARD_SETTINGS),
     ('Reward pool', POOL_SETTINGS),
     ('Access limits', LIMIT_SETTINGS),
     ('Starting rewards', STARTING_SETTINGS),
+    ('What is left out', EXCLUSION_SETTINGS),
+    ('How often a reward comes up', WEIGHT_SETTINGS),
+    ('What the enemy is given', ENEMY_SETTINGS),
     ('Arsenal', ARSENAL_SETTINGS),
     ('What a buff may be', BUFF_TYPE_SETTINGS),
     ('Grid', GRID_SETTINGS),
@@ -346,7 +513,10 @@ def rows_for(mode):
     wanted = str(mode or '')
     shown = []
     for name, rows in SECTIONS:
-        kept = [row for row in rows if row['mode'] in (None, wanted)]
+        kept = [
+            row for row in rows
+            if row['mode'] in (None, wanted) and not row.get('hidden')
+        ]
         if kept:
             shown.append((name, kept))
     return shown

@@ -9,17 +9,31 @@ been generated keeps the settings it was generated with; these describe
 the next one, which is why they are settings rather than run state.
 """
 
+from randomizer.ui.campaign_catalogues import (
+    CATALOGUE_NAMES,
+    catalogue as catalogue_entries,
+    labels,
+)
 from randomizer.ui.campaign_settings import (
     BY_KEY,
     CHOICE,
     NUMBER,
+    SEARCH,
     SET,
     SWITCH,
     TEXT,
+    WEIGHTS,
     full_key,
     rows_for,
 )
 from .contract import COMMAND, ApiError, action
+
+
+# What a named list may hold. Longer than any catalogue the installed
+# rules offer, and short enough that a settings file cannot be filled
+# with one by a screen that has gone wrong.
+MAXIMUM_NAMED = 1000
+MAXIMUM_NAME_LENGTH = 128
 
 
 def _settings():
@@ -59,19 +73,65 @@ def _value(config, row):
     if row['kind'] == SWITCH:
         return bool(held)
     if row['kind'] == NUMBER:
+        # A number that was never written answers what the launcher
+        # would use, not the bottom of its range: an unset weight is a
+        # full one, and reading it as zero would say the opposite.
+        default = row.get('default', row['minimum'])
         try:
             number = int(held)
         except (TypeError, ValueError):
-            number = row['minimum']
+            number = default
         return max(row['minimum'], min(row['maximum'], number))
     if row['kind'] == TEXT:
         return str(held or '').strip()[:row['maximum_length']]
     if row['kind'] == SET:
         known = [entry['id'] for entry in row['catalogue']]
-        chosen = set(held) if isinstance(held, (list, tuple)) else set(known)
+        if not isinstance(held, (list, tuple)):
+            return list(known)
+        chosen = {str(item) for item in held}
+        # A list that says everything means everything there is now,
+        # which is the whole point of writing it that way.
+        if row.get('wildcard') and row['wildcard'] in chosen:
+            return list(known)
         return [item for item in known if item in chosen]
+    if row['kind'] == SEARCH:
+        if not isinstance(held, (list, tuple)):
+            return []
+        return [
+            entry['id'] for entry in labels(row['catalogue_name'], held)
+        ]
     wanted = str(held or '')
     return wanted if wanted in row['choices'] else row['choices'][0]
+
+
+def _weights(config, row):
+    """Return one group of weights, each with its share of the group.
+
+    The share is what a weight means: 50 beside two 100s comes up a
+    fifth of the time, and neither the 50 nor the 100 says so on its
+    own. A group that is all zeroes has no shares -- nothing in it
+    comes up at all.
+    """
+    entries = []
+    for key in row['entries']:
+        other = BY_KEY.get(key)
+        if other is None:
+            continue
+        entries.append({
+            'key': key,
+            'label': other['label'],
+            'help': other['help'],
+            'value': _value(config, other),
+            'minimum': other['minimum'],
+            'maximum': other['maximum'],
+            'step': other['step'],
+        })
+    total = sum(entry['value'] for entry in entries)
+    for entry in entries:
+        entry['share'] = (
+            round(100 * entry['value'] / total) if total else 0
+        )
+    return entries
 
 
 def _standing():
@@ -87,11 +147,16 @@ def _shown(row, config, standing=''):
         'label': row['label'],
         'kind': row['kind'],
         'help': row['help'],
-        'value': (
-            '' if standing and row.get('blank_while_generated')
-            else _value(config, row)
-        ),
     }
+    # A group of weights holds no value of its own: what it has is the
+    # settings it draws, and each of those is written by its own name.
+    if row['kind'] == WEIGHTS:
+        shown['entries'] = _weights(config, row)
+        return shown
+    shown['value'] = (
+        '' if standing and row.get('blank_while_generated')
+        else _value(config, row)
+    )
     if row['kind'] == NUMBER:
         shown.update(
             minimum=row['minimum'], maximum=row['maximum'], step=row['step'],
@@ -102,6 +167,15 @@ def _shown(row, config, standing=''):
         shown['maximum_length'] = row['maximum_length']
     elif row['kind'] == SET:
         shown['catalogue'] = [dict(entry) for entry in row['catalogue']]
+    elif row['kind'] == SEARCH:
+        # The list itself does not come with the settings: it is a few
+        # hundred entries, it is the same on every reading, and a screen
+        # asks for it once. What comes is what has been picked, named.
+        shown['catalogue_name'] = row['catalogue_name']
+        shown['catalogue_size'] = len(
+            catalogue_entries(row['catalogue_name'])
+        )
+        shown['chosen'] = labels(row['catalogue_name'], shown['value'])
     return shown
 
 
@@ -172,6 +246,25 @@ def settings():
     return _answer(_settings())
 
 
+@action('campaign.catalogue', 'What one campaign setting may name')
+def catalogue(name=''):
+    """Return one named list, whole.
+
+    Whole rather than searched, because a screen filters it as somebody
+    types and the launcher is not the place to be asked once a letter.
+    Which is why it is a reading of its own: the settings are read again
+    after every change, and a few hundred entries have no business
+    coming back with them.
+    """
+    wanted = str(name or '')
+    if wanted not in CATALOGUE_NAMES:
+        raise ApiError(f'There is no {wanted or "unnamed"} catalogue')
+    return {
+        'name': wanted,
+        'entries': [dict(entry) for entry in catalogue_entries(wanted)],
+    }
+
+
 @action('campaign.use_setting', 'Change one campaign setting', kind=COMMAND)
 def use_setting(name='', value=None):
     """Keep one setting, as the kind of thing its row says it is.
@@ -209,6 +302,27 @@ def use_setting(name='', value=None):
             entry['id'] for entry in row['catalogue']
             if entry['id'] in wanted
         ]
+        # All of them is kept as all of them, rather than as a list of
+        # everything there happens to be today.
+        if row.get('wildcard') and len(kept) == len(row['catalogue']):
+            kept = [row['wildcard']]
+    elif row['kind'] == SEARCH:
+        if not isinstance(value, (list, tuple)):
+            raise ApiError(f'{row["label"]} needs a list of names')
+        # A name the installed rules do not know is kept rather than
+        # dropped: a submod that renames a unit should not quietly empty
+        # a list somebody built, and the screen shows the name as it is
+        # so it can be taken out on purpose.
+        kept = [
+            entry['id']
+            for entry in labels(row['catalogue_name'], value)
+            if len(entry['id']) <= MAXIMUM_NAME_LENGTH
+        ][:MAXIMUM_NAMED]
+    elif row['kind'] == WEIGHTS:
+        raise ApiError(
+            f'{row["label"]} is a group of settings; change one of them '
+            'by its own name'
+        )
     else:
         kept = str(value or '')
         if kept not in row['choices']:

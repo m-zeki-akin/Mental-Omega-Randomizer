@@ -1237,13 +1237,17 @@ def run_self_check():
         # that has been renamed under it would draw a control that reads
         # as off, writes somewhere nothing looks, and says nothing.
         from randomizer.config.player import DEFAULT_CONFIG
+        from randomizer.rewards.weights import normalize_reward_weights
+        from randomizer.ui.campaign_catalogues import CATALOGUE_NAMES
         from randomizer.ui.campaign_settings import (
             CHOICE,
             NUMBER,
+            SEARCH,
             SECTIONS,
             SET,
             SWITCH,
             TEXT,
+            WEIGHTS,
         )
 
         def shipped(row):
@@ -1258,6 +1262,20 @@ def run_self_check():
         campaign_setting_rows = [
             row for _name, rows in SECTIONS for row in rows
         ]
+        # Reward weights are the one group whose defaults do not live in
+        # the settings file: the file carries what a player has changed,
+        # and the rest are filled in from the launcher's own table when a
+        # seed is made. So a weight is checked against that table, which
+        # is where a renamed one would show up.
+        campaign_weight_defaults = normalize_reward_weights({})
+
+        def weight_shipped(row):
+            steps = str(row['where']).split('.')
+            if steps[:2] != ['generation', 'reward_weights']:
+                return False
+            if len(steps) == 2:
+                return row['key'] in campaign_weight_defaults
+            return row['key'] in campaign_weight_defaults.get(steps[2], {})
         # A row can be shown only while another setting holds a value. A
         # condition naming a setting that no longer exists would hide the
         # row for good, silently.
@@ -1272,8 +1290,10 @@ def run_self_check():
             and all(
                 row['label']
                 and row['help']
-                and row['kind'] in {SWITCH, NUMBER, CHOICE, TEXT, SET}
-                and shipped(row)
+                and row['kind'] in {
+                    SWITCH, NUMBER, CHOICE, TEXT, SET, SEARCH, WEIGHTS,
+                }
+                and (shipped(row) or weight_shipped(row))
                 and (
                     row['kind'] != NUMBER
                     or 0 <= row['minimum'] < row['maximum']
@@ -1285,6 +1305,28 @@ def run_self_check():
                     or all(
                         entry['id'] and entry['label']
                         for entry in row['catalogue']
+                    )
+                )
+                # A search names a list rather than carrying one, and a
+                # name nothing answers to is a box with nothing in it.
+                and (
+                    row['kind'] != SEARCH
+                    or row['catalogue_name'] in CATALOGUE_NAMES
+                )
+                # A group of weights draws settings it does not hold.
+                # One naming a setting that is not there would draw a
+                # gap, and one naming a setting the screen also draws
+                # on its own would draw it twice.
+                and (
+                    row['kind'] != WEIGHTS
+                    or (
+                        row['entries']
+                        and all(
+                            CAMPAIGN_BY_KEY.get(key, {}).get('kind')
+                            == NUMBER
+                            and CAMPAIGN_BY_KEY[key].get('hidden')
+                            for key in row['entries']
+                        )
                     )
                 )
                 for row in campaign_setting_rows
