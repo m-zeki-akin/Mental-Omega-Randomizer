@@ -2120,14 +2120,20 @@ def _shop_checks():
     from .model import BattleOffer
     from .ownership import STOLEN_TECH_GROUP
     from .progression import (
-        FACTION_STATS, TIERS, _faction_upgrades, engine_named_units,
-        faction_units,
+        FACTION_STATS, MODIFIERS_BY_KEY, TIERS, _enemy_upgrades,
+        _faction_upgrades, engine_named_units, faction_units,
     )
 
     armed_country = 'UnitedStates'
-    handed = _faction_upgrades(armed_country, 3, Random(7))
-    again = _faction_upgrades(armed_country, 3, Random(7))
-    on_the_shelf = set(FACTION_STATS)
+    handed = _enemy_upgrades(armed_country, 3, Random(7))
+    again = _enemy_upgrades(armed_country, 3, Random(7))
+    on_the_shelf = {
+        f'{one.unit}:{one.buff_type}'
+        for one in country_upgrades(armed_country)
+    }
+    # What the tier hands out and what an offer buys are different
+    # things: units off the shelf, and a stat across the whole army.
+    stats_handed = _faction_upgrades(armed_country, 3, Random(7))
     stored = BattleOffer(
         map_path='Standard/self-check.map', map_name='Self Check',
         enemy_countries=(0, 0, 1), handicap=1, seed=1,
@@ -2184,10 +2190,36 @@ def _shop_checks():
         # arrives.
         and not any(key.startswith(STOLEN_TECH_GROUP) for key in handed)
         # And nothing no task force names, for the same reason: what a
-        # computer player builds is what its task forces ask for. Checked
-        # on the units an army-wide upgrade actually reaches, since that
-        # is now every unit of the faction that has the stat.
+        # computer player builds is what its task forces ask for.
         and fielded_by_ai()
+        and all(
+            key.split(':')[0] in fielded_by_ai()
+            for country in ('UnitedStates', 'USSR', 'PsiCorps', 'Guild1')
+            for key in _enemy_upgrades(country, 12, Random(3))
+        )
+        # The army-wide draw is stats, not units, and only ever ones the
+        # country's own shelf sells.
+        and stats_handed
+        and set(stats_handed) <= set(FACTION_STATS)
+        and _faction_upgrades(armed_country, 0, Random(7)) == ()
+        # It is what an offer asks for, not what a tier hands out. The
+        # tier's number buys units; the modifier's buys the army.
+        and MODIFIERS_BY_KEY['armed'].faction_upgrades > 0
+        and MODIFIERS_BY_KEY['armed'].enemy_upgrades == 0
+        # And the table says so battle by battle: an offer's army is
+        # bought up when, and only when, that offer asked for it. Every
+        # offer getting it is the modifier nobody paid for, and none
+        # getting it is a modifier that buys nothing.
+        and dealt
+        and any('armed' in one.modifiers for one in dealt)
+        and all(
+            any(one.enemy_faction_bought()) == ('armed' in one.modifiers)
+            for one in dealt
+        )
+        # While the tier's own upgrades stand on every one of them,
+        # asked for or not.
+        and all(any(one.enemy_bought()) for one in dealt)
+        # And the units it reaches are held to the same two rules.
         and all(
             unit in fielded_by_ai() and not unit.startswith(STOLEN_TECH_GROUP)
             for country in ('UnitedStates', 'USSR', 'PsiCorps', 'Guild1')
@@ -2245,7 +2277,7 @@ def _shop_checks():
                 replace(dealing, battle=1), 'UnitedStates', 4000,
             )[0]
         )
-        and _faction_upgrades(armed_country, 0, Random(7)) == ()
+        and _enemy_upgrades(armed_country, 0, Random(7)) == ()
         # The opening tier fights the army the rules describe. After that
         # an enemy is armed, and never less well armed than it was a tier
         # ago -- what a run walks into has to keep pace with what it has

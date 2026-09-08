@@ -159,8 +159,8 @@ from randomizer.rewards.catalogue import (
 from randomizer.ui.config import (
     EVA_APPEARANCE_PROFILES,
     EVA_VOICE_TAGS,
-    RAINBOWIZER_COLORS,
 )
+from randomizer.ui.palette import rainbowizer_color_choices
 from randomizer.rewards.roster import (
     randomizer_unit_roster,
     roster_stock_report,
@@ -252,7 +252,7 @@ def prepare_hooked_map(self, mission, extra_rules=None):
         lines,
         player_color=player_color,
         rainbowizer=rainbowizer,
-        rainbow_colors=RAINBOWIZER_COLORS,
+        rainbow_colors=rainbowizer_color_choices(),
         random_key=f'{self.active_launch_seed()}|{code}',
     )
     if color_rules:

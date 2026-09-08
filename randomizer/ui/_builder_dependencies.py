@@ -40,13 +40,13 @@ from randomizer.rewards.enemy_scaling import (
 )
 from randomizer.ui.tooltips import TreeTooltip, WidgetTooltip
 from randomizer.ui.integer_slider import IntegerSlider
+from randomizer.ui.palette import player_color_choices
 from randomizer.ui.config import (
     CAMPAIGN_FILTERS,
     DIFFICULTIES,
     EVA_VOICE_CHOICES,
     GAME_SPEEDS,
     LOCKED_GAME_SPEED_LABEL,
-    PLAYER_COLORS,
     PROGRESSION_MODES,
     REWARD_MODES,
 )

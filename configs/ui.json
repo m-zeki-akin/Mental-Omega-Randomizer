@@ -71,17 +71,32 @@
         "name": "Campaign",
         "description": "The installed campaign, in one order or another.",
         "modes": [
-          {"mode": "Classic", "label": "Classic"},
-          {"mode": "Mission List", "label": "Mission List"},
-          {"mode": "Grid Mode", "label": "Grid"}
+          {
+            "mode": "Classic",
+            "label": "Classic"
+          },
+          {
+            "mode": "Mission List",
+            "label": "Mission List"
+          },
+          {
+            "mode": "Grid Mode",
+            "label": "Grid"
+          }
         ]
       },
       {
         "name": "Roguelike",
         "description": "A run with lives, a shop between battles, and a board when it ends.",
         "modes": [
-          {"mode": "Shop Mode", "label": "Campaign"},
-          {"mode": "Skirmish Shop", "label": "Skirmish"}
+          {
+            "mode": "Shop Mode",
+            "label": "Campaign"
+          },
+          {
+            "mode": "Skirmish Shop",
+            "label": "Skirmish"
+          }
         ]
       }
     ],
@@ -217,6 +232,10 @@
     "skirmish_excluded_units": [
       "AHVYBOT2",
       "CYCOM"
+    ],
+    "non_house_color_suffixes": [
+      "Text",
+      "Load"
     ]
   }
 }

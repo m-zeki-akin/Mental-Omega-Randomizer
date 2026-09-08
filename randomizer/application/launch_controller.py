@@ -108,7 +108,8 @@ class LaunchController:
         the only sign was a mission that could be won and never counted.
         """
         from randomizer.rewards.display import valid_choice
-        from randomizer.ui.config import EVA_VOICE_CHOICES, PLAYER_COLORS
+        from randomizer.ui.config import EVA_VOICE_CHOICES
+        from randomizer.ui.palette import player_color_choices
 
         config = self.config or {}
         if hasattr(self, 'player_color_var'):
@@ -119,7 +120,9 @@ class LaunchController:
             )
         return (
             valid_choice(
-                config.get('player_color'), PLAYER_COLORS, PLAYER_COLORS[0],
+                config.get('player_color'),
+                player_color_choices(),
+                player_color_choices()[0],
             ),
             bool(config.get('rainbowizer', False)),
             valid_choice(

@@ -14,10 +14,10 @@ from ._builder_dependencies import (
     CAMPAIGN_FILTERS,
     EVA_VOICE_CHOICES,
     IntegerSlider,
+    player_color_choices,
     MAIN_REWARD_WEIGHT_TYPES,
     MAX_STARTING_REWARD_COUNT,
     MAX_REWARD_WEIGHT,
-    PLAYER_COLORS,
     POWER_BUFF_TYPES,
     POWER_BUFF_WEIGHT_TYPES,
     SUB_WEIGHT_SECTION_BY_ID,
@@ -784,7 +784,9 @@ def _build_gameplay_settings(self, settings_frame):
         map_colors_frame,
         state='readonly',
         textvariable=self.player_color_var,
-        values=PLAYER_COLORS,
+        # Read from the installation's rules, so a colour added to or
+        # renamed in [Colors] shows up here without a rebuild.
+        values=player_color_choices(),
         width=15,
     )
     self.player_color_combo.grid(row=0, column=1, sticky='ew')

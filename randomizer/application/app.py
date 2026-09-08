@@ -21,7 +21,6 @@ from ._dependencies import (
     LOCKED_GAME_SPEED_LABEL,
     MAIN_REWARD_WEIGHT_TYPES,
     MAX_REWARDS_PER_CHECK,
-    PLAYER_COLORS,
     POWER_BUFF_TYPES,
     POWER_BUFF_WEIGHT_TYPES,
     PROGRESSION_MODES,
@@ -43,6 +42,7 @@ from ._dependencies import (
     valid_choice,
 )
 
+from randomizer.ui.palette import player_color_choices
 from randomizer.shell import choice as interface_choice
 from randomizer.shop.config import SHOP_CONFIG
 
@@ -216,8 +216,12 @@ class LauncherApp(
         self.difficulty_var = tk.StringVar(value=difficulty_default)
         self.game_speed_var = tk.StringVar(value=game_speed_default)
         self.campaign_var = tk.StringVar(value=campaign_default)
+        # Validated against the installation's own palette: a config
+        # carried over from an install whose rules named a colour this one
+        # does not falls back to Default instead of being written through.
+        player_colors = player_color_choices()
         self.player_color_var = tk.StringVar(value=valid_choice(
-            self.config.get('player_color'), PLAYER_COLORS, PLAYER_COLORS[0]
+            self.config.get('player_color'), player_colors, player_colors[0]
         ))
         self.rainbowizer_var = tk.BooleanVar(
             value=bool(self.config.get('rainbowizer', False))

@@ -1,5 +1,6 @@
 """Persistent state, player configuration, starters, and assistance."""
 
+from randomizer.ui.palette import player_color_choices
 from randomizer.campaign import store as campaign_store
 from randomizer.config.tuning import mission_assistance_stack_count
 from .archipelago_state import normalize_archipelago_activation
@@ -25,7 +26,6 @@ from ._dependencies import (
     GAME_SPEEDS,
     MAIN_REWARD_WEIGHT_TYPES,
     MAX_REWARDS_PER_CHECK,
-    PLAYER_COLORS,
     POWER_BUFF_TYPES,
     POWER_BUFF_WEIGHT_TYPES,
     PROGRESSION_MODES,
@@ -1240,10 +1240,11 @@ class StateController:
             [name for name, _ in GAME_SPEEDS],
             GAME_SPEEDS[0][0],
         ))
+        player_colors = player_color_choices()
         self.player_color_var.set(valid_choice(
             self.config.get('player_color'),
-            PLAYER_COLORS,
-            PLAYER_COLORS[0],
+            player_colors,
+            player_colors[0],
         ))
         self.rainbowizer_var.set(bool(
             self.config.get('rainbowizer', False)

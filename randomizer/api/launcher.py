@@ -153,14 +153,16 @@ VOICE = 'eva_voice'
 def _mission_look(config):
     """Return the three, each with what it may be."""
     from randomizer.rewards.display import valid_choice
-    from randomizer.ui.config import EVA_VOICE_CHOICES, PLAYER_COLORS
+    from randomizer.ui.config import EVA_VOICE_CHOICES
+    from randomizer.ui.palette import player_color_choices
 
+    player_colors = player_color_choices()
     return {
         LOOK: {
             'value': valid_choice(
-                config.get(LOOK), PLAYER_COLORS, PLAYER_COLORS[0],
+                config.get(LOOK), player_colors, player_colors[0],
             ),
-            'choices': list(PLAYER_COLORS),
+            'choices': list(player_colors),
         },
         SHUFFLE: {'value': bool(config.get(SHUFFLE, False))},
         VOICE: {

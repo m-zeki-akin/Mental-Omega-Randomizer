@@ -78,21 +78,6 @@ def countries():
     ]
 
 
-def _enemy_carried(offer):
-    """Return what each enemy brought, whichever way the offer says it.
-
-    An offer dealt now arms an enemy a faction at a time and names stats;
-    one dealt before that named units. A run in progress holds both, so a
-    card that counts what an enemy brought counts whichever it has.
-    """
-    return [
-        stats or bought
-        for bought, stats in zip(
-            offer.enemy_bought(), offer.enemy_faction_bought()
-        )
-    ]
-
-
 def offer_view(offer, index):
     """One battle card, as a screen needs it."""
     entry = map_by_relative_path(offer.map_path)
@@ -117,7 +102,7 @@ def offer_view(offer, index):
             for index, handicap, bought in zip(
                 offer.enemy_countries,
                 offer.enemy_handicaps(),
-                _enemy_carried(offer),
+                offer.enemy_bought(),
             )
         ],
         # What the offer asked for, by name, so a card can say it without
@@ -128,7 +113,7 @@ def offer_view(offer, index):
             stolen_label(offer.player_stolen) if offer.player_stolen else ''
         ),
         'enemy_upgrades': max(
-            (len(bought) for bought in _enemy_carried(offer)), default=0,
+            (len(bought) for bought in offer.enemy_bought()), default=0,
         ),
         # The stats the enemy armies are bought up in, across all of them,
         # so a card can say what kind of harder this battle is.

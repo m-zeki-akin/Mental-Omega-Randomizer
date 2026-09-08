@@ -20,9 +20,18 @@ function offerPills(offer) {
   }
   if (!offer.ally) marks.push(pill('no ally', 'danger'));
   if (offer.mental_ai) marks.push(pill('boosted AI', 'danger'));
-  // An enemy is bought up a faction at a time, so what it carries is
-  // named rather than counted: "enemy army: Firepower, Armour" says what
-  // kind of harder this battle is, which a number never did.
+  if (offer.enemy_upgrades) {
+    marks.push(pill(
+      offer.enemy_upgrades === 1
+        ? 'enemy carries 1 upgrade'
+        : `enemy carries ${offer.enemy_upgrades} upgrades`,
+      'danger',
+    ));
+  }
+  // And what the offer itself bought that army, which is a different
+  // thing: named rather than counted, because "enemy army: Firepower,
+  // Armour" says what kind of harder this battle is and a number does
+  // not.
   if (offer.enemy_army_stats && offer.enemy_army_stats.length) {
     // Across all of them, so a late battle can name seven. The first
     // three and a count reads; the whole list is a paragraph on a pill,
@@ -33,13 +42,6 @@ function offerPills(offer) {
       stats.length > 3
         ? `enemy armies: ${shown} +${stats.length - 3} more`
         : `enemy armies: ${shown}`,
-      'danger',
-    ));
-  } else if (offer.enemy_upgrades) {
-    marks.push(pill(
-      offer.enemy_upgrades === 1
-        ? 'enemy carries 1 upgrade'
-        : `enemy carries ${offer.enemy_upgrades} upgrades`,
       'danger',
     ));
   }

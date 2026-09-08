@@ -110,8 +110,20 @@ def family_description(name):
         if family['name'] == str(name or ''):
             return family['description']
     return ''
+# The colours a house can wear are the installation's, not this file's --
+# see `randomizer.ui.palette`, which reads them from the rules the game
+# actually loads. These two stay as the answer for an installation that
+# cannot be read, and as the shape a stored choice is validated against
+# before the rules cache exists.
 PLAYER_COLORS = list(_UI_CONFIG['player_colors'])
 RAINBOWIZER_COLORS = list(_UI_CONFIG['rainbowizer_colors'])
+# `[Colors]` is not only player colours: Mental Omega keeps the message
+# colours (FirstText..FourthText) and the loading-screen colours
+# (AlliedLoad, SovietLoad, ThirdLoad) in the same section. An entry whose
+# name ends in one of these is not offered as something to dress an army in.
+NON_HOUSE_COLOR_SUFFIXES = tuple(
+    _UI_CONFIG.get('non_house_color_suffixes', ('Text', 'Load'))
+)
 
 # Voice tags are one source of truth. Dict insertion order controls menu order;
 # adding/removing/renaming one entry updates both choices and map tag lookup.

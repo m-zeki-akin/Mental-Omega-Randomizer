@@ -1256,12 +1256,18 @@ def _a_mission_is_written_out_without_a_window_valid():
     from randomizer.campaign import generator
     from randomizer.config import player as settings_file
     from randomizer.maps.pipeline import prepare_hooked_map
-    from randomizer.ui.config import EVA_VOICE_CHOICES, PLAYER_COLORS
+    from randomizer.ui.config import EVA_VOICE_CHOICES
+    from randomizer.ui.palette import player_color_choices
+
+    # What this installation offers, not a committed copy of it: the
+    # palette is read from the rules now, so a check pinned to the old
+    # list would pass while the launcher offered something else.
+    colours = player_color_choices()
 
     named = prepare_hooked_map.__code__.co_names
     with _store_of_its_own():
         config = settings_file.load_config()
-        config['player_color'] = PLAYER_COLORS[-1]
+        config['player_color'] = colours[-1]
         config['rainbowizer'] = True
         config['eva_voice'] = EVA_VOICE_CHOICES[-1]
         maker = generator.build(config, [])
@@ -1279,8 +1285,8 @@ def _a_mission_is_written_out_without_a_window_valid():
             )
         )
         # Which answers from the settings, with no control anywhere.
-        and chosen == (PLAYER_COLORS[-1], True, EVA_VOICE_CHOICES[-1])
-        and fallback[0] == PLAYER_COLORS[0]
+        and chosen == (colours[-1], True, EVA_VOICE_CHOICES[-1])
+        and fallback[0] == colours[0]
     )
 
 
@@ -1462,9 +1468,10 @@ def _what_a_mission_looks_like_is_settable_valid():
     """
     from randomizer.campaign import generator
     from randomizer.config import player as settings_file
-    from randomizer.ui.config import EVA_VOICE_CHOICES, PLAYER_COLORS
+    from randomizer.ui.config import EVA_VOICE_CHOICES
+    from randomizer.ui.palette import player_color_choices
 
-    colour = PLAYER_COLORS[-1]
+    colour = player_color_choices()[-1]
     voice = EVA_VOICE_CHOICES[-1]
     with _store_of_its_own():
         kept = [
