@@ -3037,8 +3037,106 @@ def validate_shop_domain():
     details.update(_upgrade_reward_checks())
     details.update(_gem_pricing_checks())
     details.update(_run_setup_checks())
+    details.update(_launch_rules_checks())
     details['valid'] = all(
         value for key, value in details.items()
         if key.endswith('_valid')
     )
     return details
+
+
+def _launch_rules_checks():
+    """What a Shop mission is launched with is computed from the run.
+
+    It used to be four methods on the window's Shop controller, reading
+    the run through attributes a window put there. A mission could
+    therefore only be launched from a window: not because launching
+    needed one, but because working out what to launch with did.
+
+    They are functions of the run now, and the controller calls them. So
+    this asserts two things at once -- that the answers are still the
+    right answers, and that there is only one copy of them left.
+    """
+    import inspect
+
+    from randomizer.application import shop_controller
+    from randomizer.shop import launch_rules
+    from randomizer.shop.model import (
+        MissionEconomyClass,
+        MissionOffer,
+        ShopProfile,
+    )
+    from randomizer.shop.transitions import start_new_run
+
+    started = start_new_run(
+        ShopProfile(),
+        run_id='launch-rules-check',
+        seed='LAUNCH-RULES-CHECK',
+        mission_offers=(MissionOffer('ALL01', MissionEconomyClass.ACT_1),),
+        eligible_mission_codes=('ALL01', 'ALL02'),
+        # Two units the run starts with, so the seed plan below has
+        # something to count. An empty plan is a dict either way, and a
+        # check that could not tell those apart was not checking.
+        starting_unit_ids=('GGI', 'MTNK'),
+    )
+    run = started.run
+    settings = launch_rules.reward_settings(run)
+    # A run's own reward settings, and the modifier pacing written under
+    # the prefix the reward pipeline reads it by.
+    settings_valid = bool(
+        settings
+        and settings['start_with_tier_one_units'] is True
+        and settings['start_with_tier_one_defenses'] is True
+        # A Shop run buys its way out of trouble; it is not helped out.
+        and settings['failure_assistance'] is False
+        and all(
+            f'shop_{key}' in settings
+            for key in launch_rules.MODIFIER_SETTINGS
+        )
+        # And the seed plan is the run's own, unit by unit: a modifier
+        # that raises what the player fields has to start from the
+        # stacks they already bought rather than from nothing.
+        and settings['shop_modifier_armor_seed_stacks']
+        == {'GGI': 0, 'MTNK': 0}
+        and settings['shop_modifier_damage_seed_stacks']
+        == {'GGI': 0, 'MTNK': 0}
+    )
+
+    # A run that has bought something takes it to the mission, and a
+    # profile that has bought a permanent upgrade adds to that.
+    with_credits = ShopProfile(
+        permanent_upgrades={'mission_starting_credits': 2},
+    )
+    plain = launch_rules.launch_rewards(run, ShopProfile())
+    richer = launch_rules.launch_rewards(run, with_credits)
+    rewards_valid = bool(
+        len(richer) == len(plain) + 2
+        and all(
+            'Starting Credits' in str(reward.get('name') or '')
+            for reward in richer[len(plain):]
+        )
+        # A profile is optional: a launch that has not read one yet still
+        # gets what the run itself bought.
+        and launch_rules.launch_rewards(run) is not None
+    )
+
+    # And the window calls these rather than keeping its own copy. Read
+    # from the source, because two implementations that agree today are
+    # the shape this check exists to prevent.
+    controller = inspect.getsource(shop_controller)
+    delegates_valid = bool(
+        'from randomizer.shop.launch_rules import' in controller
+        and 'shop_launch_rewards(' in controller
+        and 'shop_reward_settings(' in controller
+        and 'shop_enemy_scaling_entries(' in controller
+        and 'modifier_clone_seed_plan(run)' in controller
+        # The bodies are gone, not merely unused: the seeds are counted
+        # in one place and the Counter that did it here is not.
+        and 'active_shop_tech_ids(run)' not in controller
+        and "reward.get('power_category') == 'aid'" not in controller
+    )
+    return {
+        'shop_launch_settings_valid': settings_valid,
+        'shop_launch_rewards_valid': rewards_valid,
+        'shop_launch_rules_shared_valid': delegates_valid,
+    }

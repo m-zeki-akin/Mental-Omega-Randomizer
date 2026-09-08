@@ -30,6 +30,12 @@ from randomizer.shop.active import (
     shop_starter_defense_ids,
     shop_starter_unit_ids,
 )
+from randomizer.shop.launch_rules import (
+    enemy_scaling_entries as shop_enemy_scaling_entries,
+    launch_rewards as shop_launch_rewards,
+    modifier_clone_seed_plan,
+    reward_settings as shop_reward_settings,
+)
 from randomizer.shop.archipelago import (
     ap_automatic_reward_ids,
     ap_unit_entitlement_ids,
@@ -491,152 +497,26 @@ class ShopController(ShopPolishController):
         return super().active_progression_mode()
 
     def _shop_modifier_clone_seed_plan(self, run):
-        existing = Counter(
-            (
-                str(reward.get('unit') or '').upper(),
-                str(reward.get('buff_type') or ''),
-            )
-            for reward in active_shop_rewards(run)
-            if reward.get('kind') == 'buff'
-        )
-        armor = {}
-        damage = {}
-        for target_id in active_shop_tech_ids(run):
-            target = BUFF_TARGETS.get(target_id, {})
-            armor_reward = canonical_reward_for_id(
-                f'{target.get("label", target_id)} Armor Plating I'
-            )
-            if armor_reward.get('buff_type') == 'armor':
-                armor[target_id] = existing[(target_id, 'armor')]
-            if not target.get('weapons'):
-                continue
-            damage_reward = canonical_reward_for_id(
-                f'{target.get("label", target_id)} Firepower I'
-            )
-            if damage_reward.get('buff_type') == 'damage':
-                damage[target_id] = existing[(target_id, 'damage')]
-        return armor, damage
+        return modifier_clone_seed_plan(run)
 
     def active_reward_settings(self):
         run = self._shop_context_run()
         if run is not None:
-            settings = dict(run.reward_settings)
-            settings['start_with_tier_one_units'] = True
-            settings['start_with_tier_one_defenses'] = True
-            settings['failure_assistance'] = False
-            effects = modifier_effects(run.modifiers)
-            for key in (
-                'player_damage_percent',
-                'player_armor_percent',
-                'production_time_percent',
-                'combat_production_time_percent',
-                'player_cost_percent',
-                'mission_starting_credits_flat',
-            ):
-                value = effects[key]
-                settings[f'shop_{key}'] = (
-                    float(value) if key.endswith('_percent') else int(value)
-                )
-            armor_seeds, damage_seeds = self._shop_modifier_clone_seed_plan(run)
-            settings['shop_modifier_armor_seed_stacks'] = armor_seeds
-            settings['shop_modifier_damage_seed_stacks'] = damage_seeds
-            mission_modifier = self._active_shop_mission_modifier(run)
-            if mission_modifier is not None and mission_modifier.buffs_allied_helpers:
-                settings['buff_allied_helpers'] = True
-            return settings
+            return shop_reward_settings(run)
         return super().active_reward_settings()
 
     def active_launch_rewards(self):
         if self.shop_launch_active():
-            run = self._shop_launch_run
-            effects = modifier_effects(run.modifiers)
-            rewards = [dict(item) for item in active_shop_rewards(run)]
-            starting_credit_level = self.shop_profile.upgrade_level(
-                'mission_starting_credits'
+            return shop_launch_rewards(
+                self._shop_launch_run,
+                self.shop_profile,
+                self._shop_entry_by_reward_id,
             )
-            rewards.extend(
-                canonical_reward_for_id('Starting Credits +1,000')
-                for _index in range(starting_credit_level)
-            )
-            mission_modifier = self._active_shop_mission_modifier(
-                run
-            )
-            if mission_modifier is not None:
-                for reward_id in mission_modifier.player_reward_ids:
-                    reward = dict(canonical_reward_for_id(reward_id))
-                    if reward.get('kind') == 'superweapon':
-                        reward['superweapon_ignore_foreign_tech_gate'] = True
-                    rewards.append(reward)
-            veteran_targets = set()
-            if self.shop_profile.upgrade_level('veteran_academy'):
-                for reward_id in run.selected_permanent_units:
-                    entry = self._shop_entry_by_reward_id.get(reward_id)
-                    if entry is not None and entry.target_id:
-                        veteran_targets.add(entry.target_id.upper())
-            if effects['starter_veteran']:
-                veteran_targets.update(active_shop_starter_unit_ids(run))
-            for target_id in sorted(veteran_targets):
-                target = BUFF_TARGETS.get(target_id, {})
-                reward_name = f'{target.get("label", target_id)} Veteran Training I'
-                try:
-                    reward = dict(canonical_reward_for_id(reward_name))
-                except KeyError:
-                    continue
-                if reward.get('buff_type') == 'veteran':
-                    rewards.append(reward)
-            if effects['player_armor_percent'] != 1:
-                armor_seeds, _damage_seeds = (
-                    self._shop_modifier_clone_seed_plan(run)
-                )
-                for target_id in armor_seeds:
-                    target = BUFF_TARGETS.get(target_id, {})
-                    reward_name = f'{target.get("label", target_id)} Armor Plating I'
-                    reward = dict(canonical_reward_for_id(reward_name))
-                    reward['force_direct_unit_buff'] = True
-                    reward['_shop_modifier_clone_seed'] = True
-                    rewards.append(reward)
-            if effects['player_damage_percent'] != 1:
-                _armor_seeds, damage_seeds = (
-                    self._shop_modifier_clone_seed_plan(run)
-                )
-                for target_id in damage_seeds:
-                    target = BUFF_TARGETS.get(target_id, {})
-                    reward_name = f'{target.get("label", target_id)} Firepower I'
-                    reward = dict(canonical_reward_for_id(reward_name))
-                    reward['force_direct_unit_buff'] = True
-                    reward['_shop_modifier_clone_seed'] = True
-                    rewards.append(reward)
-            support_factor = float(effects['support_recharge_percent'])
-            if support_factor != 1.0:
-                for index, reward in enumerate(rewards):
-                    if (
-                        reward.get('kind') == 'superweapon'
-                        and reward.get('power_category') == 'aid'
-                    ):
-                        updated = dict(reward)
-                        updated['superweapon_recharge_multiplier'] = (
-                            float(updated.get(
-                                'superweapon_recharge_multiplier', 1.0
-                            )) * support_factor
-                        )
-                        rewards[index] = updated
-            return rewards
         return super().active_launch_rewards()
 
     def active_enemy_scaling_entries(self):
         if self.shop_launch_active():
-            mission_modifier = self._active_shop_mission_modifier(
-                self._shop_launch_run
-            )
-            if mission_modifier is None or not mission_modifier.enemy_reward_id:
-                return []
-            return [{
-                'reward': canonical_reward_for_id(
-                    mission_modifier.enemy_reward_id
-                ),
-                'source': 'Shop mission challenge',
-                'earned_from': mission_modifier.title,
-            }]
+            return shop_enemy_scaling_entries(self._shop_launch_run)
         return super().active_enemy_scaling_entries()
 
     def launch_rewards_for_mission(self, code):
