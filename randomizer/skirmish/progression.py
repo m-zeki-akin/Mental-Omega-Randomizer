@@ -419,6 +419,35 @@ def _faction_upgrades(country, many, generator):
     ))
 
 
+# The units the engine finds by name rather than through a task force:
+# what harvests, what deploys into a construction yard, what a plane
+# lands on. A copy of one of those is not the one ``[General]`` names,
+# and shutting the original out of a house -- which is what a copy does
+# -- would leave that house with no harvester and no way to build a base.
+NAMED_BY_THE_ENGINE = (
+    'HarvesterUnit', 'BaseUnit', 'PadAircraft', 'SlaveMinerUnit',
+    'AmerParaDropInf', 'ParadropInfantry',
+)
+
+
+def engine_named_units():
+    """Return the units ``[General]`` names, which must not be copied."""
+    from randomizer.ui.cameos import installed_rules_registry
+
+    # The whole ruleset, not the unit roster: [General] is not a
+    # TechnoType and the roster does not carry it.
+    _superweapons, rules = installed_rules_registry(synchronous=True)
+    general = (rules or {}).get('General') or {}
+    found = set()
+    for key, value in general.items():
+        if str(key) not in NAMED_BY_THE_ENGINE:
+            continue
+        for name in str(value).split(','):
+            if name.strip():
+                found.add(name.strip().upper())
+    return frozenset(found)
+
+
 def faction_units(country, buff_type):
     """Return the units an army-wide upgrade in this stat reaches.
 
@@ -434,10 +463,12 @@ def faction_units(country, buff_type):
     from .shop import country_upgrades
 
     fielded = fielded_by_ai()
+    spoken_for = engine_named_units()
     return tuple(sorted({
         one.unit for one in country_upgrades(country)
         if one.buff_type == buff_type
         and one.unit != STOLEN_TECH_GROUP
+        and one.unit not in spoken_for
         and (not fielded or one.unit in fielded)
     }))
 

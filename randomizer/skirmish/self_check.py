@@ -2120,7 +2120,8 @@ def _shop_checks():
     from .model import BattleOffer
     from .ownership import STOLEN_TECH_GROUP
     from .progression import (
-        FACTION_STATS, TIERS, _faction_upgrades, faction_units,
+        FACTION_STATS, TIERS, _faction_upgrades, engine_named_units,
+        faction_units,
     )
 
     armed_country = 'UnitedStates'
@@ -2195,6 +2196,31 @@ def _shop_checks():
         )
         # An army-wide upgrade reaches an army, not one unit of it.
         and len(reached) > 5
+        # And it never reaches a unit the engine finds by name. A copy is
+        # not what [General] names and making one shuts the original out
+        # of that house, so an army-wide upgrade on the harvester would
+        # leave the enemy with no harvester at all, and one on a pad
+        # aircraft would leave it with planes that cannot land. The list
+        # has to be read back non-empty, or this guards nothing: the
+        # first version of it looked in the unit roster, where [General]
+        # is not, and passed by finding nothing to exclude.
+        and engine_named_units()
+        and not any(
+            set(faction_units(country, stat)) & engine_named_units()
+            for country in ('UnitedStates', 'USSR', 'PsiCorps', 'Guild1')
+            for stat in FACTION_STATS
+        )
+        # Named outright as well, because the line above compares the
+        # draw against the same list the draw was filtered by: break the
+        # list and both sides agree. These four are on the American shelf
+        # with army-wide stats and would be drawn without the guard --
+        # the paradrop's two infantry and two of the aircraft that need
+        # somewhere to land.
+        and not any(
+            {'E1', 'GGI', 'HBIRD', 'STORM'}
+            & set(faction_units('UnitedStates', stat))
+            for stat in FACTION_STATS
+        )
         # And it is spread across those units rather than left as a stat
         # nothing downstream knows what to do with: two enemies on one
         # country still share one set, and the third has its own.
