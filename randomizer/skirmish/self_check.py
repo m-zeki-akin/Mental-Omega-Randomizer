@@ -1946,29 +1946,64 @@ def _shop_checks():
         and 'GGI' in united and 'GGI' in pacific
     )
 
-    # A hero is priced off its own cost here. The campaign shop sells the
-    # only Tanya a run will ever own, flat and with a premium on top; a
-    # skirmish builds one in a barracks, so what improving one costs is
-    # what improving anything of that cost costs.
-    from randomizer.shop.economy import run_buff_price
-    from randomizer.shop.unit_pricing import unit_pricing_traits
-    from .shop import upgrade_price
+    # An upgrade is priced by what it does, not by the unit it is for
+    # and not by the tier it is bought in. Pricing off the unit's own
+    # credit cost made the shelf's cheap half the half nobody thought
+    # about; a Flak Trooper's armour is the same decision as a Rhino's.
+    from .ownership import STOLEN_TECH_GROUP
+    from .shop import (
+        DEFAULT_BUFF_PRICE,
+        POWER_BUFF_PRICES,
+        UNIT_BUFF_PRICES,
+        UNSOLD_BUFFS,
+        upgrade_price,
+    )
 
-    from .shop import PRICE_SCALE
-
+    american = country_upgrades('UnitedStates')
+    priced = {
+        (one.buff_type, one.price) for one in american
+        if one.unit != STOLEN_TECH_GROUP
+    }
     hero_valid = bool(
-        unit_pricing_traits('TANY').get('unique')
-        and upgrade_price('TANY') < PRICE_SCALE * run_buff_price('TANY')
-        # And within a few Ore of a unit that costs about the same and is
-        # nobody's hero.
-        and abs(upgrade_price('TANY') - upgrade_price('CARRIER'))
-        <= 10 * PRICE_SCALE
-        # Everything that was never special takes the campaign shop's own
-        # price, at this mode's own scale.
-        and upgrade_price('GGI') == PRICE_SCALE * run_buff_price('GGI')
-        and upgrade_price('FORTRESS')
-        == PRICE_SCALE * run_buff_price('FORTRESS')
-        and PRICE_SCALE > 1
+        # The bands, as a table rather than as arithmetic.
+        upgrade_price('cloak') == 250
+        and upgrade_price('sensors') == upgrade_price('ammo') == 125
+        and upgrade_price('cost') == upgrade_price('self_healing') == 125
+        and upgrade_price('health') == upgrade_price('armor') == 100
+        and upgrade_price('damage') == upgrade_price('reload') == 100
+        and upgrade_price('speed') == upgrade_price('production') == 100
+        and upgrade_price('sight') == 75
+        # Anything the table has never heard of, including whatever a
+        # submod adds, is the cheapest band rather than an error.
+        and upgrade_price('range') == DEFAULT_BUFF_PRICE
+        and upgrade_price('no_such_stat') == DEFAULT_BUFF_PRICE
+        # A superweapon's own upgrades read a second table, because the
+        # names collide with the first and the prices do not.
+        and upgrade_price('damage', power=True) == 200
+        and upgrade_price('area', power=True) == 200
+        and upgrade_price('payload', power=True) == 200
+        and upgrade_price('duration', power=True) == 150
+        and upgrade_price('recharge', power=True) == 150
+        and upgrade_price('cost', power=True) == 75
+        and upgrade_price('vision', power=True) == 75
+        and POWER_BUFF_PRICES['damage'] != UNIT_BUFF_PRICES['damage']
+        # And the shelf says the same thing: one price per stat across
+        # every unit that has it, whatever that unit costs to build.
+        and len(priced) == len({buff for buff, _price in priced})
+        and all(
+            price == upgrade_price(buff) for buff, price in priced
+        )
+        # A hero is not dearer than anything else any more. It was, and
+        # the Tanya row was the one row a run never had to think about
+        # because it cost four times its neighbours.
+        and {one.price for one in american if one.unit == 'TANY'}
+        <= {one.price for one in american if one.unit == 'GGI'} | {
+            upgrade_price(one.buff_type)
+            for one in american if one.unit == 'TANY'
+        }
+        # What this mode cannot deliver is not sold at any price.
+        and UNSOLD_BUFFS
+        and not (UNSOLD_BUFFS & {one.buff_type for one in american})
     )
 
     # What an infiltration might bring is bought as one row, not as one row

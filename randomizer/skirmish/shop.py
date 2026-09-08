@@ -36,47 +36,75 @@ STARTING_ORE = 125
 # every time the run is opened.
 #
 # It grows a row per tier because what a battle pays grows too: a late
-# shelf of six was a shelf a run could buy out, and a shelf a run can buy
+# shelf of eight was a shelf a run could buy out, and a shelf a run can buy
 # out is not a choice between upgrades. Ten is the ceiling -- past that
 # the screen is a list rather than a decision.
-SHELF_SIZE = 6
+SHELF_SIZE = 8
 SHELF_CAP = 10
-# What share of the shelf is given to the special powers rather than to
-# units -- a small one, because a power is a moment and a unit is the
-# whole battle.
-#
-# Zero, because nothing would arrive. The catalogue has 259 power
-# upgrades over 94 superweapons, and every one of them is written to be
-# folded into a *granted* superweapon: run one through
-# apply_power_buffs_to_unlock_rewards without an unlock reward beside it
-# and it produces no rules at all. A skirmish grants no superweapons --
-# the player builds a Weather Control Device and gets the native power --
-# so a row sold here would take Ore and change nothing.
-#
-# The two ways to change that are written up in TODO.md. Editing the
-# native [XSpecial] would work and is refused: a superweapon type is
-# global, and with three enemies drawn from twelve countries better than
-# half of all battles seat somebody who shares the player's side and
-# would collect the upgrade with them. That is the bug private copies
-# were invented to remove.
-POWER_UPGRADE_WEIGHT = 0.0
 # What a stolen-tech row costs on top of the dearest unit it improves, per
 # extra unit it reaches. A row that raises a stat on five units is worth
 # more than one that raises it on one, and some stats reach only one of
 # them -- a unit with no weapon has no fire rate. Reach is what is paid for.
 STOLEN_TECH_PRICE_PER_UNIT = 0.5
-# What a skirmish charges over the campaign shop's list price, and what
-# every upgrade already owned adds to the next one.
+# What an upgrade costs, by what it does.
 #
-# Both are set from what a run actually earns and actually gets offered.
-# A walk through the nine tiers is 42 battles paying 22,500 Ore with the
-# challenges doubled and nothing asked for, around 27,000 if the harder
-# offers are taken; it is dealt 381 shelf rows over that walk, out of a
-# United States list of 364. At this scale a run buys 124 of them taking
-# no bonuses and 166 taking the dear ones, and closes on under 300 Ore in
-# hand either way -- so the Ore is spent, and the army is a third of the
-# catalogue rather than all of it. Calibrated at a +25% average.
-PRICE_SCALE = 4
+# Not by the unit it is for and not by the tier it is bought in. A Rhino
+# is worth more than a Flak Trooper on the field, but a run improving a
+# Flak Trooper is making the same kind of decision for the same kind of
+# army, and pricing off the unit's own credit cost meant the shelf's
+# cheap half was the half nobody thought about. What is paid for now is
+# the stat: cloaking an army is the dearest thing a run can do to it,
+# vision the least.
+UNIT_BUFF_PRICES = {
+    'cloak': 250,
+    'sensors': 125,
+    'ammo': 125,
+    'cost': 125,
+    'self_healing': 125,
+    'health': 100,
+    'armor': 100,
+    'damage': 100,
+    'reload': 100,
+    'speed': 100,
+    'production': 100,
+    'sight': 75,
+}
+# And what a stat not named above costs -- range, harvester capacity, and
+# anything a submod adds that this table has never heard of.
+DEFAULT_BUFF_PRICE = 75
+
+# The same for a superweapon's own upgrades. The names collide with the
+# unit table and the prices do not: a power that hits harder is worth
+# twice what a unit that hits harder is, because there is one of it and
+# it decides a battle rather than joining one.
+POWER_BUFF_PRICES = {
+    'damage': 200,
+    'area': 200,
+    'payload': 200,
+    'duration': 150,
+    'recharge': 150,
+    'cost': 75,
+    'vision': 75,
+}
+
+# What is not sold at any price.
+#
+# Passenger firing, veterancy and the two build limits are things the
+# campaign shop delivers and this mode cannot: veterancy is granted on
+# the house, a build limit is raised by building a clone, and a passenger
+# firing out of a transport needs the transport to be the one the rules
+# name. All three would take Ore and change nothing.
+UNSOLD_BUFFS = frozenset({
+    'open_topped', 'veteran', 'build_limit', 'building_limit',
+})
+
+# How much of the shelf is powers rather than units. Read as a share:
+# each row drawn is a power with probability 17/(100+17), so a shelf of
+# eight holds one power more often than not and two now and then.
+UNIT_UPGRADE_WEIGHT = 100
+POWER_UPGRADE_WEIGHT = 17
+
+# What every upgrade already owned adds to the next one.
 PRICE_RISE_PER_OWNED = 0.04
 # And where that rise stops. Without a ceiling the fortieth upgrade cost
 # seven times the first and a run stopped buying rather than choosing;
@@ -107,20 +135,14 @@ def shelf_size(tier):
     return min(SHELF_CAP, SHELF_SIZE + max(0, int(tier) - 1))
 
 
-def upgrade_price(unit):
-    """Return what one upgrade costs, off the unit's own credit cost.
+def upgrade_price(buff_type, *, power=False):
+    """Return what one upgrade costs, off what the upgrade does.
 
-    The campaign shop prices a hero flat and charges a premium on top: it
-    is selling the only Tanya the run will ever have. A skirmish builds one
-    in a barracks like anything else, so the flat prices and the premium
-    have no claim here and the unit's own cost decides.
+    Two tables because the names collide and the prices do not: a unit's
+    ``damage`` is 100 and a superweapon's is 200.
     """
-    from randomizer.shop.config import SHOP_CONFIG
-    from randomizer.shop.unit_pricing import cost_derived_buff_price
-
-    return PRICE_SCALE * int(
-        cost_derived_buff_price(unit, SHOP_CONFIG.price_scales['run_ore'])
-    )
+    table = POWER_BUFF_PRICES if power else UNIT_BUFF_PRICES
+    return int(table.get(str(buff_type or ''), DEFAULT_BUFF_PRICE))
 
 
 def price_for(upgrade, purchases=()):
@@ -222,7 +244,7 @@ def country_upgrades(country):
         if unit not in stolen and faction and factions and faction not in factions:
             continue
         buff_type = str(reward.get('buff_type') or '')
-        if not unit or not buff_type:
+        if not unit or not buff_type or buff_type in UNSOLD_BUFFS:
             continue
         # The catalogue's stack limit says how far a buff could be pushed;
         # what is asked here is only whether this installation would notice
@@ -250,7 +272,7 @@ def country_upgrades(country):
             buff_type=buff_type,
             name=str(reward.get('name') or f'{unit} {buff_type}'),
             description=str(reward.get('description') or ''),
-            price=upgrade_price(unit),
+            price=upgrade_price(buff_type),
             limit=1,
             effect=effect[0] if effect else buff_type.replace('_', ' '),
         )
@@ -378,10 +400,10 @@ def shelf_key(upgrade):
 def shelf_for(run, country, *, count=SHELF_SIZE, salt='shelf'):
     """Return the upgrades standing on the shelf for this battle.
 
-    The six the battle was given, in the order it was given them --
+    The eight the battle was given, in the order it was given them --
     including any already bought, which stay on the shelf marked as bought.
     A shelf that held only what you have not bought would reshuffle itself
-    the moment you bought from it: six new names where the one you chose
+    the moment you bought from it: eight new names where the one you chose
     used to be, and nothing to show that anything had happened.
     """
     stored = tuple(getattr(run, 'shelf', ()) or ())
