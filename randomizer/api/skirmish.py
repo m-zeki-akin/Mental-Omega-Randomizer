@@ -138,6 +138,43 @@ def upgrade_view(upgrade, purchases):
     }
 
 
+def _carried(country_id, items):
+    """Return one readable line per upgrade an army carries.
+
+    ``items`` are ``(key, stacks)`` pairs, the key being the
+    ``unit:buff_type`` an offer and a purchase both name it by. Names come
+    from the country's own shelf, because that is where the upgrade was
+    drawn from -- an enemy is bought up out of the list its own faction
+    shops from, not the player's.
+    """
+    from randomizer.skirmish.shop import country_upgrades
+
+    named = {
+        one.key: one for one in country_upgrades(country_id)
+    } if country_id else {}
+    lines = []
+    for key, stacks in items:
+        upgrade = named.get(key)
+        unit, _, buff_type = str(key).partition(':')
+        lines.append({
+            'key': key,
+            'unit': unit,
+            'name': upgrade.name if upgrade else f'{unit} {buff_type}',
+            'effect': upgrade.effect if upgrade else '',
+            'stacks': int(stacks),
+        })
+    return sorted(lines, key=lambda line: line['name'])
+
+
+def _army(index, items):
+    """One country and what it carries."""
+    country = country_by_index(index)
+    return dict(
+        _country(index),
+        upgrades=_carried(country.country_id if country else '', items),
+    )
+
+
 def run_view(run, *, shelf=()):
     """A whole run, as one reading."""
     if run is None:
@@ -193,6 +230,56 @@ def run(repository=None):
         if country and not current.warmup else ()
     )
     return run_view(current, shelf=shelf)
+
+
+@action('skirmish.armies', 'What every army in this run carries')
+def armies(repository=None):
+    """Who is on the field and what each of them has been bought.
+
+    The player's and the ally's upgrades belong to the run and stand until
+    it ends. An enemy's belong to the battle: each offer arms its own
+    enemies, so they are listed per battle rather than as one list, which
+    also lets a table be read before one of them is chosen rather than
+    only afterwards.
+    """
+    repository = repository or _repository()
+    current = repository.load_run()
+    if current is None:
+        return None
+    return {
+        'player': _army(
+            current.player_country,
+            ((one.key, one.stacks) for one in current.purchases),
+        ),
+        'ally': _army(
+            current.ally_country,
+            ((one.key, one.stacks) for one in current.ally_purchases),
+        ),
+        'battles': [
+            {
+                'index': index,
+                'map_name': offer.map_name or offer.map_path,
+                'committed': index == current.committed_offer,
+                'ally': offer.ally,
+                'granted': (
+                    stolen_label(offer.player_stolen)
+                    if offer.player_stolen else ''
+                ),
+                'enemies': [
+                    dict(
+                        _army(country, ((key, 1) for key in bought)),
+                        skill=SKILL_NAMES.get(handicap, ''),
+                    )
+                    for country, handicap, bought in zip(
+                        offer.enemy_countries,
+                        offer.enemy_handicaps(),
+                        offer.enemy_bought(),
+                    )
+                ],
+            }
+            for index, offer in enumerate(current.offers)
+        ],
+    }
 
 
 @action('skirmish.runs', 'Every saved run, and which one is being played')

@@ -1584,6 +1584,45 @@ def _what_a_run_handed_over_can_be_read_valid():
     )
 
 
+def _an_army_says_what_it_carries_valid():
+    """The upgrades panel names an upgrade rather than showing its key.
+
+    An enemy is armed out of its own faction's shelf, so what is stored on
+    an offer is a ``unit:buff_type`` key and nothing else. Read against the
+    wrong country -- or against none -- the key has no name, and a panel
+    built to answer "what is that army carrying" would answer ``RHINO
+    armour``. So the name is looked up in the shelf the upgrade was drawn
+    from, and anything the shelf does not know still comes back as words.
+    """
+    from randomizer.api.skirmish import _carried
+    from randomizer.skirmish.factions import skirmish_countries
+    from randomizer.skirmish.shop import country_upgrades
+
+    country = next(iter(skirmish_countries()), None)
+    if country is None:
+        # No installed rules to read: nothing is claimed rather than
+        # failed, the way every other game-file row behaves.
+        return True
+    shelf = country_upgrades(country.country_id)
+    if not shelf:
+        return True
+    one = shelf[0]
+    named = _carried(country.country_id, [(one.key, 2)])
+    unknown = _carried(country.country_id, [('NOSUCH:armour', 1)])
+    return bool(
+        len(named) == 1
+        and named[0]['name'] == one.name
+        and named[0]['name'] != one.key
+        and named[0]['stacks'] == 2
+        and named[0]['effect'] == one.effect
+        # A key the shelf has never heard of is still readable, because a
+        # stored run outliving a change to the shelf must not blank the
+        # panel out.
+        and len(unknown) == 1
+        and unknown[0]['name'] == 'NOSUCH armour'
+    )
+
+
 def _a_board_is_a_board_valid():
     """Grid answers with a shape, and only when it has one.
 
@@ -1845,6 +1884,7 @@ def validate_api_contract():
     look_settable = _what_a_mission_looks_like_is_settable_valid()
     unlocks_readable = _what_a_run_handed_over_can_be_read_valid()
     board_shaped = _a_board_is_a_board_valid()
+    army_carries = _an_army_says_what_it_carries_valid()
     pictures_answer = _a_picture_comes_back_for_what_a_list_names_valid()
     after = _touched()
 
@@ -1929,6 +1969,7 @@ def validate_api_contract():
         'api_what_a_mission_looks_like_is_settable_valid': look_settable,
         'api_what_a_run_handed_over_can_be_read_valid': unlocks_readable,
         'api_a_board_is_a_board_valid': board_shaped,
+        'api_an_army_says_what_it_carries_valid': army_carries,
         'api_a_picture_comes_back_for_what_a_list_names_valid': (
             pictures_answer
         ),
@@ -1962,6 +2003,7 @@ def validate_api_contract():
             and look_settable
             and unlocks_readable
             and board_shaped
+            and army_carries
             and pictures_answer
             and before == after
             and unknown.get('ok') is False

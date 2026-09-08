@@ -144,6 +144,11 @@ function giveUpButton(run) {
   return node;
 }
 
+/* Whether the armies are on show. Kept outside render so that opening the
+ * panel survives the redraw that follows buying something -- which is the
+ * moment the list changes and the one worth watching it through. */
+let showingArmies = false;
+
 function header(run) {
   return row([
     el('div', { class: 'row' }, [
@@ -153,6 +158,13 @@ function header(run) {
       el('span', { class: 'ore', text: `${count(run.coins)} Ore` }),
     ]),
     el('div', { class: 'row' }, [
+      button(showingArmies ? 'Hide upgrades' : 'Owned upgrades', {
+        variant: 'quiet',
+        onClick: () => {
+          showingArmies = !showingArmies;
+          refresh();
+        },
+      }),
       run.warmup && button('Skip warmup', {
         variant: 'quiet',
         onClick: () => act('skirmish.skip_warmup'),
@@ -160,6 +172,50 @@ function header(run) {
       giveUpButton(run),
     ]),
   ], { spread: true });
+}
+
+/** One army's card: who it is, and every upgrade it carries by name. */
+function armyCard(army, { title, note } = {}) {
+  const carried = army.upgrades || [];
+  return card({
+    title: title || army.display,
+    body: carried.length
+      ? note || ''
+      : `${note ? `${note} ` : ''}Nothing bought yet.`,
+    pills: carried.map((one) => pill(
+      one.stacks > 1 ? `${one.name} x${one.stacks}` : one.name,
+    )),
+    // The effect lines are long and there are many of them, so they are
+    // what the card says when it is pointed at rather than what it shows.
+    title_attr: carried.map((one) => one.effect).filter(Boolean).join('\n'),
+  });
+}
+
+function armiesPanel(armies) {
+  if (!armies) return notice('This run has nothing to show yet.');
+  const parts = [
+    section('Yours and your ally’s', grid([
+      armyCard(armies.player, { title: `You — ${armies.player.display}` }),
+      armyCard(armies.ally, { title: `Ally — ${armies.ally.display}` }),
+    ])),
+  ];
+  for (const battle of armies.battles || []) {
+    const enemies = battle.enemies || [];
+    // An enemy that was bought nothing is still worth showing: what the
+    // panel answers is who is on the field, not only who is carrying.
+    parts.push(section(
+      battle.committed ? `${battle.map_name} — chosen` : battle.map_name,
+      enemies.length
+        ? grid(enemies.map((enemy) => armyCard(enemy, {
+          title: `${enemy.display}${enemy.skill ? ` — ${enemy.skill}` : ''}`,
+        })))
+        : notice('No enemies listed for this battle.'),
+    ));
+    if (battle.granted) {
+      parts.push(notice(`This battle hands you a ${battle.granted}.`));
+    }
+  }
+  return parts;
 }
 
 /* While a battle is up there is nothing to decide, so the screen says so
@@ -218,6 +274,9 @@ async function render(root) {
   }
   await loadPreviews(run.offers);
   const parts = [section(null, header(run))];
+  if (showingArmies) {
+    parts.push(...[].concat(armiesPanel(await call('skirmish.armies'))));
+  }
   if (!run.active) {
     // A run that is over keeps its table on screen with everything on it
     // refused, which reads as a launcher that has stopped working rather
