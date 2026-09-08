@@ -172,6 +172,9 @@ export function select(options, { value, onChange } = {}) {
   }, options.map((option) => el('option', {
     value: option.value,
     text: option.label,
+    // An option may ask to be drawn in a colour of its own, which is how
+    // a list of army colours says what it is listing.
+    style: option.color ? `color: ${option.color}` : null,
     selected: String(option.value) === String(value) ? true : null,
   })));
 }

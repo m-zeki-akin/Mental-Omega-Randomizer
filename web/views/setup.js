@@ -50,7 +50,9 @@ function chooser(countries, palette) {
   const standing = armies(countries, palette.unchosen);
   const colors = [
     { value: palette.unchosen, label: 'Any colour' },
-    ...palette.colors.map((one) => ({ value: one.id, label: one.label })),
+    ...palette.colors.map((one) => ({
+      value: one.id, label: one.label, color: one.rgb,
+    })),
   ];
   return panel('New run', {
     children: row([

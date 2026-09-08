@@ -420,12 +420,20 @@ def tiers():
 
 @action('skirmish.colors', 'Every colour a run may be played in')
 def colors():
-    from randomizer.skirmish.colors import UNCHOSEN, player_colors
+    from randomizer.skirmish.colors import UNCHOSEN, color_table
 
     return {
         'unchosen': UNCHOSEN,
+        # The red, green and blue as well as the name, so a list of
+        # colours can be drawn in the colours it is listing. "Aqua" in
+        # black text is a word; in aqua it is the thing itself.
         'colors': [
-            {'id': number, 'label': name} for number, name in player_colors()
+            {
+                'id': number,
+                'label': name,
+                'rgb': f'rgb({red}, {green}, {blue})',
+            }
+            for number, name, (red, green, blue) in color_table()
         ],
     }
 
