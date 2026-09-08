@@ -25,7 +25,16 @@ STANDARD_POOL_DIR = MAPS_DIR / 'Standard'
 CHALLENGE_POOL_DIR = MAPS_DIR / 'Challenge'
 COOPERATIVE_POOL_DIR = MAPS_DIR / 'Cooperative'
 MAP_CACHE_PATH = APP_DIR / 'skirmish_maps_cache.json'
-MAP_CACHE_VERSION = 2
+MAP_CACHE_VERSION = 3
+
+# The mode an ordinary battle is fought under. A map that does not offer it
+# is a different game -- king of the hill, oil control, a map with no ore on
+# it at all -- and the shop's economy assumes the ordinary one.
+STANDARD_MODE = 'standard'
+
+# How many starting points the engine reads. Waypoints past these are
+# scenery: reinforcement drops, camera moves, script markers.
+MAX_STARTS = 8
 
 _NAME = re.compile(r'^Name=(.*)$', re.M)
 _MAX_PLAYER = re.compile(r'^MaxPlayer=(\d+)', re.M)
@@ -33,6 +42,7 @@ _MIN_PLAYER = re.compile(r'^MinPlayer=(\d+)', re.M)
 _GAME_MODE = re.compile(r'^GameMode=(.*)$', re.M)
 _WAYPOINT = re.compile(r'^Waypoint(\d+)=(\d+),(\d+)', re.M)
 _STARTING_POINTS = re.compile(r'^NumberStartingPoints=(\d+)', re.M)
+_SPAWN_CELL = re.compile(r'^(\d+)=(\d+)\s*$', re.M)
 
 
 def _section(text, name):
@@ -50,6 +60,31 @@ def _section(text, name):
     return rest[:following.start()] if following else rest
 
 
+def _spawn_cells(text):
+    """Return the starting cells, in the order the engine numbers them.
+
+    ``[Waypoints]`` is what the engine places houses on, and it stores a
+    cell as one number: ``211133`` is row 211, column 133. The ``[Header]``
+    carries the same points transformed for the client's preview picture,
+    which is why they look different and why they are not read here.
+
+    Numbering starts at zero and has to be unbroken, because a spawn file
+    names a starting point by that index. A map that skips one is left
+    without coordinates rather than described wrongly.
+    """
+    found = {}
+    for index, cell in _SPAWN_CELL.findall(text):
+        index, cell = int(index), int(cell)
+        if 0 <= index < MAX_STARTS:
+            found[index] = (cell % 1000, cell // 1000)
+    ordered = []
+    for index in range(MAX_STARTS):
+        if index not in found:
+            break
+        ordered.append(found[index])
+    return tuple(ordered)
+
+
 @dataclass(frozen=True)
 class SkirmishMap:
     path: Path
@@ -59,6 +94,15 @@ class SkirmishMap:
     starts: int
     game_modes: tuple[str, ...]
     preview: Path | None
+    spawns: tuple[tuple[int, int], ...] = ()
+
+    @property
+    def standard(self):
+        """Whether this map offers the mode an ordinary battle is fought in."""
+        return any(
+            str(mode).strip().lower() == STANDARD_MODE
+            for mode in self.game_modes
+        )
 
     @property
     def seats(self):
@@ -78,6 +122,7 @@ class SkirmishMap:
             'starts': self.starts,
             'game_modes': list(self.game_modes),
             'preview': self.preview.name if self.preview else None,
+            'spawns': [[x, y] for x, y in self.spawns],
         }
 
 
@@ -110,6 +155,7 @@ def _read_map(path):
             ).split(',') if mode.strip()
         ),
         preview=preview if preview.is_file() else None,
+        spawns=_spawn_cells(_section(whole, 'Waypoints')),
     )
 
 
@@ -176,6 +222,9 @@ def read_map_pool(directory, *, cache=True):
                 starts=int(cached.get('starts') or 0),
                 game_modes=tuple(cached.get('game_modes') or ()),
                 preview=preview if cached.get('preview') else None,
+                spawns=tuple(
+                    (int(x), int(y)) for x, y in (cached.get('spawns') or ())
+                ),
             ))
             entries[key] = cached
             continue
@@ -197,9 +246,20 @@ def read_map_pool(directory, *, cache=True):
     return tuple(maps)
 
 
+def standard_maps(pool):
+    """Return the maps of a pool that declare the ordinary game mode.
+
+    The Standard folder is a folder, not a mode: eighty of the maps in it
+    are king of the hill, fortress, islands, oil control or land grab, and
+    a few of those carry no ore at all. Fought as an ordinary battle they
+    are a run with nothing to earn, so they are not offered.
+    """
+    return tuple(entry for entry in pool if entry.standard)
+
+
 def skirmish_map_pool(*, cache=True):
     """The ordinary multiplayer pool: what a normal battle is played on."""
-    return read_map_pool(STANDARD_POOL_DIR, cache=cache)
+    return standard_maps(read_map_pool(STANDARD_POOL_DIR, cache=cache))
 
 
 def challenge_map_pool(*, cache=True):
@@ -245,8 +305,13 @@ def map_by_relative_path(relative, *, cache=True):
     if not wanted:
         return None
     path = MAPS_DIR / wanted
+    # Read the whole folder, not the pool battles are dealt from. A run
+    # already holding an offer on a map the pool has since stopped dealing
+    # should still be able to play it; refusing here would read as the map
+    # having been uninstalled.
     for pool in (
-        skirmish_map_pool(cache=cache), challenge_map_pool(cache=cache)
+        read_map_pool(STANDARD_POOL_DIR, cache=cache),
+        challenge_map_pool(cache=cache),
     ):
         for entry in pool:
             if entry.path == path:
