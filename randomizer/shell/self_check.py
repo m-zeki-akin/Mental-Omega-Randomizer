@@ -243,6 +243,24 @@ def validate_shell_contract():
             if not PIXEL_EXCEPTIONS.match(match.group()):
                 stray_sizes.append(f'{path.name}: {match.group().strip()}')
 
+    # Hiding a thing hides it, whatever that thing is laid out as.
+    #
+    # The browser answers `hidden` with `display: none` and any rule of
+    # ours that sets a display outranks it, so a component laid out as a
+    # grid stayed on screen after being hidden -- the search list under
+    # the exclusion boxes was permanently down, and the code putting it
+    # away on every blur did nothing at all. Stated once, globally, and
+    # checked for two things: that the statement is there, and that
+    # nobody has gone back to patching it one class at a time, which is
+    # the shape that hid the bug for as long as it did.
+    css = ''.join(_read(path) for path in styles)
+    hides = re.search(
+        r'(^|[\s}])\[hidden\]\s*\{[^}]*display\s*:\s*none\s*!important',
+        css,
+    )
+    patched = re.findall(r'\.[a-z-]+\[hidden\]', css)
+    hidden_valid = bool(hides and not patched)
+
     # Both themes define every token, or a screen changes theme and keeps
     # one colour from the other.
     dark = set(re.findall(r'--([a-z0-9-]+):', tokens.split('[data-theme')[0]))
@@ -351,6 +369,7 @@ def validate_shell_contract():
         'shell_falls_back_to_the_old_window_valid': _fallback_valid(),
         'shell_tokens_are_the_only_palette_valid': not stray_colours,
         'shell_tokens_are_the_only_scale_valid': not stray_sizes,
+        'shell_hidden_means_hidden_valid': hidden_valid,
         'shell_both_themes_complete_valid': bool(themed and themed <= light),
         'shell_no_markup_parsing_valid': markup_free,
         'shell_components_are_pure_valid': bool(components and components_pure),
@@ -365,6 +384,7 @@ def validate_shell_contract():
             and _fallback_valid()
             and not stray_colours
             and not stray_sizes
+            and hidden_valid
             and markup_free
             and components_pure
             and screens_valid

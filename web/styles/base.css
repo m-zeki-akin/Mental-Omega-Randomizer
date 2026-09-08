@@ -6,6 +6,18 @@
   box-sizing: border-box;
 }
 
+/* Hidden means hidden.
+ *
+ * The browser answers `hidden` with `display: none`, and any rule of ours
+ * that sets a display at all outranks it -- so a component that lays
+ * itself out as a grid stayed a grid after being hidden. The search list
+ * under the exclusion boxes was permanently down because of it: the code
+ * put it away on every blur and nothing happened. This is stated once so
+ * that hiding a thing does not depend on what that thing is laid out as. */
+[hidden] {
+  display: none !important;
+}
+
 html,
 body {
   height: 100%;
@@ -159,7 +171,6 @@ p { margin: 0; }
   align-content: start;
 }
 
-.screen[hidden] { display: none; }
 
 /* A section is a titled band of one screen. */
 .section {
