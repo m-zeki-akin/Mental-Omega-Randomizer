@@ -3057,8 +3057,6 @@ def _launch_rules_checks():
     this asserts two things at once -- that the answers are still the
     right answers, and that there is only one copy of them left.
     """
-    import inspect
-
     from randomizer.application import shop_controller
     from randomizer.shop import launch_rules
     from randomizer.shop.model import (
@@ -3120,20 +3118,33 @@ def _launch_rules_checks():
         and launch_rules.launch_rewards(run) is not None
     )
 
-    # And the window calls these rather than keeping its own copy. Read
-    # from the source, because two implementations that agree today are
-    # the shape this check exists to prevent.
-    controller = inspect.getsource(shop_controller)
+    # And the window calls these rather than keeping its own copy.
+    # Read from the compiled names each method uses, not from its source:
+    # a packaged launcher has no source to read, and the first version of
+    # this check passed on a developer's machine and brought the whole
+    # self-check down inside the exe.
+    def names(method):
+        return set(getattr(method, '__code__').co_names)
+
     delegates_valid = bool(
-        'from randomizer.shop.launch_rules import' in controller
-        and 'shop_launch_rewards(' in controller
-        and 'shop_reward_settings(' in controller
-        and 'shop_enemy_scaling_entries(' in controller
-        and 'modifier_clone_seed_plan(run)' in controller
-        # The bodies are gone, not merely unused: the seeds are counted
-        # in one place and the Counter that did it here is not.
-        and 'active_shop_tech_ids(run)' not in controller
-        and "reward.get('power_category') == 'aid'" not in controller
+        'shop_launch_rewards'
+        in names(shop_controller.ShopController.active_launch_rewards)
+        and 'shop_reward_settings'
+        in names(shop_controller.ShopController.active_reward_settings)
+        and 'shop_enemy_scaling_entries'
+        in names(shop_controller.ShopController.active_enemy_scaling_entries)
+        and 'modifier_clone_seed_plan'
+        in names(shop_controller.ShopController._shop_modifier_clone_seed_plan)
+        # The bodies are gone rather than merely unused: whatever each
+        # one reached for to do the work itself is no longer named in it.
+        and 'modifier_effects'
+        not in names(shop_controller.ShopController.active_reward_settings)
+        and 'canonical_reward_for_id'
+        not in names(shop_controller.ShopController.active_launch_rewards)
+        and 'active_shop_tech_ids'
+        not in names(
+            shop_controller.ShopController._shop_modifier_clone_seed_plan
+        )
     )
     return {
         'shop_launch_settings_valid': settings_valid,
