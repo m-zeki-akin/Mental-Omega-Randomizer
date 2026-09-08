@@ -860,6 +860,29 @@ def _one_rule_says_how_far_a_run_got_valid():
     )
 
 
+def _dealable(config):
+    """Return a config that can still deal a run, whatever is ticked off.
+
+    Every row that generates one reads the player's own settings, which
+    is right -- a check against invented settings checks nothing. But a
+    player may exclude missions, and one who has excluded all of them
+    leaves nothing to deal: generation refuses, and a refusal raised
+    inside a check is not a red row, it is the whole self-check stopping
+    on a traceback. Which is what happened, on an installation with all
+    ninety-seven ticked off.
+
+    So the mission exclusions come off for the generating rows and
+    nothing else does. What they ask -- does one seed make one run twice,
+    does what the game said become a mission finished -- is not a
+    question about which missions a player likes.
+    """
+    config = dict(config)
+    generation = dict(config.get('generation') or {})
+    generation['excluded_mission_codes'] = []
+    config['generation'] = generation
+    return config
+
+
 def _a_run_is_generated_from_the_settings_valid():
     """Generating makes the run the settings asked for, and keeps it.
 
@@ -880,7 +903,7 @@ def _a_run_is_generated_from_the_settings_valid():
         # Through the module: a name imported before the store of its own
         # was entered is the real function, and asking this question with
         # it would write the player's own settings file.
-        config = settings_file.load_config()
+        config = _dealable(settings_file.load_config())
         config['progression_mode'] = 'Mission List'
         config['campaign_filter'] = 'All Campaigns'
         config['mission_goal'] = wanted
@@ -930,7 +953,7 @@ def _the_same_settings_make_the_same_run_valid():
     def made(seed, state=None, mode='Mission List', goal=6):
         from randomizer.config import player as settings_file
 
-        config = settings_file.load_config()
+        config = _dealable(settings_file.load_config())
         config['campaign_filter'] = 'All Campaigns'
         config['mission_goal'] = goal
         config['progression_mode'] = mode
@@ -998,7 +1021,7 @@ def _a_mission_is_recorded_from_what_the_game_said_valid():
     from randomizer.config import player as settings_file
 
     with _store_of_its_own():
-        config = settings_file.load_config()
+        config = _dealable(settings_file.load_config())
         config['campaign_filter'] = 'All Campaigns'
         config['mission_goal'] = 4
         config['progression_mode'] = 'Mission List'
@@ -1184,7 +1207,7 @@ def _a_mission_is_not_started_until_it_starts_valid():
     from randomizer.config import player as settings_file
 
     with _store_of_its_own():
-        config = settings_file.load_config()
+        config = _dealable(settings_file.load_config())
         config['campaign_filter'] = 'All Campaigns'
         config['mission_goal'] = 6
         config['progression_mode'] = 'Mission List'
@@ -1415,7 +1438,7 @@ def _a_mission_left_out_stays_out_valid():
     if len(listed) < 8:
         return False
     with _store_of_its_own():
-        config = settings_file.load_config()
+        config = _dealable(settings_file.load_config())
         config['campaign_filter'] = 'All Campaigns'
         config['mission_goal'] = 8
         config['progression_mode'] = 'Mission List'
@@ -1527,7 +1550,7 @@ def _what_a_run_handed_over_can_be_read_valid():
 
     standings = set(campaign_actions.UNLOCK_STANDINGS)
     with _store_of_its_own():
-        config = settings_file.load_config()
+        config = _dealable(settings_file.load_config())
         config['campaign_filter'] = 'All Campaigns'
         config['mission_goal'] = 6
         # A board, and one that hides what it has not opened: the one
@@ -1657,7 +1680,7 @@ def _a_board_is_a_board_valid():
     from randomizer.config import player as settings_file
 
     def deal(mode, seed):
-        config = settings_file.load_config()
+        config = _dealable(settings_file.load_config())
         config.update({
             'campaign_filter': 'All Campaigns', 'mission_goal': 8,
             'progression_mode': mode, 'seed': seed,
