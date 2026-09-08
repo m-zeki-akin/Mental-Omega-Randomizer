@@ -1741,11 +1741,16 @@ def _store_of_its_own():
     somebody is playing.
     """
     from randomizer.skirmish import ai, launch, leaderboard
+    from randomizer.shop.persistence import (
+        ShopPersistencePaths,
+        ShopRepository,
+    )
     from randomizer.skirmish.persistence import (
         SkirmishPersistencePaths,
         SkirmishRepository,
     )
 
+    from . import shop as shop_actions
     from . import skirmish as actions_module
 
     from . import mission_session, session
@@ -1753,6 +1758,11 @@ def _store_of_its_own():
     from randomizer.application.launch_controller import LaunchController
 
     original = actions_module._repository
+    # And the Shop store, which is the other run somebody may have been
+    # playing for weeks -- and the only one here that keeps a *profile*
+    # as well: what every run so far left behind, which no sweep may
+    # touch. Everything Shop Mode writes goes through this one function.
+    shop_original = shop_actions._repository
     # The board is the other thing a command can write: a run given up is
     # a run recorded. It goes to the same temporary folder.
     board = leaderboard.LEADERBOARD_PATH
@@ -1810,6 +1820,12 @@ def _store_of_its_own():
             backup_dir=Path(folder) / 'backups',
         )
         actions_module._repository = lambda: SkirmishRepository(paths)
+        shop_actions._repository = lambda: ShopRepository(ShopPersistencePaths(
+            profile=Path(folder) / 'shop_profile.dat',
+            run=Path(folder) / 'shop_run.dat',
+            transaction=Path(folder) / 'shop_transaction.dat',
+            backup_dir=Path(folder) / 'shop_backups',
+        ))
         leaderboard.LEADERBOARD_PATH = Path(folder) / 'board.dat'
         session.SKIRMISH_LAUNCH_PATH = Path(folder) / 'launch.dat'
         session.start = _refuse_to_start
@@ -1841,6 +1857,7 @@ def _store_of_its_own():
             yield
         finally:
             actions_module._repository = original
+            shop_actions._repository = shop_original
             leaderboard.LEADERBOARD_PATH = board
             session.SKIRMISH_LAUNCH_PATH = ticket_path
             session.start = starter

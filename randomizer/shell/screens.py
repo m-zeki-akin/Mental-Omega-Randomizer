@@ -14,9 +14,10 @@ One table, here, rather than a list of tabs written into the page. The page
 asks what the mode has and draws that, so a mode gains a screen by gaining
 a row here and nothing else needs to know.
 
-A mode whose screens are not drawn yet says so on a screen of its own. That
-is not a placeholder for its own sake: a launcher that offers a mode and
-then shows an empty panel is worse than one that says where the mode is.
+Every mode is drawn here now. There used to be a screen for the ones that
+were not -- what the mode is, and one press to open the old window at it
+-- and it is gone with the last mode that needed it. The way to the old
+window is on Launcher, where it is a setting rather than a way out.
 """
 
 from randomizer.ui.config import (
@@ -61,12 +62,13 @@ BY_MODE = {
         ('board', 'Board'), ('run', 'Run'), ('unlocks', 'Unlocks'),
         ('campaign', 'Setup'),
     ),
-    # Its setup is here and its run is not: what a run is started with
-    # outlives the run, and both windows read it from one place. The
-    # mode's own panel says where the run itself is played.
+    # Run first, the way the campaign three have it: what a player opens
+    # the launcher to look at is the stage they are on and the shelf in
+    # front of them. Setup beside it describes the next run, which is a
+    # different question and outlives this one.
     'Shop Mode': (
+        ('shoprun', 'Run'),
         ('shop', 'Setup'),
-        ('classic', 'Mode'),
     ),
     'Skirmish Shop': (
         ('skirmish', 'Battle'),
@@ -86,7 +88,7 @@ BY_MODE = {
 # one step not proved is starting the process, which is the same call
 # either window makes.
 PORTED = frozenset({
-    'Skirmish Shop', 'Classic', 'Mission List', 'Grid Mode',
+    'Skirmish Shop', 'Classic', 'Mission List', 'Grid Mode', 'Shop Mode',
 })
 
 

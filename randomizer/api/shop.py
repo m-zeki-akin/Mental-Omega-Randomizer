@@ -21,6 +21,7 @@ from randomizer.shop.config import (
     configured_pacing,
     pacing_to_store,
 )
+from randomizer.shop.model import SHOP_ACCESS_REWARD_MODE
 from randomizer.shop.modifiers import (
     format_difficulty,
     pacing_gem_scale_percent,
@@ -188,3 +189,408 @@ def reset_setup():
     config[MODIFIER_SETTING_KEY] = []
     _keep(config)
     return _answer(config)
+
+
+# --- the run ----------------------------------------------------------
+#
+# Shop Mode's own half. The setup above says what the *next* run will be;
+# this is the one being played: what it has, what it is offered, what is
+# on the shelf, and the mission it is about to start.
+#
+# Everything here reads the domain rather than the old window. A run is
+# started, chosen from, bought from and given up through
+# ShopProgressionService, which is the same object the window drives.
+
+
+def _repository():
+    from randomizer.shop.persistence import ShopRepository
+
+    return ShopRepository()
+
+
+def _service():
+    from randomizer.shop.service import ShopProgressionService
+
+    return ShopProgressionService(_repository())
+
+
+def _maker(config=None):
+    """Return a launcher with nothing drawn, for the things that need one."""
+    from randomizer.campaign import generator
+
+    from .campaign import _settings as campaign_settings
+
+    return generator.build(
+        config or campaign_settings(), generator.installed_missions()
+    )
+
+
+def _mission_titles():
+    from randomizer.campaign import generator
+
+    return {
+        str(mission.get('code') or ''): str(mission.get('title') or '')
+        for mission in generator.installed_missions()
+    }
+
+
+def _offer_view(offer, run, titles):
+    from randomizer.shop.missions import mission_difficulty
+
+    code = offer.mission_code
+    return {
+        'code': code,
+        'name': titles.get(code) or code,
+        'economy': offer.economy_class.value,
+        'difficulty': mission_difficulty(
+            run.seed, run.stage, code, run_length=run.run_length,
+        ),
+        'chosen': code == run.selected_mission_code,
+    }
+
+
+def _shelf_view(profile, run):
+    """Return the three shelves, each row with what it costs right now."""
+    from randomizer.shop.catalogue import canonical_reward_for_id
+    from randomizer.shop.economy import run_reward_price
+    from randomizer.shop.shelf import shop_shelf
+
+    units, powers, upgrades = shop_shelf(profile, run)
+    def rows(entries):
+        listed = []
+        for entry in entries:
+            reward = canonical_reward_for_id(entry.reward_id)
+            listed.append({
+                'reward_id': entry.reward_id,
+                'name': str(reward.get('name') or entry.reward_id),
+                'target': entry.target_id or '',
+                'kind': entry.reward_type.value,
+                'price': run_reward_price(
+                    entry,
+                    shop_discount_level=profile.upgrade_level('shop_discount'),
+                    modifiers=run.modifiers,
+                    specialization_level=profile.upgrade_level(
+                        'discount_specialization'
+                    ),
+                ),
+                'bought': entry.reward_id in run.stage_shelf_purchases,
+            })
+        return listed
+
+    return {
+        'units': rows(units),
+        'powers': rows(powers),
+        'upgrades': rows(upgrades),
+    }
+
+
+def _run_view(profile, run):
+    from randomizer.shop.summary import (
+        run_summary_lines,
+        shop_run_progress_text,
+    )
+    from randomizer.shop.transitions import maximum_run_lives
+
+    if run is None:
+        return None
+    titles = _mission_titles()
+    return {
+        'run_id': run.run_id,
+        'seed': run.seed,
+        'status': run.status.value,
+        'active': run.status.name == 'ACTIVE',
+        'stage': run.stage,
+        'run_length': run.run_length,
+        'endless': run.endless,
+        'coins': run.run_coins,
+        'lives': maximum_run_lives(profile),
+        'lives_used': run.emergency_revivals_used,
+        'progress': shop_run_progress_text(run, profile),
+        'offers': [_offer_view(one, run, titles) for one in run.mission_offers],
+        'selected': run.selected_mission_code or '',
+        'committed': run.mission_committed,
+        'rerolls_used': run.rerolls_used,
+        'shelf': _shelf_view(profile, run),
+        'summary': list(run_summary_lines(profile, run, titles)),
+    }
+
+
+@action('shop.profile', 'What every Shop run so far has left behind')
+def profile():
+    stored = _repository().load_profile()
+    return {
+        'meta_coins': stored.meta_coins,
+        'runs_started': stored.lifetime_runs_started,
+        'runs_completed': stored.lifetime_runs_completed,
+        'missions_completed': stored.lifetime_missions_completed,
+        'units': list(stored.permanent_unit_unlocks),
+        'upgrades': dict(stored.permanent_upgrades),
+        'salvaged': stored.salvaged_run_coins,
+    }
+
+
+@action('shop.run', 'The Shop run being played, or nothing')
+def run():
+    stored_profile, stored_run = _repository().load()
+    return _run_view(stored_profile, stored_run)
+
+
+def _new_run_settings(maker, config):
+    """Return the reward settings a Shop run is started under.
+
+    The window's own list, read from the settings rather than from its
+    boxes: Shop Mode turns off the campaign's tuning wholesale, because a
+    run's difficulty is its pacing and its shelf rather than the dials
+    another mode is played with.
+    """
+    from randomizer.rewards.catalogue import BUFF_TYPES, POWER_BUFF_TYPES
+
+    settings = dict(maker.current_reward_settings())
+    settings.update({
+        'randomize_unit_access': True,
+        'start_with_tier_one_units': True,
+        'start_with_tier_one_defenses': True,
+        'starting_reward_count': 0,
+        'starting_unlock_rewards': [],
+        'include_defensive_buildings': True,
+        'include_special_buildings': True,
+        'include_special_rewards': True,
+        'unlimited_hero_units': False,
+        'share_chaos_role_buffs': False,
+        'buff_allied_helpers': False,
+        'failure_assistance': False,
+        'include_buff_rewards': True,
+        'include_superweapon_rewards': True,
+        'include_secondary_superweapon_rewards': True,
+        'include_aid_power_rewards': True,
+        'include_power_buff_rewards': True,
+        'enabled_reward_types': [
+            'access', 'buff', 'superweapon',
+            'secondary_superweapon', 'aid_power', 'power_buff',
+        ],
+        'enabled_buff_types': [one['id'] for one in BUFF_TYPES],
+        'enabled_power_buff_types': [one['id'] for one in POWER_BUFF_TYPES],
+        'excluded_unit_access_ids': [],
+        'excluded_superweapon_ids': [],
+        'excluded_unit_buff_types': {},
+        'excluded_power_buff_types': {},
+    })
+    scaling = dict(settings.get('enemy_scaling') or {})
+    scaling['maximum_total_buffs'] = 0
+    settings['enemy_scaling'] = scaling
+    settings.update(configured_pacing(_settings(), config))
+    return settings
+
+
+@action('shop.start', 'Begin a Shop run', kind=COMMAND)
+def start(seed=''):
+    """Start a run out of the settings, with no window anywhere in it."""
+    import uuid
+
+    from randomizer.shop.config import SHOP_CONFIG
+    from randomizer.shop.new_run import plan_new_run
+    from randomizer.shop.transitions import ShopTransitionError
+
+    from . import mission_session
+
+    if mission_session.running():
+        raise ApiError('A mission is already being played')
+    config = _settings()
+    maker = _maker(config)
+    missions = list(maker.missions or ())
+    if not missions:
+        raise ApiError('No missions are installed here')
+    wanted = str(seed or '').strip() or uuid.uuid4().hex[:16].upper()
+    stored_profile = _repository().load_profile()
+    settings = _new_run_settings(maker, SHOP_CONFIG)
+    settings['shop_faction_filter'] = 'All Campaigns'
+    try:
+        planned = plan_new_run(
+            run_id=uuid.uuid4().hex,
+            seed=wanted,
+            profile=stored_profile,
+            settings=settings,
+            mission_pool=missions,
+            faction_filter='All Campaigns',
+            starting_unit_markers=maker.starting_tier_one_unit_ids_for_seed(
+                wanted, settings
+            ),
+            starting_defense_markers=(
+                maker.starting_tier_one_defense_ids_for_seed(
+                    settings, seed=wanted
+                )
+            ),
+            selected_loadout=tuple(stored_profile.permanent_unit_unlocks),
+            modifiers=configured_modifiers(config),
+            reward_mode=SHOP_ACCESS_REWARD_MODE,
+            config=SHOP_CONFIG,
+        )
+        _service().start_run(**planned)
+    except (ShopTransitionError, ValueError) as exc:
+        raise ApiError(str(exc)) from exc
+    return {'seed': wanted}
+
+
+@action('shop.select', 'Choose which mission this stage is played on',
+        kind=COMMAND)
+def select(code=''):
+    from randomizer.shop.transitions import ShopTransitionError
+
+    try:
+        _service().select_mission(str(code or '').strip().upper())
+    except (ShopTransitionError, ValueError) as exc:
+        raise ApiError(str(exc)) from exc
+    return {'code': str(code or '').strip().upper()}
+
+
+@action('shop.buy', 'Buy one thing off the shelf', kind=COMMAND)
+def buy(reward_id=''):
+    from randomizer.shop.transitions import ShopTransitionError
+
+    try:
+        validation = _service().purchase_run_reward(str(reward_id or ''))
+    except (ShopTransitionError, ValueError, KeyError) as exc:
+        raise ApiError(str(exc)) from exc
+    if not validation.allowed:
+        raise ApiError(str(validation.reason or 'That cannot be bought'))
+    return {'reward_id': str(reward_id or '')}
+
+
+@action('shop.give_up', 'End the Shop run being played', kind=COMMAND)
+def give_up():
+    from randomizer.shop.transitions import ShopTransitionError
+
+    try:
+        _service().give_up_run()
+    except (ShopTransitionError, ValueError) as exc:
+        raise ApiError(str(exc)) from exc
+    return {'ended': True}
+
+
+def _launch_maker(stored_profile, stored_run):
+    """Return a launcher that writes a Shop mission rather than a campaign one.
+
+    The campaign's own machinery decides how a mission is written -- the
+    map, the markers, the rules -- and Shop Mode changes only what it is
+    written *with*. So the four answers that differ are answered from the
+    run, and everything else is inherited.
+    """
+    from randomizer.shop.catalogue import shop_catalogue_by_reward_id
+    from randomizer.shop.launch_rules import (
+        enemy_scaling_entries,
+        launch_rewards,
+        reward_settings,
+    )
+
+    base = _maker()
+    entries = shop_catalogue_by_reward_id()
+
+    class ShopLaunch(type(base)):
+        def active_reward_mode(self):
+            return SHOP_ACCESS_REWARD_MODE
+
+        def active_progression_mode(self):
+            return 'Shop Mode'
+
+        def active_launch_seed(self):
+            return stored_run.seed
+
+        def active_launch_campaign_filter(self):
+            return stored_run.campaign_filter
+
+        def launch_state_document(self):
+            return {
+                'seed': stored_run.seed,
+                'campaign_filter': stored_run.campaign_filter,
+                'progression_mode': 'Shop Mode',
+                'completed_missions': list(stored_run.completed_missions),
+            }
+
+        def active_reward_settings(self):
+            return reward_settings(stored_run)
+
+        def active_launch_rewards(self):
+            return launch_rewards(stored_run, stored_profile, entries)
+
+        def launch_rewards_for_mission(self, code):
+            return self.active_launch_rewards()
+
+        def active_enemy_scaling_entries(self):
+            return enemy_scaling_entries(stored_run)
+
+    from randomizer.campaign import generator
+
+    return ShopLaunch(
+        _settings(), generator.installed_missions(), None,
+    )
+
+
+@action('shop.launch', 'Play the mission this Shop stage is on', kind=COMMAND)
+def launch():
+    from randomizer.core.paths import GAME_EXE, GAME_LAUNCHER_EXE
+    from randomizer.shop.transitions import ShopTransitionError
+
+    from . import mission_session, session
+    from .campaign import _hook_for, _missions_by_code
+
+    stored_profile, stored_run = _repository().load()
+    if stored_run is None or stored_run.status.name != 'ACTIVE':
+        raise ApiError('There is no Shop run to play a mission of')
+    if mission_session.running():
+        raise ApiError('A mission is already being played')
+    if session.running():
+        raise ApiError('A skirmish battle is being played')
+    code = str(stored_run.selected_mission_code or '')
+    if not code:
+        raise ApiError('Choose which mission this stage is played on first')
+    mission = _missions_by_code().get(code)
+    if not mission or not mission.get('scenario'):
+        raise ApiError(f'{code} is not installed here')
+    missing = [
+        path for path in (GAME_LAUNCHER_EXE, GAME_EXE) if not path.exists()
+    ]
+    if missing:
+        raise ApiError(
+            'The game is not where the launcher expects it: '
+            + ', '.join(path.name for path in missing)
+        )
+    # The stage is committed before the game opens, the way the window
+    # does it: a mission played against an uncommitted stage would be a
+    # victory the run refuses to record.
+    try:
+        if not stored_run.mission_committed:
+            _service().commit_mission(code)
+    except (ShopTransitionError, ValueError) as exc:
+        raise ApiError(str(exc)) from exc
+    _stored_profile, stored_run = _repository().load()
+    maker = _launch_maker(stored_profile, stored_run)
+    prepared = maker.prepare_mission_launch_files(
+        mission,
+        None,
+        maker.get_selected_difficulty_value(),
+        maker.get_selected_game_speed_value(),
+    )
+    hook = _hook_for(mission, prepared)
+    try:
+        process, _command = maker.spawn_game_process()
+    except OSError as exc:
+        maker.cleanup_generated_root_maps()
+        maker.disable_generated_rules_for_client()
+        raise ApiError(f'The game would not start: {exc}') from exc
+    maker.remember_mission_started(mission)
+    mission_session.start(hook, stored_run.seed, process)
+    return {
+        'code': code,
+        'name': str(mission.get('title') or code),
+        'watched': bool(hook.get('markers')),
+    }
+
+
+@action('shop.session', 'What the Shop mission being played is doing')
+def playing():
+    from . import mission_session
+
+    stored_profile, stored_run = _repository().load()
+    if stored_run is None:
+        return {'playing': False, 'finished': None}
+    return mission_session.poll(_launch_maker(stored_profile, stored_run))
