@@ -297,6 +297,27 @@ def validate_shell_contract():
         and loaded == named
     )
 
+    # A mode played here does not carry the way out of here. The 'classic'
+    # screen is what an unported mode is drawn as -- what it is, and one
+    # press to open the old window at it -- so a ported mode holding one
+    # would be telling a player their mode is not drawn on the screen
+    # that draws it. The way to the old window is on Launcher either way.
+    from .screens import BY_MODE, PORTED
+
+    escapes_valid = bool(
+        PORTED
+        and all(
+            ('classic', 'Mode') not in BY_MODE.get(mode, ())
+            for mode in PORTED
+        )
+        # And an unported mode keeps it, or there is no way to reach the
+        # window that plays it.
+        and all(
+            ('classic', 'Mode') in pairs
+            for mode, pairs in BY_MODE.items() if mode not in PORTED
+        )
+    )
+
     # The control is two: a kind of game, then one of that kind. Which
     # means every mode has to be one kind exactly -- a mode in neither
     # cannot be reached from the control at all, and a mode in two would
@@ -334,6 +355,7 @@ def validate_shell_contract():
         'shell_no_markup_parsing_valid': markup_free,
         'shell_components_are_pure_valid': bool(components and components_pure),
         'shell_every_screen_a_mode_names_exists_valid': screens_valid,
+        'shell_a_ported_mode_has_no_way_out_valid': escapes_valid,
         'shell_every_action_asked_for_exists_valid': not unanswered,
         'shell_presses_wait_their_turn_valid': not impatient,
         'shell_every_mode_is_one_kind_of_game_valid': families_valid,
@@ -346,6 +368,7 @@ def validate_shell_contract():
             and markup_free
             and components_pure
             and screens_valid
+            and escapes_valid
             and not borrowing
             and not misnamed
             and not unanswered

@@ -48,11 +48,9 @@ BY_MODE = {
     # the counts there, and what those counts were made of here.
     'Classic': (
         ('run', 'Run'), ('unlocks', 'Unlocks'), ('campaign', 'Setup'),
-        ('classic', 'Mode'),
     ),
     'Mission List': (
         ('run', 'Run'), ('unlocks', 'Unlocks'), ('campaign', 'Setup'),
-        ('classic', 'Mode'),
     ),
     # Grid gets one screen the other two do not, and it comes first: its
     # order is not a list, so a table of missions describes it about as
@@ -61,7 +59,7 @@ BY_MODE = {
     # has no room for.
     'Grid Mode': (
         ('board', 'Board'), ('run', 'Run'), ('unlocks', 'Unlocks'),
-        ('campaign', 'Setup'), ('classic', 'Mode'),
+        ('campaign', 'Setup'),
     ),
     # Its setup is here and its run is not: what a run is started with
     # outlives the run, and both windows read it from one place. The
@@ -80,7 +78,16 @@ BY_MODE = {
 # that have a screen here. Shop Mode's setup is drawn and its run is not,
 # and a mode control that called that ported would be telling a player
 # they can play it in this window.
-PORTED = frozenset({'Skirmish Shop'})
+#
+# The three campaign modes joined the skirmish once every link of playing
+# one was proved without a window: the run is generated from the
+# settings, a mission is written out and hooked, and what the game says
+# in its log becomes rewards in hand and the mission after it open. The
+# one step not proved is starting the process, which is the same call
+# either window makes.
+PORTED = frozenset({
+    'Skirmish Shop', 'Classic', 'Mission List', 'Grid Mode',
+})
 
 
 def families():
