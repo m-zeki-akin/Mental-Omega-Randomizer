@@ -85,8 +85,17 @@ export async function refresh() {
     status(`The ${showing} screen did not load.`);
     return;
   }
+  // A redraw replaces every child of the panel, and a panel with nothing
+  // in it has nowhere to be scrolled to, so the browser puts it back at
+  // the top. Buying an upgrade redraws, which meant that buying the ninth
+  // one on the shelf threw the shop back to the run header and the next
+  // purchase had to be scrolled down to again. The band is what scrolls,
+  // so remembering one number across the redraw is the whole fix. A
+  // shorter screen clamps it, which is what should happen.
+  const wasAt = panel.scrollTop;
   try {
     await render(panel);
+    panel.scrollTop = wasAt;
     status('');
   } catch (error) {
     panel.replaceChildren(errorNotice(error));
