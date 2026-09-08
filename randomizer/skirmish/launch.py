@@ -41,7 +41,12 @@ from .colors import UNCHOSEN, color_ids, house_colors, is_a_color
 from .factions import country_by_index, skirmish_countries
 from .options import merge_game_options
 from .seats import apply_seat
-from .spawn import match_settings, skirmish_spawn_ini_text, write_skirmish_spawn_ini
+from .spawn import (
+    match_settings,
+    skirmish_spawn_ini_text,
+    spread_starts,
+    write_skirmish_spawn_ini,
+)
 from .speed import apply_locked_speed
 
 
@@ -229,6 +234,10 @@ def prepare_battle(battle, *, before=None, after=None):
         starts = {1: 0}
         for index, house in enumerate(described.houses):
             starts[index + 2] = house.start
+    else:
+        # An ordinary map places its own line-up, keeping the enemies off
+        # the player's doorstep. A challenge is placed by its script above.
+        starts = spread_starts(entry.spawns, battle['houses'])
 
     merge_game_options(SPAWN_MAP_INI, match_settings(options))
     apply_locked_speed(SPAWN_MAP_INI, battle['game_speed'])

@@ -27,6 +27,8 @@ from .maps import (
     STANDARD_POOL_DIR,
     maps_for_players,
     read_map_pool,
+    skirmish_map_pool,
+    standard_maps,
     summarize_map_pools,
 )
 from .results import last_game_result, result_blocks
@@ -67,6 +69,12 @@ NumberStartingPoints=3
 
 [Terrain]
 1234=TREE01
+
+[Waypoints]
+0=10010
+1=90090
+2=90010
+9=50050
 
 [Basic]
 Name=(3) Self Check Valley
@@ -305,13 +313,21 @@ def _map_reader_checks():
             MAP_FIXTURE.replace('MaxPlayer=4', 'MaxPlayer=8'),
             encoding='utf-8',
         )
+        # The Standard folder holds eighty maps that are not standard: king
+        # of the hill, oil control, one with no ore on it at all.
+        (root / 'oilfield.map').write_text(
+            MAP_FIXTURE.replace(
+                'GameMode=Standard,No Bases', 'GameMode=Oil Control'
+            ),
+            encoding='utf-8',
+        )
         pool = read_map_pool(root, cache=False)
         valley = next(entry for entry in pool if entry.path.stem == 'valley')
         other = next(
             entry for entry in pool if entry.path.stem == 'nopreview'
         )
         read_valid = bool(
-            len(pool) == 2
+            len(pool) == 3
             # Read from [Basic], not from the first Name= in the file: a
             # challenge map carries unit overrides with Name= keys of their
             # own, thousands of lines above the section describing the map.
@@ -323,19 +339,86 @@ def _map_reader_checks():
             and valley.game_modes == ('Standard', 'No Bases')
             and valley.preview is not None
             and other.preview is None
+            # Starting cells come from [Waypoints] and are read as one
+            # number, row before column: 90010 is column 10 of row 90. The
+            # [Header] carries the same points turned for the preview
+            # picture, which is a different pair of numbers entirely.
+            and valley.spawns == ((10, 10), (90, 90), (10, 90))
         )
         # What a map claims and what it can place are different numbers, and
         # a house with no start is dropped on top of somebody.
         seats_valid = bool(
             valley.seats == 3
             and other.seats == 3
-            and len(maps_for_players(pool, 3)) == 2
+            and len(maps_for_players(pool, 3)) == 3
             and not maps_for_players(pool, 4)
         )
+        # A battle is dealt maps that can be fought as an ordinary battle.
+        dealt = standard_maps(pool)
+        standard_valid = bool(
+            len(dealt) == 2
+            and all(entry.standard for entry in dealt)
+            and not any(entry.path.stem == 'oilfield' for entry in dealt)
+        )
+        # What the reader does, and then what the launcher actually deals.
+        # The first can be right while the pool still hands out the rest of
+        # the folder, which is how eighty of them were being played.
+        dealt_valid = all(entry.standard for entry in skirmish_map_pool())
         return {
             'skirmish_map_reader_valid': read_valid,
             'skirmish_map_seats_valid': seats_valid,
+            'skirmish_map_standard_only_valid': standard_valid,
+            'skirmish_map_pool_standard_valid': dealt_valid,
         }
+
+
+def _spawn_spread_checks():
+    """A team map's two corners, as Black's Big Bluff has them."""
+    from .spawn import SkirmishHouse, spread_starts
+
+    near = ((133, 211), (145, 214), (157, 211))
+    far = ((143, 104), (155, 101), (167, 104))
+    spawns = near + far
+    houses = (
+        SkirmishHouse(country=0, color=1, friendly=True),
+        SkirmishHouse(country=1, color=2, friendly=False),
+        SkirmishHouse(country=2, color=3, friendly=False),
+        SkirmishHouse(country=3, color=4, friendly=False),
+    )
+    starts = spread_starts(spawns, houses) or {}
+
+    def apart(one, other):
+        (ax, ay), (bx, by) = spawns[one], spawns[other]
+        return ((ax - bx) ** 2 + (ay - by) ** 2) ** 0.5
+
+    player = starts.get(1)
+    enemies = [starts[seat] for seat in (3, 4, 5) if seat in starts]
+    ally = starts.get(2)
+    spread_valid = bool(
+        len(starts) == 5
+        and len(set(starts.values())) == 5
+        # Taken in order the player sits on point 0 and an enemy on point
+        # 2, twenty-four cells away -- inside the base before the game has
+        # drawn. Every enemy belongs in the other corner.
+        and enemies and min(apart(player, foe) for foe in enemies) > 100
+        # The ally still stands with the player rather than being spread
+        # away with the rest of them.
+        and ally is not None and apart(player, ally) < 30
+        # Furthest first, so the nearest enemy takes the last seat.
+        and apart(player, enemies[0]) >= apart(player, enemies[-1])
+    )
+    # Five seats and four points. Without the guard the shortfall is not
+    # noticed and two houses are handed the same starting point, which puts
+    # them on top of each other; the engine improvises better when it is
+    # told nothing at all.
+    tiny_valid = spread_starts(spawns[:4], houses) is None
+    return {
+        'skirmish_spawn_spread_valid': spread_valid,
+        'skirmish_spawn_spread_room_valid': tiny_valid,
+        'skirmish_spawn_spread': {
+            str(seat): point for seat, point in sorted(starts.items())
+        },
+    }
 
 
 def _country_checks():
@@ -2283,6 +2366,7 @@ def validate_skirmish_contract():
     report.update(_spawn_checks())
     report.update(_result_checks())
     report.update(_map_reader_checks())
+    report.update(_spawn_spread_checks())
     report.update(_country_checks())
     report.update(_run_checks())
     report.update(_table_checks())

@@ -110,6 +110,64 @@ def match_settings(options=None):
     return settings
 
 
+def spread_starts(spawns, houses):
+    """Return a starting point for each seat, enemies as far off as possible.
+
+    Handed the map's starting cells and the line-up, this answers the same
+    shape ``starts`` takes: ``{1: 0, 2: 2, 3: 3}``, the human being seat one.
+
+    Taking the points in order -- which is what happens without this -- puts
+    the player on the first, the ally on the second and the first enemy on
+    the third. On a team map those three are the same corner: on Black's Big
+    Bluff points 0, 1 and 2 sit twelve and twenty-four cells apart while
+    points 3, 4 and 5 are a hundred and ten away, so every battle began with
+    an enemy already inside the player's base.
+
+    So the player takes the point whose nearest enemy is furthest, allies
+    take the points nearest the player, and enemies take what is left,
+    furthest first. Ties fall to the lower index, which keeps a given map
+    and line-up placing the same way every time it is played.
+    """
+    spawns = tuple(spawns or ())
+    houses = tuple(houses)
+    if len(spawns) < len(houses) + 1:
+        # Fewer points than seats: the engine has to improvise anyway, and
+        # it does that better with no instructions than with wrong ones.
+        return None
+
+    def apart(one, other):
+        (ax, ay), (bx, by) = spawns[one], spawns[other]
+        return (ax - bx) ** 2 + (ay - by) ** 2
+
+    friends = sum(1 for house in houses if house.friendly)
+    foes = len(houses) - friends
+    best = None
+    for start in range(len(spawns)):
+        rest = sorted(
+            (index for index in range(len(spawns)) if index != start),
+            key=lambda index: (apart(start, index), index),
+        )
+        # There is always a point for every seat, so the nearest few and
+        # the furthest few cannot be the same ones.
+        allies = rest[:friends]
+        enemies = rest[len(rest) - foes:] if foes else []
+        room = min(apart(start, index) for index in enemies) if foes else 0
+        mark = (room, sum(apart(start, index) for index in enemies), -start)
+        if best is None or mark > best[0]:
+            best = (mark, start, allies, list(enemies))
+    if best is None:
+        return None
+    _mark, start, allies, enemies = best
+
+    starts = {1: start}
+    allies, enemies = list(allies), list(enemies)
+    for seat, house in enumerate(houses, start=2):
+        # Enemies furthest first, so the one nearest the player is the last
+        # seat rather than the first.
+        starts[seat] = allies.pop(0) if house.friendly else enemies.pop()
+    return starts
+
+
 @dataclass(frozen=True)
 class SkirmishHouse:
     """One computer player in the line-up."""
