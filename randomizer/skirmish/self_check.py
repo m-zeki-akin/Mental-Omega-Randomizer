@@ -876,6 +876,7 @@ def _option_checks():
     """
     from .options import (
         GAME_OPTIONS_PATH,
+        _is_on,
         option_map_code_paths,
         parse_game_options,
         read_ini_sections,
@@ -933,8 +934,57 @@ def _option_checks():
         == '4'
         and not locked_speed_code(None)
     )
+    # A superweapon is not a spawn flag in this mod. The client offers
+    # All / Minor / None as a dropdown that writes map code -- SWAll.ini
+    # is empty and SWNone.ini pushes every superweapon building to
+    # TechLevel 11, one above what a match plays at -- so what decides
+    # whether one can be built is which of those files the map got. The
+    # spawn key is written too, and is not the mechanism.
+    #
+    # What is asked here is that nothing this mode merges puts a
+    # superweapon out of reach of the tech level it plays at.
+    def _blocked(selections=None):
+        settings = match_settings({})
+        level = int(settings.get('TechLevel', 0) or 0)
+        raised = {}
+        for path in option_map_code_paths(settings, selections=selections):
+            for section, values in read_ini_sections(path).items():
+                for key, value in values.items():
+                    if str(key).lower() != 'techlevel':
+                        continue
+                    try:
+                        raised[section] = int(str(value).strip())
+                    except (TypeError, ValueError):
+                        continue
+        from randomizer.rewards.roster import _installed_sections
+
+        installed = _installed_sections()
+        powers = [
+            name for name, body in installed.items()
+            if any(str(key).lower().startswith('superweapon') for key in body)
+        ]
+        return powers, [
+            name for name in powers if raised.get(name, 0) > level
+        ]
+
+    granting, out_of_reach = _blocked()
+    # And that the check would notice if it did: the last of the three
+    # choices is the one that takes them away.
+    _granting, refused = _blocked(
+        {index: len(items) - 1 for index, (items, _d) in enumerate(dropdowns)}
+    )
+    superweapon_valid = bool(
+        granting
+        and not out_of_reach
+        and refused
+        # The spawn key is written too. It is not what decides this, but
+        # a match that says False is a match saying two things at once.
+        and _is_on(match_settings({}).get('Superweapons', 'False'))
+    )
+
     return {
         'skirmish_game_options_known': known_valid,
+        'skirmish_superweapons_reachable': superweapon_valid,
         'skirmish_game_options_merged': merged_valid,
         'skirmish_speed_slider_inert': speed_valid,
     }

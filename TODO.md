@@ -9,16 +9,19 @@ Four things are written correctly and have never been watched in a game.
 The files were read on 2026-09-06 and say what they should; what is left
 is whether the game does what they ask. Each names what to look at.
 
-- **The speed slider.** Open the in-game options mid-battle and move the
-  speed slider from end to end. Nothing should change. The map carries
-  `[GlobalControls] CustomGS=yes` with all seven `CustomGS<N>.DefaultDelay`
-  set to the run's speed, so every position asks for the same pace. If the
-  game does change pace, `DefaultDelay` is not the frame delay and the
-  other two keys Phobos reads per step are where to look.
-
-- **Superweapons.** `Superweapons=True` is written now and was not before,
-  which is why none ever appeared. A battle long enough to build one should
-  have one, for the player and for the computer players alike.
+- **Superweapons.** Watched in a battle on 2026-09-08 and none appeared,
+  and the launcher was not the reason. This mod does not gate them with
+  the spawn flag: the client offers All / Minor / None as a dropdown that
+  writes map code, `SWAll.ini` is an empty file and `SWNone.ini` pushes
+  every granting building to TechLevel 11. A match merges SWAll at the
+  client's own default and plays at TechLevel 10, the buildings are
+  TechLevel 10, and their `Owner` already names all twelve countries, so
+  the seat can build them. `skirmish_superweapons_reachable` holds all of
+  that. What is left to find out is whether anybody ever gets there: the
+  Allied chain is two refineries, GAMERC at 1500, GAAIRC, GATECH at 2500
+  and GAWEAT at 5000, on top of an army, in a ShortGame battle. If a long
+  battle still shows no build icon on a house that has GATECH and a tier
+  two building, then it is the engine and not the setup.
 
 - **What a tier fields.** Tier 1 seats one Medium enemy beside a Hard ally.
   The tiers read: 1 medium; 2 medium; medium + hard; 2 medium + hard;
@@ -27,6 +30,12 @@ is whether the game does what they ask. Each names what to look at.
   on Easy and built defences all game. Tiers are no longer all one length:
   the challenges close battles 3, 7, 12 and 17, so tier 3 begins at battle
   8 rather than 11.
+
+- **An enemy that has infiltrated, and the challenge prototype.** Both
+  hand a house units without an infiltration, so neither waits on one.
+  Watch a tier three offer carrying `stolen` for enemies fielding units
+  their country can only steal, and a challenge for the prototype in the
+  player's own sidebar.
 
 - **An armed enemy building its copies.** From tier 2 an enemy is handed
   upgrades for the country it plays, written as `MOE` copies and named
@@ -41,16 +50,6 @@ is whether the game does what they ask. Each names what to look at.
   copy rather than the original.
 
 ## Skirmish Shop
-
-- **Confirm the speed slider is inert.** The slider cannot be removed --
-  it lives in the game executable -- so every one of its positions is given
-  the locked speed's delay through Phobos's `[GlobalControls] CustomGS`
-  table, written as map code. Moving it should now change nothing. Not yet
-  watched in a battle. If `DefaultDelay` turns out not to be the step's
-  frame delay, the other two keys Phobos reads for each step
-  (`ChangeInterval`, `ChangeDelay`) are where to look next. Dropping
-  `-SPEEDCONTROL` was tried first and changed nothing; the spawner's own
-  `[Settings]` keys, read out of `cncnet5.dll`, hold nothing about speed.
 
 - **Game speed as a difficulty dial.** A run is locked to the speed named by
   `locked_game_speed` in `configs/ui.json`, which is `1` — the value Mental
