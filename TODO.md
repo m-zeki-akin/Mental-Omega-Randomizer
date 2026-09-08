@@ -113,7 +113,11 @@ is whether the game does what they ask. Each names what to look at.
   extra garrison slot, power (more from a plant, less drawn by a defence or
   a superweapon), a wider `Adjacent`, and a larger
   `SpyEffect.StolenMoneyAmount` -- that last one is not really a building
-  stat, but it is written under a building so it lands here. Buildings are
+  stat, but it is written under a building so it lands here. It is the one
+  of these that has been asked for by name. The mod already gives every
+  refinery `Spyable=yes` and `SpyEffect.StolenMoneyAmount=6000`, and the
+  launcher writes nothing over it, so the work is an upgrade that raises
+  the number rather than anything that makes the theft happen. Buildings are
   excluded from the shelf today because they are what prerequisites are
   written against: a copy of a barracks satisfies nothing the original
   satisfied, so the copy needs teaching into every prerequisite and generic
