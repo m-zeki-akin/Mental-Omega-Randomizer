@@ -27,26 +27,58 @@ UNCHOSEN = -1
 # The stock thirteen, in the client's own order, for an installation whose
 # GameOptions.ini cannot be read. A launch has to be able to name a colour.
 STOCK_COLORS = (
-    (0, 'Teal'), (1, 'Red'), (2, 'Aqua'), (3, 'Lime'), (4, 'Purple'),
-    (5, 'Yellow'), (6, 'Blue'), (7, 'Orange'), (8, 'Magenta'), (9, 'Brown'),
-    (10, 'Green'), (11, 'Crimson'), (12, 'Sky'),
+    (0, 'Teal', (0, 168, 168)), (1, 'Red', (255, 0, 0)),
+    (2, 'Aqua', (0, 255, 255)), (3, 'Lime', (1, 255, 0)),
+    (4, 'Purple', (180, 91, 229)), (5, 'Yellow', (255, 216, 0)),
+    (6, 'Blue', (0, 150, 255)), (7, 'Orange', (255, 132, 0)),
+    (8, 'Magenta', (223, 0, 255)), (9, 'Brown', (178, 103, 50)),
+    (10, 'Green', (119, 190, 38)), (11, 'Crimson', (178, 0, 66)),
+    (12, 'Sky', (145, 180, 255)),
 )
+# What a colour is worth being told apart from, when the table cannot say.
+# Mid grey: every colour is the same distance from it, so a palette that
+# could not be read spreads the way it always did rather than clustering
+# every house on one entry.
+UNKNOWN_RGB = (128, 128, 128)
 
 
 @lru_cache(maxsize=1)
-def player_colors():
-    """Return ``((id, name), ...)`` for every colour, in the client's order."""
+def color_table():
+    """Return ``((id, name, (r, g, b)), ...)``, in the client's order.
+
+    The red, green and blue are read as well as the number, because who
+    wears what is decided by which colours look alike: the ally wears the
+    one nearest the player's and the enemies wear the ones furthest from
+    both.
+    """
     section = read_ini_sections(GAME_OPTIONS_PATH).get(MP_COLORS) or {}
     found = []
     for name, value in section.items():
         parts = [item.strip() for item in str(value).split(',')]
         if len(parts) < 4 or not parts[3].lstrip('-').isdigit():
             continue
-        found.append((int(parts[3]), str(name)))
+        channels = tuple(
+            int(part) if part.lstrip('-').isdigit() else 0
+            for part in parts[:3]
+        )
+        found.append((int(parts[3]), str(name), channels))
     if not found:
         log_event('skirmish_colors_unreadable', path=str(GAME_OPTIONS_PATH))
         return STOCK_COLORS
     return tuple(found)
+
+
+def player_colors():
+    """Return ``((id, name), ...)`` for every colour, in the client's order."""
+    return tuple((number, name) for number, name, _rgb in color_table())
+
+
+def color_rgb(number):
+    """Return one colour's red, green and blue."""
+    for found, _name, channels in color_table():
+        if found == number:
+            return channels
+    return UNKNOWN_RGB
 
 
 def color_ids():
@@ -67,25 +99,62 @@ def is_a_color(number):
     return int(number) in set(color_ids())
 
 
-def house_colors(*, player, taken=(), many=0):
-    """Return one colour per computer player, none of them the player's.
+def apart(one, other):
+    """How far two colours are from each other, to the eye."""
+    first, second = color_rgb(one), color_rgb(other)
+    return sum(
+        (int(a) - int(b)) ** 2 for a, b in zip(first, second)
+    ) ** 0.5
 
-    Spread through the list rather than taken from the front, because
-    neighbouring entries are neighbouring colours and two armies a player
-    has to tell apart at a glance should not both be blue.
+
+def house_colors(*, player, taken=(), friends=0, foes=0):
+    """Return one colour per computer player: allies first, then enemies.
+
+    Who is on the player's side should be readable off the minimap without
+    counting. So the ally wears the colour nearest the player's own -- blue
+    and cyan -- and the enemies wear the ones furthest from both, which on
+    the stock palette lands them in the reds and oranges.
+
+    Enemies are picked one at a time, each the furthest from everything
+    already worn rather than from the player alone. Furthest from the
+    player alone would seat crimson beside red: both are far from blue and
+    neither is far from the other.
     """
     spare = [
         number for number in color_ids()
         if number != player and number not in set(taken)
     ]
+    many = int(friends) + int(foes)
     if not spare:
+        # Nothing to hand out. Wearing the player's colour is wrong, but a
+        # house has to wear something and the alternative is no launch.
         return tuple(player for _ in range(many))
-    step = max(1, len(spare) // max(1, many))
-    picked = [spare[(index * step) % len(spare)] for index in range(many)]
-    # A short list can repeat; a long enough one never should.
-    seen = []
-    for number in picked:
-        if number in seen and len(seen) < len(spare):
-            number = next(one for one in spare if one not in seen)
-        seen.append(number)
-    return tuple(seen)
+
+    def furthest_from(avoid, among):
+        return max(among, key=lambda one: (
+            min(apart(one, other) for other in avoid), -one,
+        ))
+
+    worn = [player]
+    allies = []
+    for _ in range(int(friends)):
+        left = [one for one in spare if one not in allies]
+        if not left:
+            break
+        # Nearest the player, not nearest everything worn: an ally reads as
+        # the player's side by looking like the player.
+        allies.append(min(left, key=lambda one: (apart(one, player), one)))
+    worn.extend(allies)
+
+    enemies = []
+    for _ in range(int(foes)):
+        left = [one for one in spare if one not in allies + enemies]
+        if not left:
+            break
+        enemies.append(furthest_from(worn + enemies, left))
+
+    picked = allies + enemies
+    # A palette smaller than the line-up repeats rather than refusing.
+    while len(picked) < many:
+        picked.append(spare[len(picked) % len(spare)])
+    return tuple(picked)

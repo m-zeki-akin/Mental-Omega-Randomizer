@@ -114,7 +114,10 @@ def houses_for(run, offer):
     wearing = house_colors(
         player=player_color(run, described),
         taken=described.disallowed_colors if described is not None else (),
-        many=len(houses),
+        # Allies first, then enemies -- the order the line-up was built in
+        # above, so the colours land on the houses they were chosen for.
+        friends=sum(1 for house in houses if house.friendly),
+        foes=sum(1 for house in houses if not house.friendly),
     )
     return tuple(
         replace(house, color=color) for house, color in zip(houses, wearing)

@@ -659,6 +659,44 @@ def _run_checks():
             and all(house.color in color_ids() for house in seated)
         )
 
+        # Whose side a house is on should be readable off the minimap: the
+        # ally wears the colour nearest the player's and the enemies wear
+        # the ones furthest from both. Checked from every colour a player
+        # can choose, because taking the list at a fixed step happened to
+        # land on the right answer for one or two of them.
+        from .colors import apart, house_colors
+
+        sides_valid = True
+        for chosen in color_ids():
+            worn = house_colors(player=chosen, friends=1, foes=3)
+            if len(worn) != 4 or len(set(worn)) != 4 or chosen in worn:
+                sides_valid = False
+                break
+            ally, foes = worn[0], worn[1:]
+            spare = [one for one in color_ids() if one != chosen]
+            sides_valid = bool(
+                sides_valid
+                # Nearest of everything left, not merely near.
+                and apart(ally, chosen) == min(
+                    apart(one, chosen) for one in spare
+                )
+                # And every enemy further off than the ally is, measured
+                # against the player and the ally together.
+                and all(
+                    min(apart(foe, chosen), apart(foe, ally))
+                    > apart(ally, chosen)
+                    for foe in foes
+                )
+            )
+            if not sides_valid:
+                break
+        # A colour the map has spoken for is not handed out, whichever
+        # side would have worn it.
+        reserved = house_colors(
+            player=color_ids()[0], taken=(color_ids()[1],), friends=1, foes=2,
+        )
+        sides_valid = bool(sides_valid and color_ids()[1] not in reserved)
+
         paths = SkirmishPersistencePaths(
             runs=root / 'skirmish_runs.dat',
             backup_dir=root / 'backups',
@@ -722,6 +760,7 @@ def _run_checks():
         'skirmish_tier_cadence_valid': cadence_valid,
         'skirmish_offers_deterministic_valid': offers_valid,
         'skirmish_player_color_valid': color_valid,
+        'skirmish_color_sides_valid': sides_valid,
         'skirmish_victory_valid': victory_valid,
         'skirmish_defeat_costs_a_life_valid': defeat_valid,
         'skirmish_challenge_pool_valid': challenge_valid,
