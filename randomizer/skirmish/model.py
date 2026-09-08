@@ -110,6 +110,13 @@ class BattleOffer:
     # the offer was, so the battle that is played is the one that was
     # offered rather than a fresh roll at launch.
     enemy_upgrades: tuple[tuple[str, ...], ...] = ()
+    # What each enemy's whole army is bought up in, one entry per enemy,
+    # as plain stat names. An enemy is armed a faction at a time rather
+    # than a unit at a time: a battle is against an army, and one better
+    # Rhino among thirty is not something a player can see happening.
+    # The field above is what an offer dealt before this said, and is
+    # still read so a run in progress plays the battles it was offered.
+    enemy_faction_upgrades: tuple[tuple[str, ...], ...] = ()
     # One unit the player's country can otherwise only field by
     # infiltrating somebody, theirs for this battle. Empty on every
     # battle that is not handing one over.
@@ -128,6 +135,12 @@ class BattleOffer:
         """
         if len(self.enemy_upgrades) == len(self.enemy_countries):
             return self.enemy_upgrades
+        return tuple(() for _ in self.enemy_countries)
+
+    def enemy_faction_bought(self):
+        """Return the stats each enemy's army carries, however old the offer."""
+        if len(self.enemy_faction_upgrades) == len(self.enemy_countries):
+            return self.enemy_faction_upgrades
         return tuple(() for _ in self.enemy_countries)
 
     def enemy_handicaps(self):
@@ -151,6 +164,9 @@ class BattleOffer:
             'bonus_percent': self.bonus_percent,
             'modifiers': list(self.modifiers),
             'enemy_upgrades': [list(one) for one in self.enemy_upgrades],
+            'enemy_faction_upgrades': [
+                list(one) for one in self.enemy_faction_upgrades
+            ],
             'player_stolen': self.player_stolen,
             'seed': self.seed,
             'ally': self.ally,

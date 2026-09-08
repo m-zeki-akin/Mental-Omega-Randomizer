@@ -318,6 +318,7 @@ def enemy_purchases(offer):
     together rather than written twice.
     """
     from .model import UpgradePurchase
+    from .progression import faction_units
 
     by_country = {}
     for index, bought in zip(offer.enemy_countries, offer.enemy_bought()):
@@ -331,6 +332,21 @@ def enemy_purchases(offer):
             by_country.setdefault(country.country_id, {})[key] = (
                 UpgradePurchase(unit.upper(), buff_type, 1)
             )
+    # And the army-wide ones, which name a stat and no unit: every unit
+    # the country's shelf sells that stat for is bought up in it. Two
+    # enemies playing one country share the copies either way, so the
+    # stats are merged before they are spread across the units.
+    for index, stats in zip(
+        offer.enemy_countries, offer.enemy_faction_bought()
+    ):
+        country = country_by_index(index)
+        if country is None or not stats:
+            continue
+        for buff_type in stats:
+            for unit in faction_units(country.country_id, buff_type):
+                by_country.setdefault(country.country_id, {})[
+                    f'{unit}:{buff_type}'
+                ] = UpgradePurchase(unit.upper(), buff_type, 1)
     return {
         country: tuple(bought.values())
         for country, bought in by_country.items()

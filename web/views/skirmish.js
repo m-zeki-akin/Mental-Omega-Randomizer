@@ -20,7 +20,22 @@ function offerPills(offer) {
   }
   if (!offer.ally) marks.push(pill('no ally', 'danger'));
   if (offer.mental_ai) marks.push(pill('boosted AI', 'danger'));
-  if (offer.enemy_upgrades) {
+  // An enemy is bought up a faction at a time, so what it carries is
+  // named rather than counted: "enemy army: Firepower, Armour" says what
+  // kind of harder this battle is, which a number never did.
+  if (offer.enemy_army_stats && offer.enemy_army_stats.length) {
+    // Across all of them, so a late battle can name seven. The first
+    // three and a count reads; the whole list is a paragraph on a pill,
+    // and the panel is where the per-enemy breakdown belongs.
+    const stats = offer.enemy_army_stats;
+    const shown = stats.slice(0, 3).join(', ');
+    marks.push(pill(
+      stats.length > 3
+        ? `enemy armies: ${shown} +${stats.length - 3} more`
+        : `enemy armies: ${shown}`,
+      'danger',
+    ));
+  } else if (offer.enemy_upgrades) {
     marks.push(pill(
       offer.enemy_upgrades === 1
         ? 'enemy carries 1 upgrade'

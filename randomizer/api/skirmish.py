@@ -20,6 +20,7 @@ from randomizer.skirmish.maps import map_by_relative_path
 from randomizer.skirmish.progression import (
     SKILL_NAMES,
     describe_offer,
+    faction_stat_label,
     stolen_label,
 )
 from randomizer.skirmish.shop import owned_stacks, price_for, shelf_for
@@ -77,6 +78,21 @@ def countries():
     ]
 
 
+def _enemy_carried(offer):
+    """Return what each enemy brought, whichever way the offer says it.
+
+    An offer dealt now arms an enemy a faction at a time and names stats;
+    one dealt before that named units. A run in progress holds both, so a
+    card that counts what an enemy brought counts whichever it has.
+    """
+    return [
+        stats or bought
+        for bought, stats in zip(
+            offer.enemy_bought(), offer.enemy_faction_bought()
+        )
+    ]
+
+
 def offer_view(offer, index):
     """One battle card, as a screen needs it."""
     entry = map_by_relative_path(offer.map_path)
@@ -101,7 +117,7 @@ def offer_view(offer, index):
             for index, handicap, bought in zip(
                 offer.enemy_countries,
                 offer.enemy_handicaps(),
-                offer.enemy_bought(),
+                _enemy_carried(offer),
             )
         ],
         # What the offer asked for, by name, so a card can say it without
@@ -112,8 +128,14 @@ def offer_view(offer, index):
             stolen_label(offer.player_stolen) if offer.player_stolen else ''
         ),
         'enemy_upgrades': max(
-            (len(bought) for bought in offer.enemy_bought()), default=0,
+            (len(bought) for bought in _enemy_carried(offer)), default=0,
         ),
+        # The stats the enemy armies are bought up in, across all of them,
+        # so a card can say what kind of harder this battle is.
+        'enemy_army_stats': sorted({
+            faction_stat_label(stat)
+            for stats in offer.enemy_faction_bought() for stat in stats
+        }),
         'challenge': offer.challenge,
         'ally': offer.ally,
         'mental_ai': offer.mental_ai,
@@ -182,12 +204,29 @@ def _carried(country_id, items):
     return sorted(lines, key=lambda line: line['name'])
 
 
-def _army(index, items):
-    """One country and what it carries."""
+def _army_wide(stats):
+    """Return one line per stat a whole army has been bought up in."""
+    return [
+        {
+            'key': str(stat),
+            'unit': '',
+            'name': f'Army-wide {faction_stat_label(stat)}',
+            'effect': 'Every unit this army fields carries it.',
+            'stacks': 1,
+        }
+        for stat in sorted(stats or ())
+    ]
+
+
+def _army(index, items=(), stats=()):
+    """One country, what it carries, and what its whole army carries."""
     country = country_by_index(index)
     return dict(
         _country(index),
-        upgrades=_carried(country.country_id if country else '', items),
+        upgrades=(
+            _army_wide(stats)
+            + _carried(country.country_id if country else '', items)
+        ),
     )
 
 
@@ -283,13 +322,18 @@ def armies(repository=None):
                 ),
                 'enemies': [
                     dict(
-                        _army(country, ((key, 1) for key in bought)),
+                        _army(
+                            country,
+                            ((key, 1) for key in bought),
+                            stats,
+                        ),
                         skill=SKILL_NAMES.get(handicap, ''),
                     )
-                    for country, handicap, bought in zip(
+                    for country, handicap, bought, stats in zip(
                         offer.enemy_countries,
                         offer.enemy_handicaps(),
                         offer.enemy_bought(),
+                        offer.enemy_faction_bought(),
                     )
                 ],
             }

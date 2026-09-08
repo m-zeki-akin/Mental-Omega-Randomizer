@@ -2119,21 +2119,29 @@ def _shop_checks():
     from .progression import battle_offers, challenge_offer
     from .model import BattleOffer
     from .ownership import STOLEN_TECH_GROUP
-    from .progression import TIERS, _enemy_upgrades
+    from .progression import (
+        FACTION_STATS, TIERS, _faction_upgrades, faction_units,
+    )
 
     armed_country = 'UnitedStates'
-    handed = _enemy_upgrades(armed_country, 3, Random(7))
-    again = _enemy_upgrades(armed_country, 3, Random(7))
-    on_the_shelf = {
-        f'{one.unit}:{one.buff_type}'
-        for one in country_upgrades(armed_country)
-    }
+    handed = _faction_upgrades(armed_country, 3, Random(7))
+    again = _faction_upgrades(armed_country, 3, Random(7))
+    on_the_shelf = set(FACTION_STATS)
     stored = BattleOffer(
         map_path='Standard/self-check.map', map_name='Self Check',
         enemy_countries=(0, 0, 1), handicap=1, seed=1,
         enemy_upgrades=(('GGI:speed',), ('GI:armor',), ('GI:armor',)),
     )
     grouped = enemy_purchases(stored)
+    # The same three enemies, armed the way an offer arms them now: two
+    # of them playing one country, each named a stat rather than a unit.
+    army_wide = enemy_purchases(replace(
+        stored, enemy_upgrades=(), enemy_faction_upgrades=(
+            ('armor',), ('armor',), ('damage',),
+        ),
+    ))
+    first_country = (country_by_index(0) or _NO_COUNTRY).country_id
+    reached = faction_units(first_country, 'armor')
     # Dealt for real, at a tier whose enemies are armed, out of the maps
     # and the countries this installation has.
     dealing = replace(
@@ -2175,12 +2183,33 @@ def _shop_checks():
         # arrives.
         and not any(key.startswith(STOLEN_TECH_GROUP) for key in handed)
         # And nothing no task force names, for the same reason: what a
-        # computer player builds is what its task forces ask for.
+        # computer player builds is what its task forces ask for. Checked
+        # on the units an army-wide upgrade actually reaches, since that
+        # is now every unit of the faction that has the stat.
         and fielded_by_ai()
         and all(
-            key.split(':')[0] in fielded_by_ai()
+            unit in fielded_by_ai() and not unit.startswith(STOLEN_TECH_GROUP)
             for country in ('UnitedStates', 'USSR', 'PsiCorps', 'Guild1')
-            for key in _enemy_upgrades(country, 12, Random(3))
+            for stat in FACTION_STATS
+            for unit in faction_units(country, stat)
+        )
+        # An army-wide upgrade reaches an army, not one unit of it.
+        and len(reached) > 5
+        # And it is spread across those units rather than left as a stat
+        # nothing downstream knows what to do with: two enemies on one
+        # country still share one set, and the third has its own.
+        and len(army_wide) == 2
+        and len(army_wide[first_country]) == len(reached)
+        and {one.buff_type for one in army_wide[first_country]} == {'armor'}
+        and {one.unit for one in army_wide[first_country]} == set(reached)
+        # Nothing an army-wide upgrade names is missing from the shelf it
+        # was drawn from: a buff on a unit with nowhere to put it is a
+        # section in the rules and nothing on the field.
+        and all(
+            (one.unit, one.buff_type) in {
+                item.key for item in country_upgrades(first_country)
+            }
+            for one in army_wide[first_country]
         )
         # The ally is held to the same, out of its own purse.
         and all(
@@ -2190,7 +2219,7 @@ def _shop_checks():
                 replace(dealing, battle=1), 'UnitedStates', 4000,
             )[0]
         )
-        and _enemy_upgrades(armed_country, 0, Random(7)) == ()
+        and _faction_upgrades(armed_country, 0, Random(7)) == ()
         # The opening tier fights the army the rules describe. After that
         # an enemy is armed, and never less well armed than it was a tier
         # ago -- what a run walks into has to keep pace with what it has
@@ -2208,6 +2237,7 @@ def _shop_checks():
         # An offer stored before enemies were armed is read back as the
         # plain battle it was played as.
         and replace(stored, enemy_upgrades=()).enemy_bought() == ((), (), ())
+        and stored.enemy_faction_bought() == ((), (), ())
         # The challenge hands the player one unit of their own country
         # that a run could otherwise only take by infiltrating somebody,
         # and hands it over for that battle alone.
@@ -2223,7 +2253,7 @@ def _shop_checks():
         and dealt
         and not any(
             index == dealing.ally_country
-            for one in dealt if one.ally and any(one.enemy_bought())
+            for one in dealt if one.ally and any(one.enemy_faction_bought())
             for index in one.enemy_countries
         )
     )

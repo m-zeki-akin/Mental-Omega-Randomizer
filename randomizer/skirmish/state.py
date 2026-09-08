@@ -104,6 +104,12 @@ def normalize_battle_offer(document, field='offer'):
             if isinstance(document.get('enemy_upgrades'), list)
             and isinstance(bought, list)
         ),
+        enemy_faction_upgrades=tuple(
+            tuple(str(key) for key in (bought or []))
+            for bought in (document.get('enemy_faction_upgrades') or [])
+            if isinstance(document.get('enemy_faction_upgrades'), list)
+            and isinstance(bought, list)
+        ),
         player_stolen=_string(
             document.get('player_stolen'), f'{field}.player_stolen'
         ).upper(),

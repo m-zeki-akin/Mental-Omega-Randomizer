@@ -350,13 +350,49 @@ def _a_stolen_unit(country, generator):
     return generator.choice(found) if found else ''
 
 
-def _enemy_upgrades(country, many, generator):
-    """Return the upgrades one enemy is handed, as ``unit:buff_type`` keys.
+# What an enemy army can be bought up in.
+#
+# Not every stat the shelf sells means anything across a whole army. An
+# army that is entirely cloaked is not a harder battle, it is a battle the
+# player cannot see; carrying stats belong to the four units that carry
+# anything; and cost and production are what a shopper cares about, which
+# a computer player is not. What is left is the eight that read as an army
+# that hits harder, lasts longer, or arrives sooner.
+FACTION_STATS = (
+    'damage', 'armor', 'health', 'speed',
+    'range', 'sight', 'reload', 'self_healing',
+)
+# What to call one of those where a player reads it. The shelf names an
+# upgrade after the unit it is for -- "Rhino Heavy Tank Armor Plating I" --
+# and an army-wide one is for no unit in particular.
+FACTION_STAT_LABELS = {
+    'damage': 'Firepower',
+    'armor': 'Armour',
+    'health': 'Durability',
+    'speed': 'Speed',
+    'range': 'Range',
+    'sight': 'Sight',
+    'reload': 'Rate of fire',
+    'self_healing': 'Self-repair',
+}
 
-    Drawn from the shelf its own country shops from, because an upgrade
-    for a unit this army cannot field is Ore spent on nothing -- and since
-    an enemy plays a different country nearly every battle, a run's
-    enemies are bought up out of every faction's list in turn.
+
+def faction_stat_label(stat):
+    """Return what an army-wide upgrade in one stat is called."""
+    stat = str(stat or '')
+    return FACTION_STAT_LABELS.get(stat) or stat.replace('_', ' ').title()
+
+
+def _faction_upgrades(country, many, generator):
+    """Return the stats one enemy's whole army is bought up in.
+
+    A faction at a time rather than a unit at a time. One better Rhino
+    among the thirty a house builds is not something a player can see
+    happening, and an enemy that is meant to be harder should be harder
+    everywhere it is met.
+
+    Drawn from the stats its own country's shelf sells, so an army is only
+    ever bought up in something its units have.
     """
     if many <= 0 or not country:
         return ()
@@ -366,22 +402,44 @@ def _enemy_upgrades(country, many, generator):
     # Not the stolen-tech row: what puts those units on the field is an
     # infiltration, and an offer that wants them there says so and hands
     # them over. And not a unit no task force names, because a computer
-    # player builds what its task forces name -- an upgrade on anything
-    # else is an upgrade on a unit that never arrives.
+    # player builds what its task forces name.
     from .ai import fielded_by_ai
 
     fielded = fielded_by_ai()
-    shelf = [
-        one for one in country_upgrades(country)
+    sold = {
+        one.buff_type for one in country_upgrades(country)
         if one.unit != STOLEN_TECH_GROUP
         and (not fielded or one.unit in fielded)
-    ]
+    }
+    shelf = [stat for stat in FACTION_STATS if stat in sold]
     if not shelf:
         return ()
     return tuple(sorted(
-        f'{one.unit}:{one.buff_type}'
-        for one in generator.sample(shelf, min(many, len(shelf)))
+        generator.sample(shelf, min(many, len(shelf)))
     ))
+
+
+def faction_units(country, buff_type):
+    """Return the units an army-wide upgrade in this stat reaches.
+
+    The units whose own shelf entry sells that stat, less the stolen-tech
+    row and less anything no task force names. Read from the shelf rather
+    than assumed, because not every unit has every stat -- a submarine has
+    no passenger to carry and a dog has no weapon to reload -- and a buff
+    named for a unit that has nowhere to put it is a section in the rules
+    and nothing on the field.
+    """
+    from .ai import fielded_by_ai
+    from .ownership import STOLEN_TECH_GROUP
+    from .shop import country_upgrades
+
+    fielded = fielded_by_ai()
+    return tuple(sorted({
+        one.unit for one in country_upgrades(country)
+        if one.buff_type == buff_type
+        and one.unit != STOLEN_TECH_GROUP
+        and (not fielded or one.unit in fielded)
+    }))
 
 
 def battle_offers(run, pool, maps_dir, countries, *, count=OFFER_COUNT):
@@ -441,8 +499,8 @@ def battle_offers(run, pool, maps_dir, countries, *, count=OFFER_COUNT):
             mental_ai=rules.mental or any(one.mental for one in ask),
             bonus_percent=sum(one.percent for one in ask),
             modifiers=tuple(one.key for one in ask),
-            enemy_upgrades=tuple(
-                _enemy_upgrades(
+            enemy_faction_upgrades=tuple(
+                _faction_upgrades(
                     _country_id(countries, index), many, generator,
                 )
                 for index in enemy_countries
@@ -492,16 +550,27 @@ def describe_offer(offer):
     company = 'with your ally' if offer.ally else 'alone'
     boost = ', boosted AI' if offer.mental_ai else ''
     # What each enemy brought that the rules did not give it. Said as a
-    # count rather than a list: the units are the enemy's business, and
-    # what a player needs to know before choosing is how many.
-    carried = max(
-        (len(bought) for bought in offer.enemy_upgrades), default=0,
+    # count rather than a list: which stats they are is on the card's
+    # pills and in the panel, and what decides a choice is how many.
+    army_wide = max(
+        (len(stats) for stats in offer.enemy_faction_bought()), default=0,
     )
-    armed = (
-        f', {"each " if enemies > 1 else ""}carrying {carried} '
-        f'{"upgrade" if carried == 1 else "upgrades"}'
-        if carried else ''
-    )
+    if army_wide:
+        armed = (
+            f', {"each " if enemies > 1 else ""}with its army bought up '
+            f'{army_wide} {"way" if army_wide == 1 else "ways"}'
+        )
+    else:
+        # An offer dealt before enemies were armed a faction at a time
+        # still says what it was offered as.
+        carried = max(
+            (len(bought) for bought in offer.enemy_bought()), default=0,
+        )
+        armed = (
+            f', {"each " if enemies > 1 else ""}carrying {carried} '
+            f'{"upgrade" if carried == 1 else "upgrades"}'
+            if carried else ''
+        )
     reward = (
         f'\n+{offer.bonus_percent}% Ore for taking it'
         if offer.bonus_percent else ''
