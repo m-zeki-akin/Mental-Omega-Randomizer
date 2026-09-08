@@ -138,14 +138,30 @@ def upgrade_view(upgrade, purchases):
     }
 
 
+def _key_parts(key):
+    """Return ``(unit, buff_type)`` for an upgrade named either way.
+
+    A purchase names one by the pair the shelf keys it on. An offer arming
+    an enemy stores the same thing as ``unit:buff_type``, because an offer
+    is written to a file and a pair is not something JSON keeps. Both reach
+    this module, and a lookup that knows only one of them finds nothing --
+    which is not an error anywhere, just every name coming back as its own
+    ID.
+    """
+    if isinstance(key, str):
+        unit, _, buff_type = key.partition(':')
+        return unit, buff_type
+    unit, buff_type = key
+    return str(unit), str(buff_type)
+
+
 def _carried(country_id, items):
     """Return one readable line per upgrade an army carries.
 
-    ``items`` are ``(key, stacks)`` pairs, the key being the
-    ``unit:buff_type`` an offer and a purchase both name it by. Names come
-    from the country's own shelf, because that is where the upgrade was
-    drawn from -- an enemy is bought up out of the list its own faction
-    shops from, not the player's.
+    ``items`` are ``(key, stacks)`` pairs. Names come from the country's
+    own shelf, because that is where the upgrade was drawn from -- an enemy
+    is bought up out of the list its own faction shops from, not the
+    player's.
     """
     from randomizer.skirmish.shop import country_upgrades
 
@@ -154,10 +170,10 @@ def _carried(country_id, items):
     } if country_id else {}
     lines = []
     for key, stacks in items:
-        upgrade = named.get(key)
-        unit, _, buff_type = str(key).partition(':')
+        unit, buff_type = _key_parts(key)
+        upgrade = named.get((unit, buff_type))
         lines.append({
-            'key': key,
+            'key': f'{unit}:{buff_type}',
             'unit': unit,
             'name': upgrade.name if upgrade else f'{unit} {buff_type}',
             'effect': upgrade.effect if upgrade else '',

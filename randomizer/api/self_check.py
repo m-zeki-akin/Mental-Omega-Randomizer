@@ -1607,14 +1607,23 @@ def _an_army_says_what_it_carries_valid():
     if not shelf:
         return True
     one = shelf[0]
+    unit, buff_type = one.key
+    # Both spellings, because both reach this: a purchase carries the pair
+    # the shelf keys on, and an offer arming an enemy carries the string it
+    # could be written to a file as. Reading only the pair is how every
+    # enemy came to be listed as carrying "CNTR damage".
     named = _carried(country.country_id, [(one.key, 2)])
+    written = _carried(country.country_id, [(f'{unit}:{buff_type}', 1)])
     unknown = _carried(country.country_id, [('NOSUCH:armour', 1)])
     return bool(
         len(named) == 1
         and named[0]['name'] == one.name
-        and named[0]['name'] != one.key
+        and named[0]['name'] != f'{unit} {buff_type}'
         and named[0]['stacks'] == 2
         and named[0]['effect'] == one.effect
+        and len(written) == 1
+        and written[0]['name'] == one.name
+        and written[0]['key'] == named[0]['key'] == f'{unit}:{buff_type}'
         # A key the shelf has never heard of is still readable, because a
         # stored run outliving a change to the shelf must not blank the
         # panel out.

@@ -127,12 +127,18 @@ def spread_starts(spawns, houses):
     take the points nearest the player, and enemies take what is left,
     furthest first. Ties fall to the lower index, which keeps a given map
     and line-up placing the same way every time it is played.
+
+    ``None`` where the map has fewer points than the battle has seats, and
+    the spawn file keeps the seating order it always used.
     """
     spawns = tuple(spawns or ())
     houses = tuple(houses)
     if len(spawns) < len(houses) + 1:
-        # Fewer points than seats: the engine has to improvise anyway, and
-        # it does that better with no instructions than with wrong ones.
+        # Fewer points than seats. Nothing can be said that is not wrong --
+        # two houses would have to share a point -- so nothing is, and the
+        # spawn file falls back to the seating order it always used. No map
+        # in the pool is dealt to more seats than it has points, so this is
+        # the answer to a map the pool never offers.
         return None
 
     def apart(one, other):
