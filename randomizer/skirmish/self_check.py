@@ -421,6 +421,110 @@ def _spawn_spread_checks():
     }
 
 
+def _power_checks():
+    """A bought power is a private copy, granted by the same building."""
+    from .model import UpgradePurchase
+    from .powers import (
+        GRANT_KEYS,
+        GRANT_LIST_KEY,
+        POWER_LIST,
+        canonical_power,
+        country_powers,
+        granting_buildings,
+        power_buff_rules,
+        power_clone_code,
+        sellable_buffs,
+        superweapon_ids,
+    )
+    from .shop import UNIT_UPGRADE_WEIGHT, POWER_UPGRADE_WEIGHT
+
+    powers = superweapon_ids()
+    if not powers:
+        # No installed rules to read: nothing is claimed rather than
+        # failed, the way every other game-file row behaves.
+        return {'skirmish_power_upgrade_valid': True, 'skirmish_powers': {}}
+
+    from randomizer.ui.cameos import installed_rules_registry
+
+    _superweapons, rules = installed_rules_registry(synchronous=True)
+    granted = granting_buildings(rules)
+    # A power the Soviets build, with a buff that writes something.
+    soviet = country_powers('USSR', rules)
+    pick = next(
+        (
+            (power, sellable_buffs(power, rules)[0])
+            for power in sorted(soviet)
+            if sellable_buffs(power, rules) and granted.get(power)
+        ),
+        None,
+    )
+    if pick is None:
+        return {'skirmish_power_upgrade_valid': True, 'skirmish_powers': {}}
+    power, buff_type = pick
+    seat = 'Russians'
+    sections, built = power_clone_code(
+        [UpgradePurchase(power, buff_type, 1)], seat, rules=rules,
+    )
+    copy = built.get(power, '')
+    original = dict((rules.get(canonical_power(power, rules)) or {}))
+    made = sections.get(copy) or {}
+    building = granted[power][0]
+    written = sections.get(building) or {}
+    before = dict(rules.get(building) or rules.get(building.upper()) or {})
+
+    valid = bool(
+        copy
+        # A copy that says exactly what the original says is an upgrade
+        # that took Ore and changed nothing.
+        and made
+        and any(
+            str(made.get(key)) != str(value)
+            for key, value in original.items()
+        )
+        # It is the buyer's and nobody else's, and the buyer is shut out
+        # of the original -- or they build the silo and are handed the
+        # power twice, once plain and once improved.
+        and made.get('SW.RequiredHouses') == seat
+        and seat in str(
+            (sections.get(power) or {}).get('SW.ForbiddenHouses') or ''
+        )
+        # Handed over by the one key that adds. The two the mod wrote are
+        # not in the output at all, so a merge cannot disturb them.
+        and copy in str(written.get(GRANT_LIST_KEY) or '')
+        and not any(key in written for key in GRANT_KEYS)
+        # Whatever the building already granted, it still grants.
+        and all(
+            one.strip() in str(written.get(GRANT_LIST_KEY) or '')
+            for one in str(before.get(GRANT_LIST_KEY) or '').split(',')
+            if one.strip()
+        )
+        # And the copy is listed, or the engine never reads its section.
+        and copy in (sections.get(POWER_LIST) or {}).values()
+        # The weights are a share of the shelf, not a share of the rows.
+        and UNIT_UPGRADE_WEIGHT == 100
+        and POWER_UPGRADE_WEIGHT == 17
+        # A buff that wants the armour table or a warhead wants
+        # something every house reads, so it writes nothing here and is
+        # not sold. That same power's recharge still is, so this is a
+        # buff left out rather than a power quietly dropped.
+        and not power_buff_rules('TickTrapSpecial', 'health', 1, rules)
+        and power_buff_rules('TickTrapSpecial', 'recharge', 1, rules)
+        # And nothing is written anywhere but the copy, the original it
+        # was taken from, whatever grants it, and the list of powers. A
+        # section outside those four is a global edit, which is the bug
+        # private copies exist to avoid.
+        and set(sections) <= {copy, power, POWER_LIST} | set(granted[power])
+    )
+    return {
+        'skirmish_power_upgrade_valid': valid,
+        'skirmish_powers': {
+            'listed': len(powers),
+            'granted_by_a_building': len(granted),
+            'example': f'{power}:{buff_type} -> {copy}',
+        },
+    }
+
+
 def _country_checks():
     countries = skirmish_countries()
     if not countries:
@@ -1959,10 +2063,16 @@ def _shop_checks():
         upgrade_price,
     )
 
+    from .powers import superweapon_ids as _powers
+
     american = country_upgrades('UnitedStates')
     priced = {
         (one.buff_type, one.price) for one in american
-        if one.unit != STOLEN_TECH_GROUP
+        if one.unit != STOLEN_TECH_GROUP and one.unit not in _powers()
+    }
+    power_priced = {
+        (one.buff_type, one.price) for one in american
+        if one.unit in _powers()
     }
     hero_valid = bool(
         # The bands, as a table rather than as arithmetic.
@@ -1992,6 +2102,13 @@ def _shop_checks():
         and len(priced) == len({buff for buff, _price in priced})
         and all(
             price == upgrade_price(buff) for buff, price in priced
+        )
+        # And a power's rows read the second table, which is the whole
+        # reason there are two: the same stat name, a different price.
+        and power_priced
+        and all(
+            price == upgrade_price(buff, power=True)
+            for buff, price in power_priced
         )
         # A hero is not dearer than anything else any more. It was, and
         # the Tanya row was the one row a run never had to think about
@@ -2118,10 +2235,24 @@ def _shop_checks():
     # A row that stands for several units keeps its promise when any of
     # them takes the stat: one of the stolen-tech units carries nobody, and
     # a passenger upgrade that reaches the other four is still an upgrade.
+    from .powers import power_buff_rules, superweapon_ids
+
+    every_power = superweapon_ids()
     sold = [
         (_expand(upgrade.unit, country), upgrade.buff_type)
         for country in ('UnitedStates', 'USSR', 'PsiCorps', 'Guild1')
         for upgrade in country_upgrades(country)
+        if upgrade.unit not in every_power
+    ]
+    # A superweapon's own upgrades are held to the same promise, read
+    # against the power rather than against a unit: a power with no money
+    # to give has no cost to lower, and a row for one would be Ore for
+    # nothing exactly as a veterancy row would.
+    powers_sold = [
+        (upgrade.unit, upgrade.buff_type)
+        for country in ('UnitedStates', 'USSR', 'PsiCorps', 'Guild1')
+        for upgrade in country_upgrades(country)
+        if upgrade.unit in every_power
     ]
     delivers_valid = bool(
         sold
@@ -2129,12 +2260,20 @@ def _shop_checks():
             buff_type in {'veteran', 'build_limit', 'building_limit'}
             for _units, buff_type in sold
         )
+        # Passenger firing needs the transport the rules name, which a
+        # buyer is shut out of, so it is not sold either.
+        and not any(buff_type == 'open_topped' for _units, buff_type in sold)
         and all(
             any(
                 unit_rules(unit, buff_type, 1, sections, BUFF_TARGETS)
                 for unit in units
             )
             for units, buff_type in sold
+        )
+        and powers_sold
+        and all(
+            power_buff_rules(power, buff_type, 1)
+            for power, buff_type in powers_sold
         )
     )
 
@@ -2513,7 +2652,7 @@ def _shop_checks():
         'skirmish_shelf_valid': shelf_valid,
         'skirmish_shelf_is_one_country': country_valid,
         'skirmish_stolen_tech_is_one_row': stolen_valid,
-        'skirmish_hero_priced_by_cost': hero_valid,
+        'skirmish_upgrade_priced_by_effect_valid': hero_valid,
         'skirmish_linked_forms_copied': forms_valid,
         'skirmish_upgrade_effect_valid': effect_valid,
         'skirmish_upgrade_effect_quotes_installed': quoted_valid,
@@ -2529,6 +2668,7 @@ def validate_skirmish_contract():
     report.update(_result_checks())
     report.update(_map_reader_checks())
     report.update(_spawn_spread_checks())
+    report.update(_power_checks())
     report.update(_country_checks())
     report.update(_run_checks())
     report.update(_table_checks())

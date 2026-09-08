@@ -40,6 +40,7 @@ from .clones import apply_house_clones
 from .colors import UNCHOSEN, color_ids, house_colors, is_a_color
 from .factions import country_by_index, skirmish_countries
 from .options import merge_game_options
+from .powers import apply_power_clones, superweapon_ids
 from .seats import apply_seat
 from .spawn import (
     match_settings,
@@ -265,12 +266,27 @@ def prepare_battle(battle, *, before=None, after=None):
         ),
     )
 
+    # A superweapon is not a TechnoType and the unit machinery would make
+    # nonsense of one, so the two kinds of purchase are separated before
+    # either is written.
+    powers = superweapon_ids()
+    bought_units = tuple(
+        one for one in battle['purchases'] if one.unit not in powers
+    )
+    bought_powers = tuple(
+        one for one in battle['purchases'] if one.unit in powers
+    )
     built = apply_house_clones(
         SPAWN_MAP_INI,
-        battle['purchases'],
+        bought_units,
         battle['seat'],
         prefix=PLAYER_CLONE_PREFIX,
         roster=battle['player'].country_id,
+    )
+    # The player's own copies of the powers they bought upgrades for,
+    # granted by the same building and taken away from nobody else.
+    powered = apply_power_clones(
+        SPAWN_MAP_INI, bought_powers, battle['seat'],
     )
     # The prototype, if this battle hands one over. Its own call because
     # it is the one copy written without the gate it is named for: the
@@ -298,6 +314,7 @@ def prepare_battle(battle, *, before=None, after=None):
         game_mode=game_mode,
         seat=battle['seat'],
         player_clones=len(built),
+        player_powers=len(powered),
         player_granted=len(granted),
         ally_clones=len(ai_units),
     )

@@ -283,7 +283,65 @@ def country_upgrades(country):
             continue
         upgrades.append(made)
     upgrades.extend(_stolen_tech_bundles(bundles, stolen))
+    upgrades.extend(_power_upgrades(country))
     return tuple(sorted(upgrades, key=lambda item: (item.price, item.name)))
+
+
+def _power_upgrades(country):
+    """Return the superweapon upgrades this country can buy.
+
+    One row per power it can build the granting structure for, per buff
+    that writes anything onto that power. A power a run cannot build has
+    nothing to improve, and a buff with nothing to bite on -- a power with
+    no money to give has no cost to lower -- is not a row.
+    """
+    from randomizer.rewards.power_buff_definitions import (
+        POWER_BUFF_TYPE_BY_ID,
+    )
+
+    from .powers import (
+        canonical_power,
+        country_powers,
+        power_buff_rules,
+        sellable_buffs,
+    )
+
+    rows = []
+    for power in sorted(country_powers(country)):
+        named = canonical_power(power)
+        for buff_type in sellable_buffs(power):
+            definition = POWER_BUFF_TYPE_BY_ID.get(buff_type) or {}
+            written = power_buff_rules(power, buff_type, 1)
+            rows.append(Upgrade(
+                unit=power,
+                buff_type=buff_type,
+                name=f"{_power_name(named)} {definition.get('name') or buff_type}",
+                description=str(definition.get('description') or ''),
+                price=upgrade_price(buff_type, power=True),
+                limit=1,
+                # What it actually writes, which for a power is one or two
+                # keys and is more use than a sentence about moments.
+                effect=', '.join(
+                    f'{key} {value}' for key, value in sorted(written.items())
+                ) or str(definition.get('name') or buff_type),
+            ))
+    return rows
+
+
+@lru_cache(maxsize=1)
+def _power_names():
+    from randomizer.ui.cameos import installed_rules_registry
+
+    _superweapons, rules = installed_rules_registry(synchronous=True)
+    return {
+        str(name).upper(): str((body or {}).get('Name') or name)
+        for name, body in (rules or {}).items()
+    }
+
+
+def _power_name(power):
+    """Return what the game calls one superweapon."""
+    return _power_names().get(str(power).upper(), str(power))
 
 
 def _shared_effect(effects, label, count):
@@ -380,6 +438,8 @@ def draw_shelf(run, country, *, count=SHELF_SIZE, salt='shelf'):
     Drawn from the run's seed and its battle number, out of what the run
     does not already own.
     """
+    from .powers import superweapon_ids
+
     upgrades = available_upgrades(
         country_upgrades(country),
         run.purchases if salt == 'shelf' else run.ally_purchases,
@@ -387,10 +447,28 @@ def draw_shelf(run, country, *, count=SHELF_SIZE, salt='shelf'):
     if not upgrades:
         return ()
     generator = random.Random(f'{run.seed}:{run.battle}:{salt}')
-    return tuple(
-        shelf_key(upgrade)
-        for upgrade in generator.sample(upgrades, min(count, len(upgrades)))
+    powers = superweapon_ids()
+    # Drawn a slot at a time rather than out of one pile. There are three
+    # hundred unit rows and forty power rows, so one pile would put a
+    # power on the shelf about once a run; a slot decided by weight puts
+    # one there about once a shelf, which is what the weights say.
+    pools = {
+        True: [one for one in upgrades if one.unit in powers],
+        False: [one for one in upgrades if one.unit not in powers],
+    }
+    for pool in pools.values():
+        generator.shuffle(pool)
+    share = POWER_UPGRADE_WEIGHT / (
+        UNIT_UPGRADE_WEIGHT + POWER_UPGRADE_WEIGHT
     )
+    drawn = []
+    for _ in range(min(count, len(upgrades))):
+        wanted = generator.random() < share
+        # A pool that has run dry hands the slot to the other one rather
+        # than leaving the shelf a row short.
+        pool = pools[wanted] or pools[not wanted]
+        drawn.append(pool.pop())
+    return tuple(shelf_key(upgrade) for upgrade in drawn)
 
 
 def shelf_key(upgrade):
