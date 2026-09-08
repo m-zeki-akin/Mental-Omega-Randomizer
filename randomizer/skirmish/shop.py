@@ -20,7 +20,7 @@ from dataclasses import dataclass
 from functools import lru_cache
 import random
 
-from .model import UpgradePurchase, tier_of
+from .model import UpgradePurchase, closes_tier, tier_of
 from .ownership import STOLEN_TECH_GROUP
 
 
@@ -171,6 +171,20 @@ def battle_reward(battle, *, challenge=False, bonus_percent=0):
     if challenge:
         reward *= CHALLENGE_REWARD_MULTIPLIER
     return int(round(reward * (100 + max(0, int(bonus_percent))) / 100))
+
+
+def earned_by(battle):
+    """Return the Ore a run has had in hand by the time it fights this one.
+
+    What it started with, plus what every battle before it paid -- the
+    plain price, challenges doubled, nothing asked for. It is what an
+    enemy is armed against: a run reaching battle three has had 375 Ore
+    to spend, so the army it meets there has had 375 too.
+    """
+    total = STARTING_ORE
+    for before in range(1, max(1, int(battle))):
+        total += battle_reward(before, challenge=closes_tier(before))
+    return total
 
 
 @lru_cache(maxsize=16)

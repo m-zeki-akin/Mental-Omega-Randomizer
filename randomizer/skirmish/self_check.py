@@ -372,6 +372,60 @@ def _map_reader_checks():
         }
 
 
+def _spent(country, keys):
+    """Return what one enemy's list of upgrades cost it."""
+    from .model import UpgradePurchase
+    from .shop import country_upgrades, price_for
+
+    priced = {
+        (one.unit, one.buff_type): one for one in country_upgrades(country)
+    }
+    bought = []
+    total = 0
+    for key in keys:
+        unit, _, buff_type = str(key).partition(':')
+        upgrade = priced.get((unit, buff_type))
+        if upgrade is None:
+            continue
+        total += price_for(upgrade, bought)
+        bought.append(UpgradePurchase(unit, buff_type, 1))
+    return total
+
+
+def _army_stats_follow_the_tier(dealing, pool):
+    """Whether every offer's army stats are its tier's, plus what it asked."""
+    from dataclasses import replace as _replace
+
+    from .factions import skirmish_countries
+    from .progression import (
+        FACTION_STATS,
+        MODIFIERS_BY_KEY,
+        TIERS,
+        battle_offers,
+    )
+    from .model import tier_of
+    from .maps import MAPS_DIR
+
+    for battle in (1, 5, 9, 14, 19, 25):
+        tier = TIERS[min(tier_of(battle), len(TIERS)) - 1]
+        for offer in battle_offers(
+            _replace(dealing, battle=battle), pool, MAPS_DIR,
+            skirmish_countries(),
+        ):
+            asked = sum(
+                MODIFIERS_BY_KEY[key].faction_upgrades
+                + MODIFIERS_BY_KEY[key].enemy_upgrades
+                for key in offer.modifiers if key in MODIFIERS_BY_KEY
+            )
+            wanted = min(
+                len(FACTION_STATS), tier.enemy_upgrades + asked
+            )
+            for stats in offer.enemy_faction_bought():
+                if len(stats) != wanted:
+                    return False
+    return True
+
+
 def _spawn_spread_checks():
     """A team map's two corners, as Black's Big Bluff has them."""
     from .spawn import SkirmishHouse, spread_starts
@@ -2297,10 +2351,15 @@ def _shop_checks():
         FACTION_STATS, MODIFIERS_BY_KEY, TIERS, _enemy_upgrades,
         _faction_upgrades, engine_named_units, faction_units,
     )
+    from .shop import earned_by
 
     armed_country = 'UnitedStates'
-    handed = _enemy_upgrades(armed_country, 3, Random(7))
-    again = _enemy_upgrades(armed_country, 3, Random(7))
+    # What 375 Ore buys -- the run's third battle -- twice from the same
+    # seed, and what a run four tiers later can afford.
+    probe_budget = earned_by(3)
+    handed = _enemy_upgrades(armed_country, probe_budget, Random(7))
+    again = _enemy_upgrades(armed_country, probe_budget, Random(7))
+    richer = _enemy_upgrades(armed_country, earned_by(20), Random(7))
     on_the_shelf = {
         f'{one.unit}:{one.buff_type}'
         for one in country_upgrades(armed_country)
@@ -2353,7 +2412,10 @@ def _shop_checks():
         )
         prototype = closing.player_stolen if closing is not None else ''
     armed_valid = bool(
-        len(handed) == 3
+        # A handful at the third battle rather than a fixed number: what
+        # an enemy carries is what its Ore bought, and 375 Ore buys a
+        # few rows off a shelf priced from 75 to 250.
+        1 <= len(handed) <= 6
         # Drawn from the seed, so the battle that is played is the one
         # that was offered.
         and handed == again
@@ -2386,10 +2448,12 @@ def _shop_checks():
         # getting it is a modifier that buys nothing.
         and dealt
         and any('armed' in one.modifiers for one in dealt)
-        and all(
-            any(one.enemy_faction_bought()) == ('armed' in one.modifiers)
-            for one in dealt
-        )
+        # A tier buys its enemies an army-wide stat and an offer asking
+        # for a bought-up one buys more. Two different things: the Ore
+        # above buys units, this buys the whole army -- so the count is
+        # the tier's number plus what the offer asked for, checked a
+        # battle at a time because a tier is what a battle is in.
+        and _army_stats_follow_the_tier(dealing, armed_pool)
         # While the tier's own upgrades stand on every one of them,
         # asked for or not.
         and all(any(one.enemy_bought()) for one in dealt)
@@ -2452,6 +2516,13 @@ def _shop_checks():
             )[0]
         )
         and _enemy_upgrades(armed_country, 0, Random(7)) == ()
+        # An enemy is armed with what the run has earned by now, and it
+        # pays what the player pays -- so what it carries costs no more
+        # than the Ore it was given and grows as that grows.
+        and handed
+        and _spent(armed_country, handed) <= probe_budget
+        and _spent(armed_country, richer) <= earned_by(20)
+        and len(richer) > len(handed)
         # The opening tier fights the army the rules describe. After that
         # an enemy is armed, and never less well armed than it was a tier
         # ago -- what a run walks into has to keep pace with what it has

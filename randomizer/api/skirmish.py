@@ -272,6 +272,24 @@ def run(repository=None):
     return run_view(current, shelf=shelf)
 
 
+def _offer_enemies(offer):
+    """Return one entry per enemy of one battle, with what it carries."""
+    if offer is None:
+        return []
+    return [
+        dict(
+            _army(country, ((key, 1) for key in bought), stats),
+            skill=SKILL_NAMES.get(handicap, ''),
+        )
+        for country, handicap, bought, stats in zip(
+            offer.enemy_countries,
+            offer.enemy_handicaps(),
+            offer.enemy_bought(),
+            offer.enemy_faction_bought(),
+        )
+    ]
+
+
 @action('skirmish.armies', 'What every army in this run carries')
 def armies(repository=None):
     """Who is on the field and what each of them has been bought.
@@ -295,6 +313,13 @@ def armies(repository=None):
             current.ally_country,
             ((one.key, one.stacks) for one in current.ally_purchases),
         ),
+        # The enemies of the battle that is about to be played, so the
+        # panel reads as three armies rather than as a table of maps. Who
+        # each offer's enemies are is on that offer's own card, where the
+        # choice is being made.
+        'enemies': _offer_enemies(current.committed() or (
+            current.offers[0] if current.offers else None
+        )),
         'battles': [
             {
                 'index': index,
@@ -305,22 +330,7 @@ def armies(repository=None):
                     stolen_label(offer.player_stolen)
                     if offer.player_stolen else ''
                 ),
-                'enemies': [
-                    dict(
-                        _army(
-                            country,
-                            ((key, 1) for key in bought),
-                            stats,
-                        ),
-                        skill=SKILL_NAMES.get(handicap, ''),
-                    )
-                    for country, handicap, bought, stats in zip(
-                        offer.enemy_countries,
-                        offer.enemy_handicaps(),
-                        offer.enemy_bought(),
-                        offer.enemy_faction_bought(),
-                    )
-                ],
+                'enemies': _offer_enemies(offer),
             }
             for index, offer in enumerate(current.offers)
         ],

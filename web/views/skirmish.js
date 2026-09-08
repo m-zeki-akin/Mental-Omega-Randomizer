@@ -91,6 +91,28 @@ async function loadPreviews(offers) {
     }));
 }
 
+/* Which battle cards have been asked to show what their enemies carry.
+ * Kept outside render so the answer survives the redraw a purchase
+ * causes -- the same reason the armies panel keeps its own flag. */
+const showingOffer = new Set();
+
+/** The enemies of one battle, named army by army. */
+function offerUpgrades(battle) {
+  if (!battle) return [notice('Nothing is known about this battle yet.')];
+  return (battle.enemies || []).map((enemy) => card({
+    title: `${enemy.display}${enemy.skill ? ` — ${enemy.skill}` : ''}`,
+    body: enemy.upgrades.length
+      ? ''
+      : 'Fields what the rules give it, and nothing more.',
+    pills: enemy.upgrades.map((one) => pill(
+      one.stacks > 1 ? `${one.name} x${one.stacks}` : one.name,
+      one.unit ? null : 'danger',
+    )),
+    title_attr: enemy.upgrades.map((one) => one.effect)
+      .filter(Boolean).join('\n'),
+  }));
+}
+
 function offerCard(offer, run) {
   const committed = run.committed_offer;
   const blocked = committed !== null && committed !== offer.index;
@@ -104,6 +126,14 @@ function offerCard(offer, run) {
     state: blocked ? 'taken' : null,
     footer: [
       el('span', { class: 'muted', text: `${offer.seats} seats` }),
+      button(showingOffer.has(offer.index) ? 'Hide upgrades' : 'Show upgrades', {
+        variant: 'quiet',
+        onClick: () => {
+          if (showingOffer.has(offer.index)) showingOffer.delete(offer.index);
+          else showingOffer.add(offer.index);
+          refresh();
+        },
+      }),
       button(offer.challenge ? 'Fight challenge' : 'Fight', {
         variant: 'primary',
         disabled: blocked || !offer.installed || !run.active,
@@ -208,31 +238,32 @@ function armyCard(army, { title, note } = {}) {
   });
 }
 
+/* Three armies, not a table of maps.
+ *
+ * It used to list every battle on the table, because every one of them
+ * arms its own enemies differently. That belongs on the battle's own
+ * card, where the choice is being made -- Show upgrades, beside Fight --
+ * and this answers the plainer question: what are the three armies in
+ * this fight carrying. */
 function armiesPanel(armies) {
   if (!armies) return notice('This run has nothing to show yet.');
-  const parts = [
-    section('Yours and your ally’s', grid([
+  const enemies = armies.enemies || [];
+  return [
+    section('You', grid([
       armyCard(armies.player, { title: `You — ${armies.player.display}` }),
+    ])),
+    section('Ally', grid([
       armyCard(armies.ally, { title: `Ally — ${armies.ally.display}` }),
     ])),
-  ];
-  for (const battle of armies.battles || []) {
-    const enemies = battle.enemies || [];
-    // An enemy that was bought nothing is still worth showing: what the
-    // panel answers is who is on the field, not only who is carrying.
-    parts.push(section(
-      battle.committed ? `${battle.map_name} — chosen` : battle.map_name,
+    section(
+      'Enemies',
       enemies.length
         ? grid(enemies.map((enemy) => armyCard(enemy, {
           title: `${enemy.display}${enemy.skill ? ` — ${enemy.skill}` : ''}`,
         })))
-        : notice('No enemies listed for this battle.'),
-    ));
-    if (battle.granted) {
-      parts.push(notice(`This battle hands you a ${battle.granted}.`));
-    }
-  }
-  return parts;
+        : notice('No battle is chosen yet.'),
+    ),
+  ];
 }
 
 /* While a battle is up there is nothing to decide, so the screen says so
@@ -290,10 +321,13 @@ async function render(root) {
     run = await call('skirmish.run');
   }
   await loadPreviews(run.offers);
+  // Asked for once and read by both: the panel above the table, and
+  // whatever cards have been opened under it.
+  const armies = (showingArmies || showingOffer.size)
+    ? await call('skirmish.armies')
+    : null;
   const parts = [section(null, header(run))];
-  if (showingArmies) {
-    parts.push(...[].concat(armiesPanel(await call('skirmish.armies'))));
-  }
+  if (showingArmies) parts.push(...[].concat(armiesPanel(armies)));
   if (!run.active) {
     // A run that is over keeps its table on screen with everything on it
     // refused, which reads as a launcher that has stopped working rather
@@ -307,6 +341,18 @@ async function render(root) {
       run.warmup ? 'Warmup' : `Battle ${run.battle}`,
       grid(run.offers.map((offer) => offerCard(offer, run)), { wide: true }),
     ));
+    // What each opened card was asked to show, under the table rather
+    // than inside a card: an enemy's list runs to dozens of names by the
+    // late tiers and a card is not where dozens of names go.
+    for (const offer of run.offers) {
+      if (!showingOffer.has(offer.index)) continue;
+      const battle = ((armies || {}).battles || [])
+        .find((one) => one.index === offer.index);
+      parts.push(section(
+        `${offer.map_name} — what its enemies carry`,
+        grid(offerUpgrades(battle)),
+      ));
+    }
   }
   if (run.warmup) {
     parts.push(section('Upgrades', notice(

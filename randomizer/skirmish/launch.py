@@ -61,6 +61,9 @@ ENEMY_CLONE_PREFIX = 'MOE'
 # A unit handed over rather than improved: the player's prototype, and
 # what an enemy that has infiltrated somebody fields.
 GRANT_CLONE_PREFIX = 'MOG'
+# And what a computer player's own copy of a power is called, so it can
+# never answer to the same id as the player's.
+ENEMY_POWER_PREFIX = 'MOX'
 
 
 # What the player wears when they have not said, and what everyone wears
@@ -457,12 +460,23 @@ def prepare_ai(battle):
             # country's, so arming the enemy here would arm the ally too;
             # the enemy fights this one with what the rules gave it.
             continue
+        # A superweapon is not a TechnoType, so what the enemy spent its
+        # Ore on is split the way the player's purchases are: the units
+        # become its own copies, the powers become copies of the power
+        # granted to the country it is playing.
+        armed = superweapon_ids()
         made = apply_house_clones(
             SPAWN_MAP_INI,
-            bought,
+            tuple(one for one in bought if one.unit not in armed),
             country_id,
             prefix=ENEMY_CLONE_PREFIX,
             forbid_source=False,
+        )
+        apply_power_clones(
+            SPAWN_MAP_INI,
+            tuple(one for one in bought if one.unit in armed),
+            country_id,
+            prefix=ENEMY_POWER_PREFIX,
         )
         if made:
             by_country.setdefault(country_id, {}).update(made)

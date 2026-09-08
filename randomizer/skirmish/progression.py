@@ -28,9 +28,11 @@ from dataclasses import dataclass
 import random
 
 from .challenges import challenge_for
+from .shop import earned_by
 from .model import (
     WARMUP_BATTLE,
     BattleOffer,
+    UpgradePurchase,
     closes_tier,
     tier_of,
 )
@@ -354,6 +356,58 @@ def _a_stolen_unit(country, generator):
     found = sorted(stolen_tech_units(country))
     return generator.choice(found) if found else ''
 
+def _enemy_upgrades(country, budget, generator):
+    """Return what one enemy has spent its Ore on, as shelf keys.
+
+    An enemy does not shop -- it plays a different country nearly every
+    battle and has nothing to keep -- so what it carries is set for it,
+    out of the same list that country would shop from, up to the Ore a
+    run has had in hand by this battle.
+
+    It pays what the player pays: the list price, and the same rise for
+    everything already owned. So an army armed with 375 Ore has bought
+    what 375 Ore buys, not what 375 Ore would buy at a discount.
+    """
+    if budget <= 0 or not country:
+        return ()
+    from .ownership import STOLEN_TECH_GROUP
+    from .powers import superweapon_ids
+    from .shop import country_upgrades, price_for
+
+    # Not the stolen-tech row: what puts those units on the field is an
+    # infiltration, and an offer that wants them there says so and hands
+    # them over. And not a unit no task force names, because a computer
+    # player builds what its task forces name -- an upgrade on anything
+    # else is Ore spent on a unit that never arrives. A superweapon is
+    # neither: the house builds the structure and the power comes with it.
+    from .ai import fielded_by_ai
+
+    fielded = fielded_by_ai()
+    powers = superweapon_ids()
+    shelf = [
+        one for one in country_upgrades(country)
+        if one.unit != STOLEN_TECH_GROUP
+        and (
+            one.unit in powers
+            or not fielded
+            or one.unit in fielded
+        )
+    ]
+    if not shelf:
+        return ()
+    generator.shuffle(shelf)
+    bought = []
+    spent = 0
+    for one in shelf:
+        price = price_for(one, bought)
+        if spent + price > budget:
+            continue
+        bought.append(UpgradePurchase(one.unit, one.buff_type, 1))
+        spent += price
+    return tuple(sorted(
+        f'{one.unit}:{one.buff_type}' for one in bought
+    ))
+
 
 # What an enemy army can be bought up in.
 #
@@ -386,42 +440,6 @@ def faction_stat_label(stat):
     """Return what an army-wide upgrade in one stat is called."""
     stat = str(stat or '')
     return FACTION_STAT_LABELS.get(stat) or stat.replace('_', ' ').title()
-
-
-def _enemy_upgrades(country, many, generator):
-    """Return the upgrades one enemy is handed, as ``unit:buff_type`` keys.
-
-    What a tier hands out: a few rows off the shelf its own country shops
-    from, because an upgrade for a unit this army cannot field is Ore
-    spent on nothing -- and since an enemy plays a different country
-    nearly every battle, a run's enemies are bought up out of every
-    faction's list in turn.
-    """
-    if many <= 0 or not country:
-        return ()
-    from .ownership import STOLEN_TECH_GROUP
-    from .shop import country_upgrades
-
-    # Not the stolen-tech row: what puts those units on the field is an
-    # infiltration, and an offer that wants them there says so and hands
-    # them over. And not a unit no task force names, because a computer
-    # player builds what its task forces name -- an upgrade on anything
-    # else is an upgrade on a unit that never arrives.
-    from .ai import fielded_by_ai
-
-    fielded = fielded_by_ai()
-    shelf = [
-        one for one in country_upgrades(country)
-        if one.unit != STOLEN_TECH_GROUP
-        and (not fielded or one.unit in fielded)
-    ]
-    if not shelf:
-        return ()
-    return tuple(sorted(
-        f'{one.unit}:{one.buff_type}'
-        for one in generator.sample(shelf, min(many, len(shelf)))
-    ))
-
 
 def _faction_upgrades(country, many, generator):
     """Return the stats one enemy's whole army is bought up in.
@@ -545,18 +563,22 @@ def battle_offers(run, pool, maps_dir, countries, *, count=OFFER_COUNT):
             continue
         entry = generator.choice(candidates)
         chosen.add(str(entry.path))
-        # What the tier hands out, unit by unit, and what this offer asked
-        # for on top of it, army-wide. They are different things bought in
-        # different ways, so they are counted apart.
-        many = rules.enemy_upgrades + sum(one.enemy_upgrades for one in ask)
-        army_wide = sum(one.faction_upgrades for one in ask)
+        # Two different things, armed two different ways. Every enemy is
+        # set the upgrades the Ore a run has earned by now would buy --
+        # it does not shop, so they are set for it -- and the tier buys
+        # its whole army a stat on top, which an offer asking for a
+        # bought-up enemy adds to.
+        budget = earned_by(run.battle)
+        army_wide = rules.enemy_upgrades + sum(
+            one.faction_upgrades for one in ask
+        ) + sum(one.enemy_upgrades for one in ask)
         # An armed enemy may not play the ally's country. A copy is gated
         # to a country rather than to a house, so arming that enemy would
         # arm the ally with it -- and the launch, which cannot do that,
         # would send it plain against an offer that promised otherwise and
         # was paid for.
         drawn_from = countries
-        if (many > 0 or army_wide > 0) and ally:
+        if (budget > 0 or army_wide > 0) and ally:
             spare = [
                 country for country in countries
                 if country.index != run.ally_country
@@ -576,7 +598,7 @@ def battle_offers(run, pool, maps_dir, countries, *, count=OFFER_COUNT):
             modifiers=tuple(one.key for one in ask),
             enemy_upgrades=tuple(
                 _enemy_upgrades(
-                    _country_id(countries, index), many, generator,
+                    _country_id(countries, index), budget, generator,
                 )
                 for index in enemy_countries
             ),
