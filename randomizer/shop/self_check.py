@@ -3146,7 +3146,78 @@ def _launch_rules_checks():
             shop_controller.ShopController._shop_modifier_clone_seed_plan
         )
     )
+    # And the other half of a run that could only be started from a
+    # window: what it is started *with*.
+    from randomizer.campaign import generator
+    from randomizer.config import player as settings_file
+    from randomizer.shop.new_run import maximum_loadout, plan_new_run
+
+    missions = generator.installed_missions()
+    plan_valid = True
+    if missions:
+        maker = generator.build(settings_file.load_config(), missions)
+        opening = dict(maker.current_reward_settings())
+        opening.update({
+            'start_with_tier_one_units': True,
+            'start_with_tier_one_defenses': True,
+            'randomize_unit_access': True,
+            'excluded_unit_access_ids': [],
+        })
+        seed = 'PLAN-CHECK'
+        plan = plan_new_run(
+            run_id='plan-check',
+            seed=seed,
+            profile=ShopProfile(),
+            settings=opening,
+            mission_pool=missions[:20],
+            faction_filter='All Campaigns',
+            starting_unit_markers=maker.starting_tier_one_unit_ids_for_seed(
+                seed, opening
+            ),
+            starting_defense_markers=(
+                maker.starting_tier_one_defense_ids_for_seed(
+                    opening, seed=seed
+                )
+            ),
+            reward_mode='Chaos',
+        )
+        plan_valid = bool(
+            # A run opens with an army rather than with nothing, and the
+            # offer it is dealt is the one the modifiers ask for.
+            plan['starting_unit_ids']
+            and plan['mission_offers']
+            and set(plan['starter_tech_ids'])
+            == set(plan['starting_unit_ids']) | set(plan['starting_defense_ids'])
+            # Every argument start_new_run insists on is in it, worked out
+            # from the profile and the seed rather than from a window.
+            and plan['run_id'] and plan['seed'] == seed
+            and plan['maximum_extra_units']
+            == maximum_loadout(ShopProfile())
+            # A loadout is chosen before the run and outlives the profile
+            # it was chosen against, so nothing the profile does not own
+            # goes with it.
+            and plan_new_run(
+                run_id='x', seed=seed, profile=ShopProfile(),
+                settings=opening, mission_pool=missions[:20],
+                faction_filter='All Campaigns',
+                starting_unit_markers=(), starting_defense_markers=(),
+                selected_loadout=('Something Nobody Owns',),
+                reward_mode='Chaos',
+            )['selected_reward_ids'] == ()
+        )
+
+    # And the window asks for the plan rather than working one out.
+    plans_valid = bool(
+        'plan_new_run'
+        in names(shop_controller.ShopController.start_shop_run)
+        and 'generate_mission_offers'
+        not in names(shop_controller.ShopController.start_shop_run)
+        and 'shop_starter_unit_ids'
+        not in names(shop_controller.ShopController.start_shop_run)
+    )
     return {
+        'shop_new_run_plan_valid': plan_valid,
+        'shop_new_run_planned_once_valid': plans_valid,
         'shop_launch_settings_valid': settings_valid,
         'shop_launch_rewards_valid': rewards_valid,
         'shop_launch_rules_shared_valid': delegates_valid,

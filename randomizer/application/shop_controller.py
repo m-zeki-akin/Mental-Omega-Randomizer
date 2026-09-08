@@ -30,6 +30,7 @@ from randomizer.shop.active import (
     shop_starter_defense_ids,
     shop_starter_unit_ids,
 )
+from randomizer.shop.new_run import plan_new_run
 from randomizer.shop.launch_rules import (
     enemy_scaling_entries as shop_enemy_scaling_entries,
     launch_rewards as shop_launch_rewards,
@@ -1783,94 +1784,24 @@ class ShopController(ShopPolishController):
             )
         finally:
             self._seed_generation_context = previous_context
-        starting_units = shop_starter_unit_ids(
-            seed=seed,
-            starting_unit_ids=starting_unit_markers,
-            faction_filter=faction_filter,
-            excluded_unit_ids=settings.get('excluded_unit_access_ids', ()),
-        )
-        if effects['starter_unit_count_flat'] == -2 and len(starting_units) >= 5:
-            # Remove one infantry and one vehicle while preserving aircraft
-            # and naval safety roles.
-            starting_units = (
-                starting_units[0], starting_units[2], *starting_units[4:]
-            )
-        starting_defenses = shop_starter_defense_ids(
-            seed=seed,
-            starting_defense_ids=starting_defense_markers,
-            faction_filter=faction_filter,
-            excluded_unit_ids=settings.get('excluded_unit_access_ids', ()),
-        )
-        starter_tech_ids = set(starting_units)
-        starter_tech_ids.update(starting_defenses)
         ap_identity, ap_reward_ids = self.archipelago_shop_context()
-        maximum_extra_units = self._maximum_shop_loadout()
-        permanent_entitlements = set(self.shop_profile.permanent_unit_unlocks)
-        selected = tuple(
-            reward_id for reward_id in self._selected_loadout_reward_ids()
-            if reward_id in permanent_entitlements
-        )
-        permanent_buff_targets = set(starter_tech_ids)
-        permanent_buff_targets.update(
-            entry.target_id
-            for reward_id in (
-                *selected,
-                *ap_unit_entitlement_ids(ap_reward_ids),
-            )
-            for entry in [self._shop_entry_by_reward_id.get(reward_id)]
-            if entry is not None and entry.target_id
-        )
-        permanent_buffs = tuple(
-            item for item in self.shop_profile.permanent_buffs
-            if (
-                (entry := self._shop_entry_by_reward_id.get(item.reward_id))
-                is not None
-                and entry.target_id in permanent_buff_targets
-            )
-        )
         try:
-            mission_pool = self._shop_run_mission_pool()
-            if len(mission_pool) < self.shop_config.run_length:
-                raise ShopTransitionError(
-                    f'Shop Mode needs at least {self.shop_config.run_length} '
-                    'eligible missions under current filters'
-                )
-            offers = generate_mission_offers(
-                mission_pool,
-                run_seed=seed,
-                stage=1,
-                offer_count=modifier_mission_offer_count(modifiers),
-            )
-            expected_offer_count = modifier_mission_offer_count(modifiers)
-            if len(offers) != expected_offer_count:
-                raise ShopTransitionError(
-                    'Shop Mode needs at least '
-                    f'{expected_offer_count} eligible Act 1 '
-                    'missions for its protected opening'
-                )
-            self.shop_service.start_run(
+            self.shop_service.start_run(**plan_new_run(
                 run_id=uuid.uuid4().hex,
                 seed=seed,
-                mission_offers=offers,
-                campaign_filter='All Campaigns',
-                reward_mode=SHOP_REWARD_MODE,
-                reward_settings=settings,
-                eligible_mission_codes=(
-                    mission.get('code') for mission in mission_pool
-                ),
-                starter_tech_ids=starter_tech_ids,
-                starting_unit_ids=starting_units,
-                starting_defense_ids=starting_defenses,
-                selected_reward_ids=selected,
-                permanent_entitlement_ids=(
-                    self.shop_profile.permanent_unit_unlocks
-                ),
-                permanent_buffs=permanent_buffs,
-                maximum_extra_units=maximum_extra_units,
-                ap_entitlement_ids=ap_reward_ids,
-                ap_identity=ap_identity,
+                profile=self.shop_profile,
+                settings=settings,
+                mission_pool=self._shop_run_mission_pool(),
+                faction_filter=faction_filter,
+                starting_unit_markers=starting_unit_markers,
+                starting_defense_markers=starting_defense_markers,
+                selected_loadout=self._selected_loadout_reward_ids(),
                 modifiers=modifiers,
-            )
+                ap_identity=ap_identity,
+                ap_reward_ids=ap_reward_ids,
+                reward_mode=SHOP_REWARD_MODE,
+                config=self.shop_config,
+            ))
             self.save_current_launcher_config()
         except (ShopTransitionError, ValueError) as exc:
             self._set_shop_message(exc, error=True)
