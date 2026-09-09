@@ -27,7 +27,7 @@ one that is played.
 from dataclasses import dataclass
 import random
 
-from .challenges import challenge_for
+from .challenges import challenge_for, in_first_walk
 from .shop import earned_by
 from .model import (
     WARMUP_BATTLE,
@@ -234,6 +234,23 @@ def challenge_level(battle):
     return tier_rules(battle).challenge
 
 
+def _walkable(run, pool, maps_dir):
+    """Return the challenges this run has earned the right to be dealt.
+
+    The client's later challenges are a different game from its early ones,
+    so a first walk closes its tiers on the first twelve and the rest wait
+    for nightmare. An installation that numbers none of them keeps all of
+    them: the holding back is the client's own ordering, not a guess.
+    """
+    if run.nightmare:
+        return list(pool)
+    walkable = [
+        entry for entry in pool
+        if in_first_walk(challenge_for(_relative(entry.path, maps_dir)))
+    ]
+    return walkable or list(pool)
+
+
 def challenge_offer(run, pool, maps_dir, countries):
     """Return the one challenge that closes this tier.
 
@@ -243,10 +260,13 @@ def challenge_offer(run, pool, maps_dir, countries):
     three challenge modes it is fought under.
 
     A challenge map is not offered again until the pool has been through
-    once; when the last one is used the pool comes back whole.
+    once; when the last one is used the pool comes back whole -- the pool
+    this run may walk, so a first walk never falls through to the late
+    challenges by running out of early ones.
     """
     if not pool:
         return None
+    pool = _walkable(run, pool, maps_dir)
     used = set(run.used_challenge_maps)
     remaining = [
         entry for entry in pool
@@ -286,9 +306,10 @@ def challenge_offer(run, pool, maps_dir, countries):
         ),
         mental_ai=tier_rules(run.battle).challenge_mental,
         seed=generator.randrange(1, 2 ** 31),
-        # A challenge is fought alone. The second start on those maps is the
-        # co-op partner's, and the fight was balanced for who stands in it.
-        ally=False,
+        # The ally stands in the co-op partner's start, which every one of
+        # these maps keeps free. The scripted armies are what they always
+        # were; what changes is that the run does not meet them alone.
+        ally=True,
         challenge=True,
     )
 

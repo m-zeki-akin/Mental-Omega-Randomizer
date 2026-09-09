@@ -609,9 +609,10 @@ class SimpleCountry:
 
 @dataclass(frozen=True)
 class SimpleHouse:
-    """One seat at a battle, for a check that only needs its country."""
+    """One seat at a battle: its country, and which side it is on."""
 
     country: int
+    friendly: bool = False
 
 
 # What a house resolves to when the installed rules have no such country.
@@ -945,6 +946,18 @@ cmbTechLevel=0
 [noconyardstartForcedOptions]
 chkConYardStart=false
 
+[MultiMaps]
+CHAL07=MapsMO\\Challenge\\c_ouroboros
+
+[MapsMO\\Challenge\\c_ouroboros]
+Description=Challenge XII: Ouroboros
+GameModes=Challenge Easy,Challenge Medium,Challenge Hard
+MinPlayers=1
+MaxPlayers=2
+Waypoint0=142134
+Waypoint1=142154
+EnemyHouse0=0,6,2
+
 [MapsMO\\Challenge\\c_aberration]
 Description=Challenge XIII: Aberration
 GameModes=Challenge Easy,Challenge Medium,Challenge Hard
@@ -1093,9 +1106,9 @@ def _challenge_checks():
         pool_dir.mkdir(parents=True)
         pool = _fixture_pool(pool_dir, 2, prefix='chl', seats=5)
 
-        # The offer is drawn from the pool; whichever it lands on, a
-        # challenge is fought alone, since the second start on those maps is
-        # a co-op partner's and the fight was balanced for who stands in it.
+        # The offer is drawn from the pool; whichever it lands on, the run
+        # brings its ally, which stands in the start those maps hold for a
+        # co-op partner.
         run = start_run(
             run_id='challenge-check',
             seed='CHALLENGE-CHECK',
@@ -1109,7 +1122,9 @@ def _challenge_checks():
         offer_valid = bool(
             offer is not None
             and offer.challenge
-            and not offer.ally
+            # Fought beside the ally, which stands in the seat the map keeps
+            # for a co-op partner.
+            and offer.ally
             and offer.handicap == AI_DIFFICULTY_EASY
         )
 
@@ -1143,6 +1158,169 @@ def _challenge_checks():
         'skirmish_challenge_level_valid': level_valid,
         'skirmish_challenge_offer_valid': offer_valid,
         'skirmish_challenge_map_code_valid': merge_valid,
+    }
+
+
+def _challenge_walk_checks():
+    """Which challenges a run may be dealt, and who stands beside it.
+
+    The client's later challenges are a different game from its early ones,
+    so a first walk closes its tiers on the first twelve and the rest wait
+    for a run that has already been through once. And no challenge is
+    fought alone any more: the ally takes the start the map holds for a
+    co-op partner, which every one of them leaves free.
+    """
+    from .challenges import (
+        FIRST_WALK_CHALLENGES,
+        _sections,
+        challenges,
+        in_first_walk,
+        parse_challenges,
+    )
+    from .launch import challenge_ally_color, challenge_starts, houses_for
+    from .maps import MAPS_DIR
+    from .model import BattleOffer
+    from .progression import ALLY_DIFFICULTY, _walkable, challenge_offer
+    from .spawn import AI_DIFFICULTY_EASY
+    from .transitions import start_run
+
+    described = parse_challenges(_sections(CHALLENGE_INI))
+    ouroboros = described.get('Challenge/c_ouroboros.map')
+    aberration = described.get('Challenge/c_aberration.map')
+    numbering_valid = bool(
+        # The client's own list is what a challenge is numbered by: the
+        # fixture lists c_ouroboros as CHAL07 and describes it as the
+        # twelfth, and seven is what it is. A submod may rename the
+        # description; it cannot rename the list it sorts by.
+        ouroboros is not None and ouroboros.number == 7
+        # A map the list does not carry is read off its description
+        # instead, which is where the stock ones say the same thing.
+        and aberration is not None and aberration.number == 13
+        and in_first_walk(ouroboros)
+        and not in_first_walk(aberration)
+        # A map nobody numbered at all is one of the early ones rather than
+        # one held back: the holding back is the client's ordering and not
+        # a guess about a map it never ordered.
+        and in_first_walk(None)
+        and FIRST_WALK_CHALLENGES == 12
+    )
+
+    run = start_run(
+        run_id='challenge-walk', seed='CHALLENGE-WALK',
+        player_country=0, ally_country=3,
+    )
+    installed = challenges()
+    late = {
+        path for path, one in installed.items()
+        if one.number > FIRST_WALK_CHALLENGES
+    }
+    pool = read_map_pool(CHALLENGE_POOL_DIR, cache=False) if late else ()
+    # Where a tier's last battle falls, for as far as the run goes.
+    closing = (3, 7, 12, 17, 22, 27, 32, 37, 42)
+    first_walk = tuple(
+        challenge_offer(
+            replace(run, battle=battle), pool, MAPS_DIR, skirmish_countries(),
+        )
+        for battle in closing
+    )
+    nightmare = tuple(
+        challenge_offer(
+            replace(run, battle=battle, nightmare=1), pool, MAPS_DIR,
+            skirmish_countries(),
+        )
+        for battle in closing
+    )
+    walk_valid = bool(
+        not pool
+        or (
+            len(_walkable(run, pool, MAPS_DIR))
+            == len(pool) - len(late)
+            and len(_walkable(replace(run, nightmare=1), pool, MAPS_DIR))
+            == len(pool)
+            # A whole first walk, and not one of the late ones in it. That
+            # a nightmare run meets them is the widened pool above rather
+            # than a draw from it: nine draws out of twenty-two could miss
+            # the ten late ones by luck, and a row is not a coin.
+            and all(one is not None for one in first_walk)
+            and not any(one.map_path in late for one in first_walk)
+            and all(one is not None for one in nightmare)
+            and all(one.ally for one in first_walk + nightmare)
+        )
+    )
+
+    trouble = []
+    for path, one in sorted(installed.items()):
+        entry = next(
+            (found for found in pool if found.path.name == Path(path).name),
+            None,
+        )
+        if entry is None or not one.houses:
+            continue
+        offer = BattleOffer(
+            map_path=path,
+            map_name=entry.name,
+            enemy_countries=tuple(house.country for house in one.houses),
+            handicap=AI_DIFFICULTY_EASY,
+            handicaps=tuple(AI_DIFFICULTY_EASY for _ in one.houses),
+            seed=1,
+            ally=True,
+            challenge=True,
+        )
+        houses = houses_for(run, offer)
+        seats = challenge_starts(one, len(entry.spawns), True)
+        worn = [house.color for house in houses]
+        standing = list(seats.values())
+        if (
+            # The ally, then the map's own armies.
+            len(houses) != len(one.houses) + 1
+            or not houses[0].friendly
+            or any(house.friendly for house in houses[1:])
+            # The armies keep the countries, colours and starts the fight
+            # was designed around.
+            or [house.color for house in houses[1:]]
+            != [house.color for house in one.houses]
+            or list(seats.values())[2:]
+            != [house.start for house in one.houses]
+            # Nobody shares a start, and nobody stands off the map.
+            or len(set(standing)) != len(standing)
+            or len(standing) != len(houses) + 1
+            or max(standing) >= len(entry.spawns)
+            # The ally is told apart from the player, from every army it is
+            # fighting, and from whatever the map forbids.
+            or worn[0] in worn[1:]
+            or worn[0] in set(one.disallowed_colors)
+            # Hard, as everywhere else: the dial is what the run is fought
+            # against, not who it is fought beside.
+            or houses[0].handicap != ALLY_DIFFICULTY
+        ):
+            trouble.append(path)
+
+    # The stock challenges dress their armies in a colour far from the
+    # player's and the ally would never have picked one of them anyway, so
+    # the map is asked the other question too: when its armies wear exactly
+    # the colour the ally wanted, the ally wears something else.
+    from .challenges import Challenge, ChallengeHouse
+
+    plain = Challenge(map_path='fixture', description='', houses=(), modes=())
+    wanted = challenge_ally_color(run, plain, ())
+    contested = (SkirmishHouse(
+        country=0, color=wanted, friendly=False, handicap=AI_DIFFICULTY_EASY,
+    ),)
+    moved = challenge_ally_color(run, plain, contested)
+    # And what the map itself forbids is still refused.
+    forbidden = challenge_ally_color(
+        run, replace(plain, disallowed_colors=(wanted,)), (),
+    )
+    ally_valid = bool(
+        not trouble
+        and moved != wanted
+        and forbidden != wanted
+    )
+
+    return {
+        'skirmish_challenge_numbering_valid': numbering_valid,
+        'skirmish_challenge_walk_valid': walk_valid,
+        'skirmish_challenge_ally_valid': ally_valid,
     }
 
 def _option_checks():
@@ -2567,7 +2745,7 @@ def _shop_checks():
     seated = ai_houses(
         {
             'houses': (
-                SimpleHouse(country=0),
+                SimpleHouse(country=0, friendly=True),
                 SimpleHouse(country=6),
                 SimpleHouse(country=7),
             ),
@@ -2575,6 +2753,21 @@ def _shop_checks():
         },
         {'GGI': 'MOLGGI'},
         {(country_by_index(6) or _NO_COUNTRY).country_id: {'FLAKT': 'MOEFLAKT'}},
+    )
+    # A challenge's armies are the map's and the ally is the player's, so
+    # the two can play one country. Which side a house is on is the house's
+    # own answer: the copy the ally paid for does not reach the army it is
+    # fighting, whatever colours they happen to share.
+    met = ai_houses(
+        {
+            'houses': (
+                SimpleHouse(country=0, friendly=True),
+                SimpleHouse(country=0),
+            ),
+            'ally': country_by_index(0),
+        },
+        {'GGI': 'MOLGGI'},
+        {},
     )
     carried = {country: units for country, _side, units in seated}
     ai_sections = installed_ai_sections()
@@ -2601,6 +2794,9 @@ def _shop_checks():
         # whole point: a computer player builds what its task forces name.
         and 'MOEFLAKT' in asked_for
         and 'MOLGGI' in asked_for
+        # Two houses, one country, and only the friendly one carries it.
+        and [units for _country, _side, units in met]
+        == [{'GGI': 'MOLGGI'}, {}]
     )
 
     # The sentence on a shelf row is about this installation too, not only
@@ -2744,6 +2940,7 @@ def validate_skirmish_contract():
     report.update(_run_checks())
     report.update(_table_checks())
     report.update(_challenge_checks())
+    report.update(_challenge_walk_checks())
     report.update(_option_checks())
     report.update(_clone_checks())
     report.update(_ai_checks())

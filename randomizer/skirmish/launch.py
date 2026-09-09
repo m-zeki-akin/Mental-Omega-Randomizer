@@ -84,9 +84,10 @@ def houses_for(run, offer):
 
     described = challenge_for(offer.map_path) if offer.challenge else None
     if described is not None and described.houses:
-        # A challenge is the map's fight: its armies, its colours, its
-        # starting points, and nobody standing beside the player.
-        return tuple(
+        # A challenge is the map's fight: its armies, its colours and its
+        # starting points, all kept. What the run adds is the ally, in the
+        # co-op partner's seat and wearing a colour none of them wear.
+        scripted = tuple(
             SkirmishHouse(
                 country=house.country,
                 color=house.color,
@@ -95,6 +96,17 @@ def houses_for(run, offer):
             )
             for house in described.houses
         )
+        if not offer.ally:
+            return scripted
+        return (SkirmishHouse(
+            country=run.ally_country,
+            color=challenge_ally_color(run, described, scripted),
+            friendly=True,
+            # The dial is what the run is fought against, not who it is
+            # fought beside -- the same reason an ordinary battle's ally
+            # ignores the tier.
+            handicap=ALLY_DIFFICULTY,
+        ),) + scripted
     houses = []
     if offer.ally:
         houses.append(SkirmishHouse(
@@ -126,6 +138,49 @@ def houses_for(run, offer):
     return tuple(
         replace(house, color=color) for house, color in zip(houses, wearing)
     )
+
+
+def challenge_ally_color(run, described, scripted):
+    """The colour the ally wears beside a challenge's own armies.
+
+    Nearest the player's, the way an ally is told apart everywhere else,
+    but never one the map forbids and never one its scripted armies already
+    wear -- the client dresses all three of them in the same colour, and an
+    ally in it would read as a fourth.
+    """
+    return house_colors(
+        player=player_color(run, described),
+        taken=tuple(described.disallowed_colors)
+        + tuple(house.color for house in scripted),
+        friends=1,
+    )[0]
+
+
+def challenge_starts(described, spawn_count, with_ally):
+    """Return ``{seat: start}`` for a challenge: player, ally, then armies.
+
+    The scripted armies keep the starting points the fight was designed
+    around, and the player keeps the first. The ally takes the seat the map
+    holds for a second human -- on the stock challenges the second start,
+    asked for rather than assumed, so a submod that placed its armies
+    differently still seats everybody somewhere of their own.
+    """
+    starts = {1: 0}
+    seat = 2
+    if with_ally:
+        standing = {0} | {house.start for house in described.houses}
+        starts[seat] = next(
+            (
+                one for one in range(max(int(spawn_count), 2))
+                if one not in standing
+            ),
+            1,
+        )
+        seat += 1
+    for house in described.houses:
+        starts[seat] = house.start
+        seat += 1
+    return starts
 
 
 def player_color(run, described=None):
@@ -238,9 +293,7 @@ def prepare_battle(battle, *, before=None, after=None):
         options.update(forced_options(
             f'{game_mode}ForcedOptions', described.forced_options
         ))
-        starts = {1: 0}
-        for index, house in enumerate(described.houses):
-            starts[index + 2] = house.start
+        starts = challenge_starts(described, len(entry.spawns), offer.ally)
     else:
         # An ordinary map places its own line-up, keeping the enemies off
         # the player's doorstep. A challenge is placed by its script above.
@@ -380,18 +433,22 @@ def ai_houses(battle, ally_clones, enemy_clones):
     the country it is playing. A house the installed rules no longer have
     is left out rather than named to the AI file as a country that is not
     there.
+
+    Which side a house is on is the house's own answer, not its country's.
+    An ordinary battle never seats the ally's country as an enemy, but a
+    challenge's armies are the map's and the ally is the player's, so the
+    two can meet -- and a copy the ally paid for is not something to hand
+    the army it is fighting.
     """
-    ally = battle.get('ally')
     houses = []
     for house in battle['houses']:
         country = country_by_index(house.country)
         if country is None:
             continue
-        friendly = ally is not None and country.index == ally.index
         houses.append((
             country.country_id,
             side_number(country.side_id),
-            dict(ally_clones) if friendly
+            dict(ally_clones) if house.friendly
             else dict(enemy_clones.get(country.country_id) or {}),
         ))
     return houses

@@ -3,9 +3,14 @@
 A challenge is not a skirmish on a smaller map. Mental Omega's client
 describes each one in ``INI/MentalOmegaMaps.ini``: three scripted enemy
 houses with the countries, colours and starting points the fight was
-designed around, the player alone at the first start, and a game mode --
-Challenge Easy, Medium or Hard -- that forces its own match options and
-merges an INI of triggers into the map.
+designed around, the player at the first start, a second start held for a
+co-op partner, and a game mode -- Challenge Easy, Medium or Hard -- that
+forces its own match options and merges an INI of triggers into the map.
+
+It also numbers them, ``CHAL01`` to ``CHAL22`` under ``[MultiMaps]``, and
+that ordering is a difficulty curve: the later ones are a different game
+from the early ones, so a run meets them only once it has been through
+once.
 
 Handing those maps three random armies and calling it Standard is a
 different game entirely, and a much emptier one: the scripted opposition is
@@ -28,6 +33,21 @@ from .maps import MAPS_DIR
 
 MAPS_INI = GAME_ROOT / 'INI' / 'MentalOmegaMaps.ini'
 MAP_CODE_DIR = GAME_ROOT / 'INI' / 'Map Code'
+
+# Where the client keeps its own numbering: ``CHAL13 = MapsMO\Challenge\
+# c_aberration`` under [MultiMaps]. That is what "Challenge XIII" means, and
+# reading it beats reading the description, which a submod may rename.
+MULTI_MAPS = 'MultiMaps'
+CHALLENGE_NUMBER = re.compile(r'^CHAL(\d+)$', re.I)
+# The numeral in "Challenge XIII: Aberration", for a map the list above
+# does not carry.
+DESCRIBED_NUMBER = re.compile(r'challenge\s+([ivxl]+)\b', re.I)
+ROMAN = {'i': 1, 'v': 5, 'x': 10, 'l': 50}
+
+# How far a first walk goes. The challenges past this one were built for
+# players who have already finished the run once, so they wait for
+# nightmare rather than closing a tier of the first attempt.
+FIRST_WALK_CHALLENGES = 12
 
 # The client's own three challenge modes, hardest first. CoopDifficultyLevel
 # counts the other way from everything else: 0 is Hard.
@@ -75,6 +95,10 @@ class Challenge:
     forced_options: str = ''
     disallowed_colors: tuple[int, ...] = ()
     human_starts: int = 1
+    # Which challenge this is in the client's own order. Zero for a map the
+    # installation lists without numbering, which is then treated as one of
+    # the early ones rather than held back.
+    number: int = 0
 
 
 def _sections(text):
@@ -109,8 +133,37 @@ def challenges():
     return parse_challenges(_maps_ini_sections())
 
 
+def _relative_path(name):
+    """Turn ``MapsMO\\Challenge\\c_freedom`` into ``Challenge/c_freedom.map``."""
+    relative = str(name).strip().replace('\\', '/')
+    if relative.lower().startswith('mapsmo/'):
+        relative = relative[len('MapsMO/'):]
+    return f'{relative}.map'
+
+
+def _roman(numeral):
+    """Read a numeral the way the descriptions write them, or zero."""
+    total = 0
+    values = [ROMAN.get(letter, 0) for letter in numeral.lower()]
+    for index, value in enumerate(values):
+        after = values[index + 1:]
+        total += -value if after and value < max(after) else value
+    return total
+
+
+def parse_challenge_numbers(sections):
+    """Return ``{relative map path: number}`` from the client's own list."""
+    numbers = {}
+    for key, value in _values(sections.get(MULTI_MAPS, '')).items():
+        found = CHALLENGE_NUMBER.match(key.strip())
+        if found and value.strip():
+            numbers[_relative_path(value)] = int(found.group(1))
+    return numbers
+
+
 def parse_challenges(sections):
     """Read the challenge entries out of the client's map list."""
+    numbers = parse_challenge_numbers(sections)
     result = {}
     for name, body in sections.items():
         if 'Challenge' not in name or not name.lower().startswith('mapsmo'):
@@ -128,12 +181,12 @@ def parse_challenges(sections):
             houses.append(ChallengeHouse(
                 country=int(parts[0]), color=int(parts[1]), start=int(parts[2])
             ))
-        relative = name.replace('\\', '/')
-        if relative.lower().startswith('mapsmo/'):
-            relative = relative[len('MapsMO/'):]
-        result[f'{relative}.map'] = Challenge(
-            map_path=f'{relative}.map',
-            description=values.get('Description', ''),
+        relative = _relative_path(name)
+        described = values.get('Description', '')
+        numeral = DESCRIBED_NUMBER.search(described)
+        result[relative] = Challenge(
+            map_path=relative,
+            description=described,
             houses=tuple(houses),
             modes=tuple(
                 mode.strip()
@@ -149,8 +202,16 @@ def parse_challenges(sections):
             human_starts=sum(
                 1 for key in values if key.lower().startswith('waypoint')
             ) or 1,
+            number=numbers.get(
+                relative, _roman(numeral.group(1)) if numeral else 0
+            ),
         )
     return result
+
+
+def in_first_walk(challenge):
+    """Whether a run that has not been through once may be dealt this one."""
+    return challenge is None or challenge.number <= FIRST_WALK_CHALLENGES
 
 
 def challenge_for(map_path):
