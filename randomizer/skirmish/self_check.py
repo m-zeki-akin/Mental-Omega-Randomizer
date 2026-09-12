@@ -2911,14 +2911,12 @@ def _shop_checks():
         )
         and not (ENEMY_UNBOUGHT_BUFFS & set(FACTION_STATS))
         # The army-wide draw is stats, not units, and only ever ones the
-        # country's own shelf sells. A table with no modifier that buys an
-        # army has that half of the mode switched off, which is a table to
-        # allow rather than a row to fail.
+        # country's own shelf sells. How many any battle gets is checked
+        # against its tier and what it asked, below -- not against whether
+        # a modifier that buys one exists, which a table is free not to
+        # have.
         and stats_handed
         and set(stats_handed) <= set(FACTION_STATS)
-        and bool(army_buyers) == any(
-            any(one.enemy_faction_bought()) for one in dealt
-        )
         and _faction_upgrades(armed_country, 0, Random(7)) == ()
         # It is what an offer asks for, not what a tier hands out. The
         # tier's number buys units; the modifier's buys the army. Which

@@ -378,12 +378,15 @@ def _stolen_tech_bundles(by_buff_type, members):
             unit=STOLEN_TECH_GROUP,
             buff_type=buff_type,
             name=f'Stolen Tech: {label}',
+            # Named rather than described in a direction: a row that
+            # lowers a cost and one that raises a rate of fire are both
+            # this row, and "raises cost" is the wrong way round.
             description=(
-                f'Raises {label.lower()} on {named}'
+                f'{label} on {named}'
                 + (
                     '. Not on '
                     + ', '.join(unit_label(one) for one in missing)
-                    + f': there is no {label.lower()} there to raise.'
+                    + ': no such row is sold for them.'
                     if missing else ' -- every one of them.'
                 )
             ),
