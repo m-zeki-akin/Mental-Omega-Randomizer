@@ -138,8 +138,24 @@ def _source_values(reward, installed_sections):
     return values
 
 
+def _direct_baseline(reward, installed_sections, spec):
+    """The installed value of a power's own field, or the reviewed one.
+
+    A buff is a change to what the installation has, not to what the
+    catalogue remembers. When Mental Omega widened the Iron Curtain from
+    three cells to four, a "+1" written against the remembered three wrote
+    the four the game already had -- an upgrade that took Ore and changed
+    nothing. The catalogue's baseline stands only for a field the
+    installed section does not carry.
+    """
+    installed = _value(
+        _source_values(reward, installed_sections), spec['field']
+    )
+    return spec['baseline'] if installed is None else installed
+
+
 def _scaled_integer(baseline, factor, count):
-    baseline = int(baseline)
+    baseline = int(float(baseline))
     scaled = int(round(baseline * (float(factor) ** count)))
     if factor >= 1:
         return max(baseline + 1, scaled)
@@ -194,9 +210,11 @@ def _ensure_global_rules(reward, section):
     return values
 
 
-def _apply_scalar_rule(rules, spec, count, factor):
+def _apply_scalar_rule(rules, spec, count, factor, baseline=None):
     rules[spec['field']] = str(
-        _scaled_integer(spec['baseline'], factor, count)
+        _scaled_integer(
+            spec['baseline'] if baseline is None else baseline, factor, count,
+        )
     )
 
 
@@ -206,7 +224,9 @@ def _apply_area(reward, installed_sections, count):
     direct = area['direct_fields'].get(power_id)
     if direct:
         reward.setdefault('superweapon_rules', {})[direct['field']] = (
-            _expanded_range(direct['baseline'], count)
+            _expanded_range(
+                _direct_baseline(reward, installed_sections, direct), count,
+            )
         )
     warhead = area['warhead_fields'].get(power_id)
     if not warhead:
@@ -238,6 +258,7 @@ def _apply_damage(reward, installed_sections, count):
             direct,
             count,
             factor,
+            baseline=_direct_baseline(reward, installed_sections, direct),
         )
     techno = damage.get('techno_fields', {}).get(power_id)
     if not techno:
@@ -292,6 +313,7 @@ def _apply_duration(reward, installed_sections, count):
             direct,
             count,
             factor,
+            baseline=_direct_baseline(reward, installed_sections, direct),
         )
     warhead = duration['warhead_fields'].get(power_id)
     if not warhead:

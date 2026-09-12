@@ -177,10 +177,23 @@ def sellable_buffs(power_id, rules=None):
     from randomizer.rewards.power_buff_definitions import power_buff_type_ids
 
     rules = _rules() if rules is None else rules
-    return tuple(
-        buff for buff in (power_buff_type_ids(power_id) or ())
-        if power_buff_rules(power_id, buff, 1, rules)
-    )
+    installed = {
+        str(key).lower(): str(value)
+        for key, value in (
+            rules.get(canonical_power(power_id, rules)) or {}
+        ).items()
+    }
+    sellable = []
+    for buff in (power_buff_type_ids(power_id) or ()):
+        written = power_buff_rules(power_id, buff, 1, rules)
+        # A row whose every key already reads what it would write is Ore
+        # for nothing on this installation, and is not offered.
+        if written and any(
+            str(value) != installed.get(str(key).lower())
+            for key, value in written.items()
+        ):
+            sellable.append(buff)
+    return tuple(sellable)
 
 
 def _next_key(existing):
@@ -234,7 +247,13 @@ def power_clone_code(purchases, seat, *, prefix=POWER_CLONE_PREFIX,
         sections[copy] = body
         built[power] = copy
         # The original is taken away from the buyer, or they would build
-        # the silo and be handed the power twice.
+        # the silo and be handed the power twice -- and it is taken away
+        # under the name the rules spell it by. A map section called
+        # [IRONCURTAINSPECIAL] is a new section as far as the engine is
+        # concerned, not the one it already has as [IronCurtainSpecial];
+        # a ban written there reached nothing, and the buyer was handed
+        # the power twice, once plain and once improved.
+        spelled = canonical_power(power, rules)
         forbidden = [
             item.strip() for item
             in str((upper.get(power) or {}).get('SW.ForbiddenHouses') or '')
@@ -242,7 +261,7 @@ def power_clone_code(purchases, seat, *, prefix=POWER_CLONE_PREFIX,
         ]
         if seat not in forbidden:
             forbidden.append(seat)
-        sections.setdefault(power, {})['SW.ForbiddenHouses'] = ','.join(
+        sections.setdefault(spelled, {})['SW.ForbiddenHouses'] = ','.join(
             forbidden
         )
         # And whatever granted the original grants the copy too.

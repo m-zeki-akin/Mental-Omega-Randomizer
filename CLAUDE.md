@@ -139,6 +139,15 @@ The bundle manifest regenerates at build. Add a line to `configs/README.md`.
   its country — a challenge's scripted army may play the ally's country.
 - Powers: buffs land on the SW's own section; MO's `SuperWeapons=` on a
   building is **additive** to `SuperWeapon=`/`SuperWeapon2=` (measured).
+  Rules sections are mixed-case (`IronCurtainSpecial`); anything written
+  onto an existing section must use `canonical_power()` spelling — an
+  upper-cased name is a *new* section to the engine (a ban written there
+  once handed the buyer two Iron Curtains). Buff baselines come from the
+  installed rules; `configs/rewards/power_buffs.json` baselines are
+  fallbacks only (MO 3.3.7 widened Iron Curtain 3,3→4,4 and the "+1"
+  wrote 4,4). The installed rules registry is `RULESMO.INI` extracted
+  from the MIX into `cameo_cache/`; `configs/rulesmo-original.ini` is an
+  older snapshot and can disagree with it.
 - Difficulty numbers count down: `0=Hard 1=Medium 2=Easy`
   (`spawn.AI_DIFFICULTY_*`). Config writes names; `config.difficulty_number`.
   Ally always plays `ally_difficulty` (Hard), never the tier's.

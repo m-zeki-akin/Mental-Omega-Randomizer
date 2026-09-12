@@ -526,6 +526,71 @@ def _power_checks():
     written = sections.get(building) or {}
     before = dict(rules.get(building) or rules.get(building.upper()) or {})
 
+    # The ban lands on the section the rules spell, not on an upper-cased
+    # twin. A map section called [IRONCURTAINSPECIAL] is a new section as
+    # far as the engine is concerned, and a ban written there reached
+    # nothing: the buyer built the silo and was handed the power twice.
+    spelled = canonical_power(power, rules)
+
+    # And a buff is measured from what the installation has. Mental Omega
+    # widened the Iron Curtain from three cells to four; a "+1" written
+    # against the catalogue's remembered three wrote the four the game
+    # already had. Read on the first power the catalogue widens by cells
+    # that this installation lists, with its range set narrow, wide, and
+    # absent -- absent is where the catalogue's own baseline still stands.
+    from randomizer.maps.power_buffs import _expanded_range
+    from randomizer.rewards.power_buff_definitions import (
+        POWER_BUFF_CONFIG,
+        power_buff_type_ids,
+    )
+
+    ranged = next(
+        (
+            (name, spec) for name, spec
+            in POWER_BUFF_CONFIG['area']['direct_fields'].items()
+            if name in rules and ',' in str(spec['baseline'])
+        ),
+        None,
+    )
+    widened = {}
+    if ranged is not None:
+        name, spec = ranged
+        field = spec['field']
+
+        def _range_after(section):
+            return power_buff_rules(
+                name, 'area', 1, {**rules, name: section},
+            ).get(field)
+
+        stripped = {
+            key: value for key, value in rules[name].items()
+            if str(key).lower() != field.lower()
+        }
+        widened = {
+            'wide': _range_after({**stripped, field: '4,4'}),
+            'narrow': _range_after({**stripped, field: '3,3'}),
+            'absent': _range_after(stripped),
+            'catalogue': _expanded_range(spec['baseline'], 1),
+        }
+
+    # And a row that would write exactly what the installation already
+    # reads is not offered. A power that costs one credit is still a
+    # power that costs one credit after fifteen per cent off and a round
+    # to the nearest whole: the fold writes it, and the shelf leaves it.
+    pennies = next(
+        (
+            name for name in (rules.get(POWER_LIST) or {}).values()
+            if name in rules
+            and 'cost' in (power_buff_type_ids(name) or ())
+            and str(rules[name].get('Money.Amount') or '').lstrip('-').isdigit()
+        ),
+        None,
+    )
+    at_a_penny = (
+        {**rules, pennies: {**rules[pennies], 'Money.Amount': '-1'}}
+        if pennies else {}
+    )
+
     valid = bool(
         copy
         # A copy that says exactly what the original says is an upgrade
@@ -539,9 +604,23 @@ def _power_checks():
         # of the original -- or they build the silo and are handed the
         # power twice, once plain and once improved.
         and made.get('SW.RequiredHouses') == seat
-        and seat in str(
-            (sections.get(power) or {}).get('SW.ForbiddenHouses') or ''
-        )
+        and spelled in sections
+        and seat in str(sections[spelled].get('SW.ForbiddenHouses') or '')
+        # Under the rules' own spelling only: no upper-cased twin beside it.
+        and (spelled == power or power not in sections)
+        # Measured from the installation, and from the catalogue only where
+        # the installation is silent.
+        and ranged is not None
+        and widened.get('wide') == '5,5'
+        and widened.get('narrow') == '4,4'
+        and widened.get('absent') == widened.get('catalogue')
+        # Written by the fold, and left off the shelf by the clamp: the
+        # two are told apart, or an empty fold would pass for the clamp.
+        and pennies is not None
+        and power_buff_rules(pennies, 'cost', 1, at_a_penny)
+        == {'Money.Amount': '-1'}
+        and 'cost' not in sellable_buffs(pennies, at_a_penny)
+        and 'cost' in sellable_buffs(pennies, rules)
         # Handed over by the one key that adds. The two the mod wrote are
         # not in the output at all, so a merge cannot disturb them.
         and copy in str(written.get(GRANT_LIST_KEY) or '')
@@ -567,7 +646,7 @@ def _power_checks():
         # was taken from, whatever grants it, and the list of powers. A
         # section outside those four is a global edit, which is the bug
         # private copies exist to avoid.
-        and set(sections) <= {copy, power, POWER_LIST} | set(granted[power])
+        and set(sections) <= {copy, spelled, POWER_LIST} | set(granted[power])
     )
     return {
         'skirmish_power_upgrade_valid': valid,

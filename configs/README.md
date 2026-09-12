@@ -90,7 +90,10 @@ that overlap only with full reward-plan and 97-map parity coverage.
 - `rewards/power_buffs.json`: reviewed power-specific recharge, cost, area,
   damage, duration, delivered-payload, and reconnaissance-plane vision buff
   capabilities and stack tuning.
-  Supported effects have no Randomizer-imposed stack ceiling.
+  Supported effects have no Randomizer-imposed stack ceiling. A
+  `direct_fields` `baseline` is a fallback: a buff is measured from the
+  value the installed rules carry, and the baseline stands only for a
+  field the installed section does not have.
   - `rewards/enemy_scaling.json`: reviewed hostile-AI CountryType armor,
     T1/T2/T3 unit and weapon bonuses, production-speed rewards, and support
     powers; per-stack tuning, positive engine clamps, allowed effect IDs, and
