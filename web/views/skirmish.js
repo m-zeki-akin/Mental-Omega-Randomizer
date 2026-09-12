@@ -12,6 +12,21 @@ const SKILL_VARIANT = {
   hardened: 'hardened',
 };
 
+/**
+ * What each enemy of this battle carries, army by army, as tooltip text.
+ *
+ * `lists` is one list of names per enemy, in the order the enemies are
+ * named on the card. An army with nothing is still named, so the reader
+ * can see which of the three it is.
+ */
+function byArmy(offer, lists) {
+  return (lists || []).map((names, index) => {
+    const enemy = offer.enemies[index] || {};
+    const who = enemy.display || enemy.label || `Enemy ${index + 1}`;
+    return `${who}: ${names.length ? names.join(', ') : 'nothing'}`;
+  }).join('\n');
+}
+
 /** The line under a battle card, as pills rather than a sentence. */
 function offerPills(offer) {
   const marks = [];
@@ -21,11 +36,15 @@ function offerPills(offer) {
   if (!offer.ally) marks.push(pill('no ally', 'danger'));
   if (offer.mental_ai) marks.push(pill('boosted AI', 'danger'));
   if (offer.enemy_upgrades) {
+    // The count on the pill, the names under the pointer. A late battle
+    // arms three enemies with dozens of rows each, which is a footnote
+    // to the decision rather than a panel under the table.
     marks.push(pill(
       offer.enemy_upgrades === 1
         ? 'enemy carries 1 upgrade'
         : `enemy carries ${offer.enemy_upgrades} upgrades`,
       'danger',
+      byArmy(offer, offer.enemy_carried),
     ));
   }
   // And what the offer itself bought that army, which is a different
@@ -35,7 +54,7 @@ function offerPills(offer) {
   if (offer.enemy_army_stats && offer.enemy_army_stats.length) {
     // Across all of them, so a late battle can name seven. The first
     // three and a count reads; the whole list is a paragraph on a pill,
-    // and the panel is where the per-enemy breakdown belongs.
+    // so the rest is under the pointer with the army it belongs to.
     const stats = offer.enemy_army_stats;
     const shown = stats.slice(0, 3).join(', ');
     marks.push(pill(
@@ -43,6 +62,7 @@ function offerPills(offer) {
         ? `enemy armies: ${shown} +${stats.length - 3} more`
         : `enemy armies: ${shown}`,
       'danger',
+      byArmy(offer, offer.enemy_army_carried),
     ));
   }
   if (offer.modifiers && offer.modifiers.includes('stolen')) {
@@ -91,28 +111,6 @@ async function loadPreviews(offers) {
     }));
 }
 
-/* Which battle cards have been asked to show what their enemies carry.
- * Kept outside render so the answer survives the redraw a purchase
- * causes -- the same reason the armies panel keeps its own flag. */
-const showingOffer = new Set();
-
-/** The enemies of one battle, named army by army. */
-function offerUpgrades(battle) {
-  if (!battle) return [notice('Nothing is known about this battle yet.')];
-  return (battle.enemies || []).map((enemy) => card({
-    title: `${enemy.display}${enemy.skill ? ` — ${enemy.skill}` : ''}`,
-    body: enemy.upgrades.length
-      ? ''
-      : 'Fields what the rules give it, and nothing more.',
-    pills: enemy.upgrades.map((one) => pill(
-      one.stacks > 1 ? `${one.name} x${one.stacks}` : one.name,
-      one.unit ? null : 'danger',
-    )),
-    title_attr: enemy.upgrades.map((one) => one.effect)
-      .filter(Boolean).join('\n'),
-  }));
-}
-
 function offerCard(offer, run) {
   const committed = run.committed_offer;
   const blocked = committed !== null && committed !== offer.index;
@@ -126,14 +124,6 @@ function offerCard(offer, run) {
     state: blocked ? 'taken' : null,
     footer: [
       el('span', { class: 'muted', text: `${offer.seats} seats` }),
-      button(showingOffer.has(offer.index) ? 'Hide upgrades' : 'Show upgrades', {
-        variant: 'quiet',
-        onClick: () => {
-          if (showingOffer.has(offer.index)) showingOffer.delete(offer.index);
-          else showingOffer.add(offer.index);
-          refresh();
-        },
-      }),
       button(offer.challenge ? 'Fight challenge' : 'Fight', {
         variant: 'primary',
         disabled: blocked || !offer.installed || !run.active,
@@ -205,18 +195,46 @@ function header(run) {
       el('span', { class: 'ore', text: `${count(run.coins)} Ore` }),
     ]),
     el('div', { class: 'row' }, [
-      button(showingArmies ? 'Hide upgrades' : 'Owned upgrades', {
-        variant: 'quiet',
-        onClick: () => {
-          showingArmies = !showingArmies;
-          refresh();
-        },
-      }),
       run.warmup && button('Skip warmup', {
         variant: 'quiet',
         onClick: () => act('skirmish.skip_warmup'),
       }),
       giveUpButton(run),
+    ]),
+  ], { spread: true });
+}
+
+/**
+ * The line above the shelf: what you own, and another shelf for Ore.
+ *
+ * Both belong here rather than in the title bar. They are what a player
+ * does about the eight rows underneath -- check what is already bought,
+ * or pay to be dealt eight others -- and a button for a shelf reads
+ * where the shelf is.
+ */
+function shopBar(run) {
+  const price = run.reroll_price || 0;
+  return row([
+    button(showingArmies ? 'Hide upgrades' : 'Show upgrades', {
+      variant: 'quiet',
+      onClick: () => {
+        showingArmies = !showingArmies;
+        refresh();
+      },
+    }),
+    el('div', { class: 'row' }, [
+      run.rerolls
+        ? el('span', {
+          class: 'muted',
+          text: run.rerolls === 1 ? '1 reroll' : `${run.rerolls} rerolls`,
+        })
+        : null,
+      el('span', { class: 'ore', text: `${count(price)} Ore` }),
+      button('Reroll shelf', {
+        disabled: !run.active || run.coins < price,
+        title: 'Deal another shelf. What is bought stays bought.',
+        onClick: () => act('skirmish.reroll'),
+      }),
     ]),
   ], { spread: true });
 }
@@ -249,10 +267,12 @@ function armiesPanel(armies) {
   if (!armies) return notice('This run has nothing to show yet.');
   const enemies = armies.enemies || [];
   return [
-    section('You', grid([
+    // Your army and the ally's beside each other, because they are the
+    // two halves of one side and what is worth seeing is the difference
+    // between them: the ally shops out of its own earnings and its own
+    // country's list, so over a run the two grow apart.
+    section('Your side', grid([
       armyCard(armies.player, { title: `You — ${armies.player.display}` }),
-    ])),
-    section('Ally', grid([
       armyCard(armies.ally, { title: `Ally — ${armies.ally.display}` }),
     ])),
     section(
@@ -321,13 +341,8 @@ async function render(root) {
     run = await call('skirmish.run');
   }
   await loadPreviews(run.offers);
-  // Asked for once and read by both: the panel above the table, and
-  // whatever cards have been opened under it.
-  const armies = (showingArmies || showingOffer.size)
-    ? await call('skirmish.armies')
-    : null;
+  const armies = showingArmies ? await call('skirmish.armies') : null;
   const parts = [section(null, header(run))];
-  if (showingArmies) parts.push(...[].concat(armiesPanel(armies)));
   if (!run.active) {
     // A run that is over keeps its table on screen with everything on it
     // refused, which reads as a launcher that has stopped working rather
@@ -341,18 +356,6 @@ async function render(root) {
       run.warmup ? 'Warmup' : `Battle ${run.battle}`,
       grid(run.offers.map((offer) => offerCard(offer, run)), { wide: true }),
     ));
-    // What each opened card was asked to show, under the table rather
-    // than inside a card: an enemy's list runs to dozens of names by the
-    // late tiers and a card is not where dozens of names go.
-    for (const offer of run.offers) {
-      if (!showingOffer.has(offer.index)) continue;
-      const battle = ((armies || {}).battles || [])
-        .find((one) => one.index === offer.index);
-      parts.push(section(
-        `${offer.map_name} — what its enemies carry`,
-        grid(offerUpgrades(battle)),
-      ));
-    }
   }
   if (run.warmup) {
     parts.push(section('Upgrades', notice(
@@ -360,6 +363,11 @@ async function render(root) {
       + 'is behind you.',
     )));
   } else if (run.shelf.length) {
+    // What the shop is offering, and above it the two things you do
+    // about a shelf that is not what you wanted: look at what you
+    // already own, or pay to be dealt another.
+    parts.push(section(null, shopBar(run)));
+    if (showingArmies) parts.push(...[].concat(armiesPanel(armies)));
     parts.push(section(
       'Upgrades',
       grid(run.shelf.map((upgrade) => upgradeCard(upgrade, run))),

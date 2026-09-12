@@ -83,6 +83,18 @@ def countries():
     ]
 
 
+def _enemy_carried(offer):
+    """Return each enemy's bought rows by name, one list per enemy."""
+    return [
+        [line['name'] for line in _carried(
+            _country(index)['id'], ((key, 1) for key in bought),
+        )]
+        for index, bought in zip(
+            offer.enemy_countries, offer.enemy_bought(),
+        )
+    ]
+
+
 def offer_view(offer, index):
     """One battle card, as a screen needs it."""
     entry = map_by_relative_path(offer.map_path)
@@ -126,6 +138,15 @@ def offer_view(offer, index):
             faction_stat_label(stat)
             for stats in offer.enemy_faction_bought() for stat in stats
         }),
+        # And the same two facts army by army, for the card to show when
+        # one of them is pointed at. A late battle arms three enemies with
+        # dozens of rows each: that is a tooltip, not a panel, and it
+        # belongs beside the number it explains.
+        'enemy_carried': _enemy_carried(offer),
+        'enemy_army_carried': [
+            sorted(faction_stat_label(stat) for stat in stats)
+            for stats in offer.enemy_faction_bought()
+        ],
         'challenge': offer.challenge,
         'ally': offer.ally,
         'mental_ai': offer.mental_ai,
@@ -329,20 +350,6 @@ def armies(repository=None):
         'enemies': _offer_enemies(current.committed() or (
             current.offers[0] if current.offers else None
         )),
-        'battles': [
-            {
-                'index': index,
-                'map_name': offer.map_name or offer.map_path,
-                'committed': index == current.committed_offer,
-                'ally': offer.ally,
-                'granted': (
-                    stolen_label(offer.player_stolen)
-                    if offer.player_stolen else ''
-                ),
-                'enemies': _offer_enemies(offer),
-            }
-            for index, offer in enumerate(current.offers)
-        ],
     }
 
 

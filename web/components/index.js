@@ -9,8 +9,15 @@ import { el, fill, count } from './dom.js';
 export { el, fill, count };
 
 /** One fact, small. */
-export function pill(text, variant) {
-  return el('span', { class: variant ? `pill pill--${variant}` : 'pill', text });
+export function pill(text, variant, title) {
+  return el('span', {
+    class: variant ? `pill pill--${variant}` : 'pill',
+    // What the pill counts, when the pill counts something: a battle
+    // card says "carries 22 upgrades" and names them here rather than
+    // opening a panel for what is a footnote.
+    title,
+    text,
+  });
 }
 
 /** A button. `variant` is one of primary, danger, quiet. */
