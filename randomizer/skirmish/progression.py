@@ -135,7 +135,7 @@ TIERS = (
 # challenge and no life at stake: a fight to find the mouse again before
 # the run starts counting. It can be skipped.
 WARMUP = Tier(enemies=(AI_DIFFICULTY_MEDIUM,), challenge=AI_DIFFICULTY_EASY)
-OFFER_COUNT = 5
+OFFER_COUNT = 6
 
 
 @dataclass(frozen=True)
@@ -178,7 +178,7 @@ class Modifier:
 # and one more army walking into things. One more enemy is the harder ask
 # and now pays the more, and a bought-up enemy sits between them.
 MODIFIERS = (
-    Modifier('alone', 'no ally', 25, alone=True),
+    Modifier('alone', 'no ally', 45, alone=True),
     Modifier('armed', 'a bought-up enemy', 35, faction_upgrades=2),
     Modifier('extra_enemy', 'one more enemy', 40, extra_enemies=1),
     Modifier('boost', 'boosted AI', 50, from_tier=4, mental=True),
@@ -408,6 +408,9 @@ def _enemy_upgrades(country, budget, generator):
     shelf = [
         one for one in country_upgrades(country)
         if one.unit != STOLEN_TECH_GROUP
+        # Nor anything that only lets it see further, which it does not
+        # need to see with.
+        and one.buff_type not in ENEMY_UNBOUGHT_BUFFS
         and (
             one.unit in powers
             or not fielded
@@ -420,7 +423,7 @@ def _enemy_upgrades(country, budget, generator):
     bought = []
     spent = 0
     for one in shelf:
-        price = price_for(one, bought)
+        price = price_for(one)
         if spent + price > budget:
             continue
         bought.append(UpgradePurchase(one.unit, one.buff_type, 1))
@@ -430,17 +433,26 @@ def _enemy_upgrades(country, budget, generator):
     ))
 
 
+# What an enemy is never bought.
+#
+# A computer player is not playing against the fog: it knows where the
+# player's army is whether or not its own units can see that far. Ore
+# spent on seeing is Ore spent on nothing, and a battle that charged the
+# offer for it would be charging for nothing too.
+ENEMY_UNBOUGHT_BUFFS = frozenset({'sight', 'vision'})
+
+
 # What an enemy army can be bought up in.
 #
 # Not every stat the shelf sells means anything across a whole army. An
 # army that is entirely cloaked is not a harder battle, it is a battle the
 # player cannot see; carrying stats belong to the four units that carry
 # anything; and cost and production are what a shopper cares about, which
-# a computer player is not. What is left is the eight that read as an army
+# a computer player is not. What is left is the seven that read as an army
 # that hits harder, lasts longer, or arrives sooner.
 FACTION_STATS = (
     'damage', 'armor', 'health', 'speed',
-    'range', 'sight', 'reload', 'self_healing',
+    'range', 'reload', 'self_healing',
 )
 # What to call one of those where a player reads it. The shelf names an
 # upgrade after the unit it is for -- "Rhino Heavy Tank Armor Plating I" --

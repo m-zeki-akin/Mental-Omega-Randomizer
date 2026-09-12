@@ -23,7 +23,12 @@ from randomizer.skirmish.progression import (
     faction_stat_label,
     stolen_label,
 )
-from randomizer.skirmish.shop import owned_stacks, price_for, shelf_for
+from randomizer.skirmish.shop import (
+    REROLL_PRICE,
+    owned_stacks,
+    price_for,
+    shelf_for,
+)
 from randomizer.skirmish.table import deal
 from randomizer.skirmish.stats import stats_lines
 from randomizer.skirmish.transitions import run_progress_text
@@ -138,7 +143,7 @@ def upgrade_view(upgrade, purchases):
         'name': upgrade.name,
         'effect': upgrade.effect,
         'description': upgrade.description,
-        'price': price_for(upgrade, purchases),
+        'price': price_for(upgrade),
         'owned': bool(
             owned_stacks(purchases, upgrade.unit, upgrade.buff_type)
         ),
@@ -253,6 +258,10 @@ def run_view(run, *, shelf=()):
         ],
         'committed_offer': run.committed_offer,
         'shelf': [upgrade_view(item, run.purchases) for item in shelf],
+        # What another shelf costs, so the button can say the price and
+        # refuse at the right moment without knowing the rule.
+        'reroll_price': REROLL_PRICE,
+        'rerolls': run.rerolls,
         'stats': run.stats.to_dict(),
         'stat_lines': list(stats_lines(run.stats)),
     }
@@ -587,6 +596,31 @@ def buy(key=''):
     except SkirmishTransitionError as exc:
         raise ApiError(str(exc)) from exc
     return {'bought': upgrade.name, 'coins': saved.coins}
+
+
+@action(
+    'skirmish.reroll',
+    'Pay to be dealt another shelf of upgrades',
+    kind=COMMAND,
+)
+def reroll():
+    from randomizer.skirmish.transitions import (
+        SkirmishTransitionError,
+        reroll_shelf,
+    )
+
+    repository = _repository()
+    current = _playing(repository)
+    country = country_by_index(current.player_country)
+    if country is None:
+        raise ApiError('This run plays a country the rules no longer have')
+    try:
+        saved = repository.save_run(
+            reroll_shelf(current, country.country_id)
+        )
+    except SkirmishTransitionError as exc:
+        raise ApiError(str(exc)) from exc
+    return {'rerolls': saved.rerolls, 'coins': saved.coins}
 
 
 @action('skirmish.skip_warmup', 'Step past the warmup without fighting it', kind=COMMAND)

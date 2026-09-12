@@ -387,7 +387,7 @@ def _spent(country, keys):
         upgrade = priced.get((unit, buff_type))
         if upgrade is None:
             continue
-        total += price_for(upgrade, bought)
+        total += price_for(upgrade)
         bought.append(UpgradePurchase(unit, buff_type, 1))
     return total
 
@@ -1916,6 +1916,7 @@ def _shop_checks():
     # for the same things, and what they pay follows what they ask.
     from .progression import (
         MAX_STACKED,
+        MODIFIERS,
         MODIFIERS_BY_KEY,
         OFFER_COUNT,
         allowed_modifiers,
@@ -1930,7 +1931,10 @@ def _shop_checks():
         sum(one.percent for one in ask) for ask in early
     ]
     bonus_valid = bool(
-        OFFER_COUNT == 5
+        # However many a table is set for -- it is a number to tune, not
+        # a number to pin here. What has to hold is that a battle is a
+        # choice: the plain offer and at least two asking for something.
+        OFFER_COUNT >= 3
         and len(early) == OFFER_COUNT
         # The first offer is the plain one, and it is the only plain one.
         and not early[0]
@@ -1954,8 +1958,10 @@ def _shop_checks():
         # once, and is asked of one that has met them a while.
         and 'boost' not in {one.key for one in allowed_modifiers(1)}
         and 'boost' in {one.key for one in allowed_modifiers(18)}
-        and MODIFIERS_BY_KEY['extra_enemy'].percent
-        > MODIFIERS_BY_KEY['alone'].percent
+        # Every modifier pays for the asking, and none of them pays so
+        # much that taking it is free money. Which of them pays the most
+        # is a balance decision and belongs in the table, not here.
+        and all(0 < one.percent <= 100 for one in MODIFIERS)
         # Nor is an enemy that has infiltrated asked of an opening tier.
         and 'stolen' not in {one.key for one in allowed_modifiers(1)}
         and 'stolen' in {one.key for one in allowed_modifiers(12)}
@@ -1974,8 +1980,13 @@ def _shop_checks():
             for ask in _asked(battle)
             for one in ask
         )
-        # Two runs at the same tier are not handed the same list.
-        and _asked(1, seed='OTHER') != early
+        # Two runs at the same tier are not handed the same list -- read
+        # where there is room for them to differ. A table set for nearly
+        # as many offers as the tier has combinations shows almost all of
+        # them whatever the seed, which is the table's own doing: the
+        # first tier allows three modifiers, so it has seven combinations
+        # and a table of six is most of them.
+        and _asked(12, seed='OTHER') != _asked(12)
         # The warmup asks for nothing.
         and all(not ask for ask in _asked(0))
         # And the Ore follows the asking.
@@ -2143,40 +2154,20 @@ def _shop_checks():
     except SkirmishTransitionError:
         price_refused = True
     from .shop import (
-        PRICE_RISE_CAP,
-        PRICE_RISE_PER_OWNED,
         SHELF_CAP,
         SHELF_SIZE,
         price_for,
         shelf_size,
     )
 
-    def _owning(many):
-        return tuple(
-            UpgradePurchase(f'OWNED{index}', 'speed', 1)
-            for index in range(many)
-        )
-
     purchase_valid = bool(
-        # The first costs the list price and the second costs more,
-        # because an army that already owns one is buying its second.
-        bought.coins
-        == STARTING_ORE - cheap.price - price_for(cheap, (
-            UpgradePurchase('GGI', 'speed', 1),
-        ))
-        and price_for(cheap, ()) == cheap.price
-        and price_for(cheap, (UpgradePurchase('GGI', 'speed', 1),))
-        > cheap.price
-        and PRICE_RISE_PER_OWNED > 0
-        # It rises while it rises, and then it stops. Two claims, because
-        # a curve with no ceiling and a ceiling with no curve are both
-        # wrong in a way the other would hide.
-        and price_for(cheap, _owning(5)) < price_for(cheap, _owning(12))
-        and price_for(cheap, _owning(13)) == price_for(cheap, _owning(40))
-        and price_for(cheap, _owning(400)) == price_for(cheap, _owning(13))
-        and price_for(cheap, _owning(400)) == round(
-            cheap.price * (1 + PRICE_RISE_CAP)
-        )
+        # A row asks its list price and goes on asking it. Buying two of
+        # something costs twice, not twice and a bit: what a late run can
+        # afford is what the shelf offers and what a battle pays, both of
+        # which are on the screen, rather than a multiplier that is not.
+        bought.coins == STARTING_ORE - 2 * cheap.price
+        and price_for(cheap) == cheap.price
+        and price_for(dear) == dear.price
         # The shelf grows a row a tier and then stops as well, so a late
         # run is choosing from more without the screen becoming a list.
         and shelf_size(1) == SHELF_SIZE
@@ -2230,6 +2221,45 @@ def _shop_checks():
         and owned_stacks(taken.purchases, shelf[0].unit, shelf[0].buff_type)
         # Won, and the six are drawn again.
         and not replace(taken, shelf=()).shelf
+    )
+
+    # And a shelf with nothing on it for this run can be sent away for
+    # Ore. What comes back is another shelf, not the same one, and paying
+    # twice deals twice.
+    from .model import WARMUP_BATTLE
+    from .shop import REROLL_PRICE
+    from .transitions import reroll_shelf
+
+    rerolled = reroll_shelf(offered, 'UnitedStates')
+    twice = reroll_shelf(rerolled, 'UnitedStates')
+    try:
+        reroll_shelf(replace(offered, coins=REROLL_PRICE - 1), 'UnitedStates')
+        broke_refused = False
+    except SkirmishTransitionError:
+        broke_refused = True
+    try:
+        reroll_shelf(replace(offered, battle=WARMUP_BATTLE), 'UnitedStates')
+        warmup_refused = False
+    except SkirmishTransitionError:
+        warmup_refused = True
+    reroll_valid = bool(
+        rerolled.shelf and rerolled.shelf != offered.shelf
+        and twice.shelf not in {offered.shelf, rerolled.shelf}
+        # Paid for, once each time, and counted.
+        and rerolled.coins == offered.coins - REROLL_PRICE
+        and twice.coins == offered.coins - 2 * REROLL_PRICE
+        and (rerolled.rerolls, twice.rerolls) == (1, 2)
+        # The same run rerolling again reaches the same shelf, because a
+        # run opened twice is the same run.
+        and reroll_shelf(offered, 'UnitedStates').shelf == rerolled.shelf
+        # It deals this country's rows, and it is refused when there is
+        # not the Ore for it or nothing to spend it on yet.
+        and all(upgrade.key in allied for upgrade in shelf_for(
+            replace(rerolled, shelf=rerolled.shelf), 'UnitedStates'
+        ))
+        and len(rerolled.shelf) == len(offered.shelf)
+        and broke_refused
+        and warmup_refused
     )
 
     # A side is not an army. The three Allied countries field different
@@ -2526,8 +2556,9 @@ def _shop_checks():
     from .model import BattleOffer
     from .ownership import STOLEN_TECH_GROUP
     from .progression import (
-        FACTION_STATS, MODIFIERS_BY_KEY, TIERS, _enemy_upgrades,
-        _faction_upgrades, engine_named_units, faction_units,
+        ENEMY_UNBOUGHT_BUFFS, FACTION_STATS, MODIFIERS_BY_KEY, TIERS,
+        _enemy_upgrades, _faction_upgrades, engine_named_units,
+        faction_units,
     )
     from .shop import earned_by
 
@@ -2611,6 +2642,23 @@ def _shop_checks():
             for country in ('UnitedStates', 'USSR', 'PsiCorps', 'Guild1')
             for key in _enemy_upgrades(country, 12, Random(3))
         )
+        # Never anything that only lets it see further. A computer player
+        # knows where the player's army is whatever its units can see, so
+        # Ore spent there buys nothing -- and the shelf it is drawn from
+        # does sell those rows, or this clause would be agreeing with an
+        # empty set rather than excluding anything.
+        and any(
+            one.buff_type in ENEMY_UNBOUGHT_BUFFS
+            for country in ('UnitedStates', 'USSR')
+            for one in country_upgrades(country)
+        )
+        and not any(
+            key.split(':')[1] in ENEMY_UNBOUGHT_BUFFS
+            for country in ('UnitedStates', 'USSR', 'PsiCorps', 'Guild1')
+            for budget in (400, 2800, 21250)
+            for key in _enemy_upgrades(country, budget, Random(budget))
+        )
+        and not (ENEMY_UNBOUGHT_BUFFS & set(FACTION_STATS))
         # The army-wide draw is stats, not units, and only ever ones the
         # country's own shelf sells.
         and stats_handed
@@ -2917,6 +2965,7 @@ def _shop_checks():
         'skirmish_purchase_valid': purchase_valid,
         'skirmish_ally_shops_alone_valid': ally_valid,
         'skirmish_shelf_valid': shelf_valid,
+        'skirmish_shelf_reroll_valid': reroll_valid,
         'skirmish_shelf_is_one_country': country_valid,
         'skirmish_stolen_tech_is_one_row': stolen_valid,
         'skirmish_upgrade_priced_by_effect_valid': hero_valid,

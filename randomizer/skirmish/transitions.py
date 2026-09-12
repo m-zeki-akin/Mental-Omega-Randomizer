@@ -24,12 +24,15 @@ from .model import (
 from .progression import is_challenge_battle, is_warmup
 from .stats import record_battle, record_purchase
 from .shop import (
+    REROLL_PRICE,
+    STARTING_ORE,
     ally_shopping,
     battle_reward,
+    draw_shelf,
     owned_stacks,
     price_for,
     purchase_stacks,
-    STARTING_ORE,
+    shelf_size,
 )
 
 
@@ -187,6 +190,39 @@ def enter_nightmare(run, *, ally_country=None):
     return replace(stripped, ally_purchases=purchases, ally_coins=left)
 
 
+def reroll_shelf(run, country):
+    """Pay to send this battle's shelf away and be dealt another.
+
+    The new one is drawn from the same seed and battle with the reroll
+    counted into it, so a run opened twice rerolls to the same shelf, and
+    two rerolls in one battle are two different shelves rather than the
+    same one twice. What is already bought stays bought: a reroll deals
+    rows the run does not own, which is what the shelf was drawn from in
+    the first place.
+    """
+    if run.status is not RunStatus.ACTIVE:
+        raise SkirmishTransitionError('This run is over')
+    if is_warmup(run.battle):
+        raise SkirmishTransitionError(
+            'The warmup is fought with what you have'
+        )
+    if run.coins < REROLL_PRICE:
+        raise SkirmishTransitionError(
+            f'A new shelf costs {REROLL_PRICE} Ore; you have {run.coins}'
+        )
+    rerolls = run.rerolls + 1
+    return replace(
+        run,
+        coins=run.coins - REROLL_PRICE,
+        rerolls=rerolls,
+        shelf=draw_shelf(
+            run, country,
+            count=shelf_size(run.tier),
+            salt=f'shelf:reroll:{rerolls}',
+        ),
+    )
+
+
 def buy_upgrade(run, upgrade):
     """Spend Ore on one more stack of an upgrade."""
     if run.status is not RunStatus.ACTIVE:
@@ -200,7 +236,7 @@ def buy_upgrade(run, upgrade):
         raise SkirmishTransitionError(
             f'{upgrade.name} is already at its limit'
         )
-    asking = price_for(upgrade, run.purchases)
+    asking = price_for(upgrade)
     if run.coins < asking:
         raise SkirmishTransitionError(
             f'{upgrade.name} costs {asking} Ore; you have {run.coins}'

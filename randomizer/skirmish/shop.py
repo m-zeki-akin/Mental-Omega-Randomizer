@@ -30,7 +30,7 @@ from .ownership import STOLEN_TECH_GROUP
 BATTLE_REWARD = 125
 REWARD_PER_TIER = 75
 CHALLENGE_REWARD_MULTIPLIER = 2
-STARTING_ORE = 125
+STARTING_ORE = 200
 # How many upgrades stand on the shelf between battles, and how many by
 # the end. The shelf is drawn from the run's seed, so it is the same shelf
 # every time the run is opened.
@@ -98,20 +98,20 @@ UNSOLD_BUFFS = frozenset({
     'open_topped', 'veteran', 'build_limit', 'building_limit',
 })
 
+# What it costs to send the shelf away and be dealt another.
+#
+# Cheaper than the cheapest upgrade, because rerolling is what a run does
+# when the shelf has nothing for it -- eight rows for a unit it does not
+# build -- and being charged an upgrade for not getting one is how a run
+# stops rerolling and starts settling. There is no limit on how often:
+# what limits it is that every reroll is Ore not spent on the army.
+REROLL_PRICE = 75
+
 # How much of the shelf is powers rather than units. Read as a share:
 # each row drawn is a power with probability 17/(100+17), so a shelf of
 # eight holds one power more often than not and two now and then.
 UNIT_UPGRADE_WEIGHT = 100
 POWER_UPGRADE_WEIGHT = 17
-
-# What every upgrade already owned adds to the next one.
-PRICE_RISE_PER_OWNED = 0.04
-# And where that rise stops. Without a ceiling the fortieth upgrade cost
-# seven times the first and a run stopped buying rather than choosing;
-# with one the rise is an early tilt and then a flat price, and what
-# limits a late run is the shelf rather than the arithmetic. The
-# thirteenth upgrade is the last one that costs more than the one before.
-PRICE_RISE_CAP = 0.50
 
 
 @dataclass(frozen=True)
@@ -145,19 +145,16 @@ def upgrade_price(buff_type, *, power=False):
     return int(table.get(str(buff_type or ''), DEFAULT_BUFF_PRICE))
 
 
-def price_for(upgrade, purchases=()):
-    """Return what one upgrade costs an army that already owns those.
+def price_for(upgrade):
+    """Return what one upgrade costs.
 
-    The list price is what the first one costs. Every upgrade an army has
-    already bought raises what the next one asks, up to a ceiling: the
-    fourteenth costs what the thirteenth did, and so does the hundredth.
-    Past that what limits a run is the shelf it is offered rather than a
-    number that keeps climbing.
+    Its list price, whatever the army already owns. A rise per upgrade
+    owned made the fortieth purchase a different decision from the first
+    for no reason a player could read off the shelf: what limits a late
+    run is the eight rows it is offered and the Ore a battle pays, both
+    of which are already visible.
     """
-    owned = sum(max(1, int(one.stacks)) for one in purchases or ())
-    return max(1, int(round(upgrade.price * min(
-        1 + PRICE_RISE_PER_OWNED * owned, 1 + PRICE_RISE_CAP,
-    ))))
+    return max(1, int(upgrade.price))
 
 
 def battle_reward(battle, *, challenge=False, bonus_percent=0):
@@ -379,6 +376,15 @@ def _shared_effect(effects, label, count):
     return f'{stat}, {reach}'
 
 
+def unit_label(unit):
+    """Return what the game calls one unit, or its ID if it has no name."""
+    from randomizer.rewards.catalogue import BUFF_TARGETS
+
+    return str(
+        (BUFF_TARGETS.get(str(unit or '').upper()) or {}).get('label') or unit
+    )
+
+
 def _stolen_tech_bundles(by_buff_type, members):
     """Return one row per buff type, standing for every stolen-tech unit.
 
@@ -403,20 +409,21 @@ def _stolen_tech_bundles(by_buff_type, members):
         effects = {item.effect for item in found}
         # Not every stolen-tech unit takes every stat -- one has no weapon
         # to fire faster, another carries nobody -- so a row names the ones
-        # it actually improves rather than the whole set.
+        # it actually improves rather than the whole set, and names them
+        # the way the game does rather than by their rules ID.
         reached = sorted({item.unit for item in found})
         missing = sorted(set(members) - set(reached))
+        named = ', '.join(unit_label(one) for one in reached)
         bundles.append(Upgrade(
             unit=STOLEN_TECH_GROUP,
             buff_type=buff_type,
             name=f'Stolen Tech: {label}',
             description=(
-                'Raised on ' + ', '.join(reached)
+                f'Raises {label.lower()} on {named}'
                 + (
-                    '. Not on ' + ', '.join(missing)
-                    + ': that stat is not theirs to raise -- a unit with no '
-                    'weapon has no fire rate, and one that carries nobody '
-                    'has no room to spare.'
+                    '. Not on '
+                    + ', '.join(unit_label(one) for one in missing)
+                    + f': there is no {label.lower()} there to raise.'
                     if missing else ' -- every one of them.'
                 )
             ),
@@ -446,17 +453,19 @@ def available_upgrades(upgrades, purchases):
     )
 
 
-def draw_shelf(run, country, *, count=SHELF_SIZE, salt='shelf'):
+def draw_shelf(run, country, *, count=SHELF_SIZE, salt='shelf', purchases=None):
     """Return the keys of the upgrades to offer for one battle.
 
-    Drawn from the run's seed and its battle number, out of what the run
-    does not already own.
+    Drawn from the run's seed and its battle number, out of what the buyer
+    does not already own. ``purchases`` says which buyer that is; without
+    one it is the player, because the player's shelf is the one every
+    caller but the ally's own draw wants.
     """
     from .powers import superweapon_ids
 
     upgrades = available_upgrades(
         country_upgrades(country),
-        run.purchases if salt == 'shelf' else run.ally_purchases,
+        run.purchases if purchases is None else purchases,
     )
     if not upgrades:
         return ()
@@ -560,13 +569,13 @@ def ally_shopping(run, country, coins):
     while affordable:
         choices = [
             upgrade for upgrade in available_upgrades(upgrades, purchases)
-            if price_for(upgrade, purchases) <= coins
+            if price_for(upgrade) <= coins
         ]
         if not choices:
             affordable = False
             continue
         chosen = generator.choice(choices)
-        coins -= price_for(chosen, purchases)
+        coins -= price_for(chosen)
         purchases = purchase_stacks(purchases, chosen)
     return purchases, coins
 

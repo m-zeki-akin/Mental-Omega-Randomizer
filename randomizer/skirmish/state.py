@@ -219,6 +219,7 @@ def normalize_skirmish_run(document):
         ),
         offers=parsed_offers,
         shelf=_shelf(document.get('shelf')),
+        rerolls=_int(document.get('rerolls'), 'rerolls'),
         committed_offer=committed,
         won_battles=_int(document.get('won_battles'), 'won_battles'),
         nightmare=_int(document.get('nightmare'), 'nightmare'),

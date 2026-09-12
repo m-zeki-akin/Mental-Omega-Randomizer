@@ -223,6 +223,10 @@ class SkirmishRun:
     # reshuffle the shelf: the six stand for the whole battle and a bought
     # one stays where it was, marked as bought.
     shelf: tuple[str, ...] = ()
+    # How many times this run has paid to be dealt another shelf. It is
+    # what the next one is drawn from as well as what has been spent, so
+    # two rerolls in one battle are two different shelves.
+    rerolls: int = 0
     committed_offer: int | None = None
     won_battles: int = 0
     # How many times the nine tiers have been walked. Zero is the first
@@ -287,6 +291,7 @@ class SkirmishRun:
             ],
             'offers': [offer.to_dict() for offer in self.offers],
             'shelf': list(self.shelf),
+            'rerolls': self.rerolls,
             'committed_offer': self.committed_offer,
             'won_battles': self.won_battles,
             'nightmare': self.nightmare,
