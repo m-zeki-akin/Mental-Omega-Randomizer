@@ -223,3 +223,16 @@ skirmish keeps under its own name.
 
 - **`randomizer/ui` goes when the two interfaces are at parity**, and not
   before: it is what the fallback falls back to.
+
+## Player reports, not yet looked at
+
+- Cloaked Prism Towers reportedly do not link when they fire.
+- Check whether hero units can also be cloned from Cloning Vats.
+- Archipelago Shop Mode reportedly not working; the AP checksum YAML
+  breaks generation and Archipelago both.
+- Foehn Nanofiber-Sync transformed infantry lose their original's buffs
+  (same class of bug as deployed units once losing theirs). Proto-Gharial
+  water image should be `GHTNK2W`. Knightfall units come out as standard
+  rather than randomizer versions. Mastodon damage is not upgradeable --
+  add a damage buff or remove the row.
+- Phobos: add the DLL and the edited INI.

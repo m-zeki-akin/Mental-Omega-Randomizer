@@ -87,7 +87,7 @@ Each document has one purpose so the same behavior is not maintained in several 
 
 | Document | Audience | Authoritative content |
 |---|---|---|
-| [DEVELOPER_GUIDE.md](DEVELOPER_GUIDE.md) | Contributors | Feature-to-file map, runtime flow, module boundaries, change rules, validation |
+| [CLAUDE.md](CLAUDE.md) | Contributors and AI-assisted development | Package map, commands, self-check idiom, hard-won engine and mode facts, which document answers what |
 | [README_RANDOMIZER.md](README_RANDOMIZER.md) | Players and future Archipelago option authors | Complete settings tables, reward display, game modes, seed lifecycle, and user-facing limitations |
 | [TECHNICAL_FINDINGS.md](TECHNICAL_FINDINGS.md) | Developers | Launch architecture, generated-map pipeline, objective/victory hook implementation, reward planning, tech locking, and buff safety |
 | [configs/README.md](configs/README.md) | Maintainers and advanced users | Editable static mission, faction, reward, unit, and UI JSON configuration |
@@ -183,7 +183,12 @@ The report is written to `self_check.json` in the player data folder, `%LOCALAPP
 | Path | Responsibility |
 |---|---|
 | `launcher_gui.py` | Packaged/source entry point and self-check |
-| `randomizer/application/` | Tk application composition; state, seed, progression, launch, and Unlocks controllers |
+| `randomizer/api/` | The interface boundary: `@action` readings and commands as plain data |
+| `randomizer/shell/` + `web/` | The new interface: which UI opens, the screens per mode, and the HTML/ES-module front end |
+| `randomizer/skirmish/` | Skirmish Shop: tiers, offers, shelf, enemy arming, battle launch |
+| `randomizer/shop/` | Campaign Shop Mode: pure economy, offers, purchases, lifecycle |
+| `randomizer/campaign/` | Campaign run generation without a window |
+| `randomizer/application/` | Classic Tk controllers (being retired) and the Archipelago session adapter |
 | `randomizer/config/` | Player YAML, static JSON loading, schema validation, and tuning adapters |
 | `randomizer/core/` | Paths, storage, diagnostics, version, and collection primitives |
 | `randomizer/launch/` | Spawn and option INI mechanics |
@@ -204,9 +209,8 @@ Shop Gems and permanent unlocks live in `shop_profile.json`; the current run's
 Ore, purchases, and mission state live in `shop_run.json`. Releases replace
 neither file. Both use atomic writes and forward-compatible normalization, so
 an update adds new defaults without resetting existing currency or purchases.
-Every Python module stays below 1,000 lines. Public facades such as
-`randomizer.maps.rules`, `randomizer.missions.safety`, and
-`randomizer.rewards.catalogue` keep callers independent from internal splits.
+Public facades such as `randomizer.maps.rules`, `randomizer.missions.safety`,
+and `randomizer.rewards.catalogue` keep callers independent from internal splits.
 
 ## Troubleshooting and Bug Reports
 

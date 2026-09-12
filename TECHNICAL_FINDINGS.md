@@ -64,7 +64,7 @@ Source runs load static data directly from `configs`. One-file builds generate a
 
 ## Mission Discovery and Seed Construction
 
-Mission code, map filename, title, side, and briefing objective text are read from `INI/BattleClient.ini`. `MISSION_BUILD_CLASSIFICATIONS` assigns every installed catalogue code to `base_build`, `true_no_build`, or `no_build_production`; [MISSION_CLASSIFICATION.md](MISSION_CLASSIFICATION.md) is the player-readable 97-entry list. Classification uses reviewed gameplay behavior and community correction rather than initial map ownership alone; Allied 01 is explicitly a base-build mission. A mission with briefing objectives receives one check per objective plus a separate `victory` check. When no objective text exists, the launcher creates three placeholder objective checks plus victory.
+Mission code, map filename, title, side, and briefing objective text are read from `INI/BattleClient.ini`. `MISSION_BUILD_CLASSIFICATIONS` assigns every installed catalogue code to `base_build`, `true_no_build`, or `no_build_production`; `configs/missions.json` (`build_classifications`) is the full list, APRA2 entries included. Classification uses reviewed gameplay behavior and community correction rather than initial map ownership alone; Allied 01 is explicitly a base-build mission. A mission with briefing objectives receives one check per objective plus a separate `victory` check. When no objective text exists, the launcher creates three placeholder objective checks plus victory.
 
 Seed construction is deterministic for a seed string:
 
