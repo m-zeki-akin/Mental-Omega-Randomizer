@@ -27,6 +27,7 @@ import re
 
 from randomizer.core.paths import GAME_ROOT
 
+from .config import SETTINGS
 from .mapfile import merge_into_map
 from .maps import MAPS_DIR
 
@@ -47,7 +48,7 @@ ROMAN = {'i': 1, 'v': 5, 'x': 10, 'l': 50}
 # How far a first walk goes. The challenges past this one were built for
 # players who have already finished the run once, so they wait for
 # nightmare rather than closing a tier of the first attempt.
-FIRST_WALK_CHALLENGES = 12
+FIRST_WALK_CHALLENGES = int(SETTINGS.run['first_walk_challenges'])
 
 # The client's own three challenge modes, hardest first. CoopDifficultyLevel
 # counts the other way from everything else: 0 is Hard.

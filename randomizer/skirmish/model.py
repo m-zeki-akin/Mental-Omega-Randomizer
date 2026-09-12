@@ -15,6 +15,7 @@ from typing import Any
 
 from randomizer.shop.model import RunStatus
 
+from .config import SETTINGS
 from .stats import RunStats
 
 
@@ -26,14 +27,16 @@ SKIRMISH_RUN_COLLECTION_SCHEMA_VERSION = 1
 # short on purpose: five battles at one enemy is four battles of the same
 # battle, and a run should reach its third opponent before it reaches its
 # tenth fight.
-TIER_LENGTHS = (3, 4, 5)
-# How many tiers one walk through the run is. The tenth tier does not
-# exist: finishing the ninth starts the walk again, harder.
-TIER_COUNT = 9
+TIER_LENGTHS = tuple(SETTINGS.run['tier_lengths'])
+# How many tiers one walk through the run is: as many as the ladder has
+# rungs, because the ladder *is* the run. There is no tier after the last
+# -- finishing it starts the walk again, harder.
+TIER_COUNT = len(SETTINGS.tiers)
 # The battle number a run opens on. Everything counted from one is a tier
-# battle; zero is the warmup, which is none of them.
+# battle; zero is the warmup, which is none of them. Not a setting: it is
+# what "before the run starts counting" means.
 WARMUP_BATTLE = 0
-DEFAULT_LIVES = 3
+DEFAULT_LIVES = int(SETTINGS.run['lives'])
 
 
 def battles_in_tier(tier):

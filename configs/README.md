@@ -57,6 +57,16 @@ that overlap only with full reward-plan and 97-map parity coverage.
 - `shop_mode.json`: Shop Mode run length, mission offers and class rewards,
   stage difficulty weights, Ore/Gem unit prices, permanent upgrade
   definitions, reward exclusions, and launcher-only mission effects.
+- `skirmish.json`: Skirmish Shop balance. What a battle pays and a run
+  starts with, what a reroll costs, the shelf's size and its share of
+  superweapon rows, the price of an upgrade by what it does, how long each
+  tier is and how many lives a run has, the tier ladder (how many enemies,
+  how well they play, what each is handed, and which challenge mode closes
+  the tier), what an offer may ask for and what it pays for asking, and the
+  stats an enemy army is bought up in. The ladder is the run: it is as many
+  tiers long as it has rungs. Difficulties are written `easy`, `medium` and
+  `hard` rather than as the engine's own numbering, which counts the other
+  way round.
 - `ui.json`: difficulties, game speeds, campaign/reward/progression choices,
   EVA announcer tags, reward-count messages, faction colors, and
   light/dark palettes.

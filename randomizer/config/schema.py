@@ -8,6 +8,7 @@ from pathlib import Path
 
 from randomizer.config.mission_rewards import validate_mission_reward_config
 from randomizer.config.shop_mode import validate_shop_mode_config
+from randomizer.config.skirmish import validate_skirmish_config
 
 
 class StaticConfigError(RuntimeError):
@@ -88,6 +89,15 @@ REQUIRED_SECTIONS = {
         'standard_families': list,
         'airfields': dict,
         'production_aliases': dict,
+    },
+    'skirmish.json': {
+        'economy': dict,
+        'shelf': dict,
+        'prices': dict,
+        'run': dict,
+        'tiers': dict,
+        'modifiers': list,
+        'enemy': dict,
     },
     'shop_mode.json': {
         'settings': dict,
@@ -490,6 +500,10 @@ def _validate_missions(sections, path):
 
 def _validate_shop_mode(sections, path):
     validate_shop_mode_config(sections, path, _invalid)
+
+
+def _validate_skirmish(sections, path):
+    validate_skirmish_config(sections, path, _invalid)
 
 
 def _validate_unit_data(sections, path):
@@ -1601,6 +1615,7 @@ CONFIG_VALIDATORS = {
     'default_player_config.json': _validate_default_player_config,
     'missions.json': _validate_missions,
     'shop_mode.json': _validate_shop_mode,
+    'skirmish.json': _validate_skirmish,
     'rewards/unit_data.json': _validate_unit_data,
     'rewards/unit_policy.json': _validate_unit_policy,
     'rewards/special_buildings.json': _validate_special_buildings,

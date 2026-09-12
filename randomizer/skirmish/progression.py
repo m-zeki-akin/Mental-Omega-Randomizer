@@ -28,6 +28,7 @@ from dataclasses import dataclass
 import random
 
 from .challenges import challenge_for, in_first_walk
+from .config import SETTINGS, difficulty_number
 from .shop import earned_by
 from .model import (
     WARMUP_BATTLE,
@@ -71,71 +72,35 @@ class Tier:
         return min(self.enemies) if self.enemies else AI_DIFFICULTY_MEDIUM
 
 
-# Nine tiers, and the first is already a fair fight. An easy AI does not
-# make an easy battle, it makes a quiet one: it barely attacks, and Mental
-# Omega's own boost makes that worse rather than better, because on Easy it
-# raises the team delay from 90 to 1000. So nothing here is fought on Easy.
-TIERS = (
+# The ladder, read from ``configs/skirmish.json``. Nothing here is fought
+# on Easy: an easy AI does not make an easy battle, it makes a quiet one --
+# it barely attacks, and Mental Omega's own boost makes that worse rather
+# than better, because on Easy it raises the team delay from 90 to 1000.
+# That is a thing to know while tuning the file, not a thing this enforces.
+TIERS = tuple(
     Tier(
-        enemies=(AI_DIFFICULTY_MEDIUM,),
-        challenge=AI_DIFFICULTY_EASY,
-        enemy_upgrades=0,
-    ),
-    Tier(
-        enemies=(AI_DIFFICULTY_MEDIUM, AI_DIFFICULTY_MEDIUM),
-        challenge=AI_DIFFICULTY_EASY,
-        enemy_upgrades=1,
-    ),
-    Tier(
-        enemies=(AI_DIFFICULTY_MEDIUM, AI_DIFFICULTY_HARD),
-        challenge=AI_DIFFICULTY_MEDIUM,
-        enemy_upgrades=1,
-    ),
-    Tier(
-        enemies=(
-            AI_DIFFICULTY_MEDIUM, AI_DIFFICULTY_MEDIUM, AI_DIFFICULTY_HARD,
-        ),
-        challenge=AI_DIFFICULTY_MEDIUM,
-        enemy_upgrades=2,
-    ),
-    Tier(
-        enemies=(
-            AI_DIFFICULTY_MEDIUM, AI_DIFFICULTY_HARD, AI_DIFFICULTY_HARD,
-        ),
-        challenge=AI_DIFFICULTY_HARD,
-        enemy_upgrades=2,
-    ),
-    Tier(
-        enemies=(AI_DIFFICULTY_HARD,) * 3,
-        challenge=AI_DIFFICULTY_HARD,
-        enemy_upgrades=3,
-    ),
-    Tier(
-        enemies=(AI_DIFFICULTY_HARD,) * 3,
-        challenge=AI_DIFFICULTY_HARD,
-        mental=True,
-        challenge_mental=True,
-        enemy_upgrades=4,
-    ),
-    Tier(
-        enemies=(AI_DIFFICULTY_HARD,) * 4,
-        challenge=AI_DIFFICULTY_HARD,
-        mental=True,
-        challenge_mental=True,
-        enemy_upgrades=4,
-    ),
-    Tier(
-        enemies=(AI_DIFFICULTY_HARD,) * 5,
-        challenge=AI_DIFFICULTY_HARD,
-        mental=True,
-        enemy_upgrades=5,
-    ),
+        enemies=one.enemies,
+        challenge=one.challenge,
+        mental=one.mental,
+        challenge_mental=one.challenge_mental,
+        enemy_upgrades=one.enemy_upgrades,
+    )
+    for one in SETTINGS.tiers
 )
-# The warmup. One trained enemy and the ally beside you, no shop, no
-# challenge and no life at stake: a fight to find the mouse again before
-# the run starts counting. It can be skipped.
-WARMUP = Tier(enemies=(AI_DIFFICULTY_MEDIUM,), challenge=AI_DIFFICULTY_EASY)
-OFFER_COUNT = 6
+# The warmup. One enemy and the ally beside you, no shop, no challenge and
+# no life at stake: a fight to find the mouse again before the run starts
+# counting. It can be skipped.
+WARMUP = Tier(
+    enemies=SETTINGS.warmup.enemies,
+    challenge=SETTINGS.warmup.challenge,
+    mental=SETTINGS.warmup.mental,
+    challenge_mental=SETTINGS.warmup.challenge_mental,
+    enemy_upgrades=SETTINGS.warmup.enemy_upgrades,
+)
+# How many battles a table sets. Battles that differ only in which map
+# they are on are a shuffle rather than a choice, so the table is the
+# plain battle and then combinations of what a tier allows.
+OFFER_COUNT = int(SETTINGS.shelf['offer_count'])
 
 
 @dataclass(frozen=True)
@@ -173,27 +138,31 @@ class Modifier:
 
 
 # What each one is worth is what it costs to survive, not what it sounds
-# like. Fighting without the ally used to pay 75% and was the easiest of
-# the three offers on a one-enemy tier: an ally is one more base to defend
-# and one more army walking into things. One more enemy is the harder ask
-# and now pays the more, and a bought-up enemy sits between them.
-MODIFIERS = (
-    Modifier('alone', 'no ally', 45, alone=True),
-    Modifier('armed', 'a bought-up enemy', 35, faction_upgrades=2),
-    Modifier('extra_enemy', 'one more enemy', 40, extra_enemies=1),
-    Modifier('boost', 'boosted AI', 50, from_tier=4, mental=True),
-    Modifier('stolen', 'an enemy that has infiltrated', 45, from_tier=3,
-             enemy_stolen=True),
+# like -- which is a judgement, and lives in the file with the numbers.
+MODIFIERS = tuple(
+    Modifier(
+        key=one.key,
+        label=one.label,
+        percent=one.percent,
+        from_tier=one.from_tier,
+        extra_enemies=one.extra_enemies,
+        alone=one.alone,
+        mental=one.mental,
+        enemy_upgrades=one.enemy_upgrades,
+        faction_upgrades=one.faction_upgrades,
+        enemy_stolen=one.enemy_stolen,
+    )
+    for one in SETTINGS.modifiers
 )
 MODIFIERS_BY_KEY = {one.key: one for one in MODIFIERS}
 # How many may be asked for at once. Three at a time is not an offer, it
 # is a punishment, and the percentages add up faster than a run does.
-MAX_STACKED = 2
+MAX_STACKED = int(SETTINGS.shelf['max_stacked_modifiers'])
 # What the ally plays at, whatever the enemies play at. It is the player's
 # partner, and a partner on Easy develops a base and then stands in it: the
 # difficulty of a run is what it is fought against, not who it is fought
 # beside.
-ALLY_DIFFICULTY = AI_DIFFICULTY_HARD
+ALLY_DIFFICULTY = difficulty_number(SETTINGS.enemy['ally_difficulty'])
 
 
 def is_warmup(battle):
@@ -439,34 +408,16 @@ def _enemy_upgrades(country, budget, generator):
 # player's army is whether or not its own units can see that far. Ore
 # spent on seeing is Ore spent on nothing, and a battle that charged the
 # offer for it would be charging for nothing too.
-ENEMY_UNBOUGHT_BUFFS = frozenset({'sight', 'vision'})
+ENEMY_UNBOUGHT_BUFFS = frozenset(SETTINGS.enemy['unbought_buffs'])
 
-
-# What an enemy army can be bought up in.
-#
-# Not every stat the shelf sells means anything across a whole army. An
-# army that is entirely cloaked is not a harder battle, it is a battle the
-# player cannot see; carrying stats belong to the four units that carry
-# anything; and cost and production are what a shopper cares about, which
-# a computer player is not. What is left is the seven that read as an army
-# that hits harder, lasts longer, or arrives sooner.
-FACTION_STATS = (
-    'damage', 'armor', 'health', 'speed',
-    'range', 'reload', 'self_healing',
-)
-# What to call one of those where a player reads it. The shelf names an
-# upgrade after the unit it is for -- "Rhino Heavy Tank Armor Plating I" --
-# and an army-wide one is for no unit in particular.
-FACTION_STAT_LABELS = {
-    'damage': 'Firepower',
-    'armor': 'Armour',
-    'health': 'Durability',
-    'speed': 'Speed',
-    'range': 'Range',
-    'sight': 'Sight',
-    'reload': 'Rate of fire',
-    'self_healing': 'Self-repair',
-}
+# What an enemy army can be bought up in, and what to call one of those
+# where a player reads it. Not every stat the shelf sells means anything
+# across a whole army: an army that is entirely cloaked is not a harder
+# battle, it is a battle the player cannot see; carrying stats belong to
+# the few units that carry anything; and cost and production are what a
+# shopper cares about, which a computer player is not.
+FACTION_STAT_LABELS = dict(SETTINGS.enemy['faction_stats'])
+FACTION_STATS = tuple(FACTION_STAT_LABELS)
 
 
 def faction_stat_label(stat):

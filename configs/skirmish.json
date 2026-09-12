@@ -1,0 +1,211 @@
+{
+  "schema_version": 1,
+  "description": "Skirmish Shop balance: the economy, the shelf, the tier ladder, and what an offer may ask for.",
+  "sections": {
+    "economy": {
+      "starting_ore": 200,
+      "battle_reward": 125,
+      "reward_per_tier": 75,
+      "challenge_reward_multiplier": 2,
+      "reroll_price": 75,
+      "stolen_tech_price_per_unit": 0.5
+    },
+    "shelf": {
+      "size": 8,
+      "cap": 10,
+      "unit_upgrade_weight": 100,
+      "power_upgrade_weight": 17,
+      "offer_count": 6,
+      "max_stacked_modifiers": 2
+    },
+    "prices": {
+      "default": 75,
+      "unit": {
+        "cloak": 250,
+        "sensors": 125,
+        "ammo": 125,
+        "cost": 125,
+        "self_healing": 125,
+        "health": 100,
+        "armor": 100,
+        "damage": 100,
+        "reload": 100,
+        "speed": 100,
+        "production": 100,
+        "sight": 75
+      },
+      "power": {
+        "damage": 200,
+        "area": 200,
+        "payload": 200,
+        "duration": 150,
+        "recharge": 150,
+        "cost": 75,
+        "vision": 75
+      },
+      "unsold": [
+        "open_topped",
+        "veteran",
+        "build_limit",
+        "building_limit"
+      ]
+    },
+    "run": {
+      "tier_lengths": [
+        3,
+        4,
+        5
+      ],
+      "lives": 3,
+      "first_walk_challenges": 12
+    },
+    "tiers": {
+      "warmup": {
+        "enemies": [
+          "medium"
+        ],
+        "challenge": "easy",
+        "mental": false,
+        "challenge_mental": false,
+        "enemy_upgrades": 0
+      },
+      "ladder": [
+        {
+          "enemies": [
+            "medium"
+          ],
+          "challenge": "easy",
+          "enemy_upgrades": 0
+        },
+        {
+          "enemies": [
+            "medium",
+            "medium"
+          ],
+          "challenge": "easy",
+          "enemy_upgrades": 1
+        },
+        {
+          "enemies": [
+            "medium",
+            "hard"
+          ],
+          "challenge": "medium",
+          "enemy_upgrades": 1
+        },
+        {
+          "enemies": [
+            "medium",
+            "medium",
+            "hard"
+          ],
+          "challenge": "medium",
+          "enemy_upgrades": 2
+        },
+        {
+          "enemies": [
+            "medium",
+            "hard",
+            "hard"
+          ],
+          "challenge": "hard",
+          "enemy_upgrades": 2
+        },
+        {
+          "enemies": [
+            "hard",
+            "hard",
+            "hard"
+          ],
+          "challenge": "hard",
+          "enemy_upgrades": 3
+        },
+        {
+          "enemies": [
+            "hard",
+            "hard",
+            "hard"
+          ],
+          "challenge": "hard",
+          "mental": true,
+          "challenge_mental": true,
+          "enemy_upgrades": 4
+        },
+        {
+          "enemies": [
+            "hard",
+            "hard",
+            "hard",
+            "hard"
+          ],
+          "challenge": "hard",
+          "mental": true,
+          "challenge_mental": true,
+          "enemy_upgrades": 4
+        },
+        {
+          "enemies": [
+            "hard",
+            "hard",
+            "hard",
+            "hard",
+            "hard"
+          ],
+          "challenge": "hard",
+          "mental": true,
+          "enemy_upgrades": 5
+        }
+      ]
+    },
+    "modifiers": [
+      {
+        "key": "alone",
+        "label": "no ally",
+        "percent": 45,
+        "alone": true
+      },
+      {
+        "key": "armed",
+        "label": "a bought-up enemy",
+        "percent": 35,
+        "faction_upgrades": 2
+      },
+      {
+        "key": "extra_enemy",
+        "label": "one more enemy",
+        "percent": 40,
+        "extra_enemies": 1
+      },
+      {
+        "key": "boost",
+        "label": "boosted AI",
+        "percent": 50,
+        "from_tier": 4,
+        "mental": true
+      },
+      {
+        "key": "stolen",
+        "label": "an enemy that has infiltrated",
+        "percent": 45,
+        "from_tier": 3,
+        "enemy_stolen": true
+      }
+    ],
+    "enemy": {
+      "ally_difficulty": "hard",
+      "unbought_buffs": [
+        "sight",
+        "vision"
+      ],
+      "faction_stats": {
+        "damage": "Firepower",
+        "armor": "Armour",
+        "health": "Durability",
+        "speed": "Speed",
+        "range": "Range",
+        "reload": "Rate of fire",
+        "self_healing": "Self-repair"
+      }
+    }
+  }
+}

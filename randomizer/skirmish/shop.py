@@ -20,98 +20,58 @@ from dataclasses import dataclass
 from functools import lru_cache
 import random
 
+from .config import SETTINGS
 from .model import UpgradePurchase, closes_tier, tier_of
 from .ownership import STOLEN_TECH_GROUP
 
 
-# What a battle pays, by the tier it was fought in. Fixed rather than scaled
-# by the score: a score can be farmed by dragging a won battle out, and a
-# run's difficulty should not be something a player can grind around.
-BATTLE_REWARD = 125
-REWARD_PER_TIER = 75
-CHALLENGE_REWARD_MULTIPLIER = 2
-STARTING_ORE = 200
+# Every number below is read from ``configs/skirmish.json``; the names
+# stay because they are what the rest of the mode calls them. What each
+# one means is written in the file beside its value, where somebody
+# tuning a run will be looking.
+#
+# What a battle pays, fixed rather than scaled by the score: a score can be
+# farmed by dragging a won battle out, and a run's difficulty should not be
+# something a player can grind around.
+BATTLE_REWARD = int(SETTINGS.economy['battle_reward'])
+REWARD_PER_TIER = int(SETTINGS.economy['reward_per_tier'])
+CHALLENGE_REWARD_MULTIPLIER = int(
+    SETTINGS.economy['challenge_reward_multiplier']
+)
+STARTING_ORE = int(SETTINGS.economy['starting_ore'])
+# What it costs to send the shelf away and be dealt another. There is no
+# limit on how often: what limits it is that every reroll is Ore not spent
+# on the army.
+REROLL_PRICE = int(SETTINGS.economy['reroll_price'])
 # How many upgrades stand on the shelf between battles, and how many by
 # the end. The shelf is drawn from the run's seed, so it is the same shelf
-# every time the run is opened.
-#
-# It grows a row per tier because what a battle pays grows too: a late
-# shelf of eight was a shelf a run could buy out, and a shelf a run can buy
-# out is not a choice between upgrades. Ten is the ceiling -- past that
-# the screen is a list rather than a decision.
-SHELF_SIZE = 8
-SHELF_CAP = 10
+# every time the run is opened, and it grows a row a tier because what a
+# battle pays grows too.
+SHELF_SIZE = int(SETTINGS.shelf['size'])
+SHELF_CAP = int(SETTINGS.shelf['cap'])
 # What a stolen-tech row costs on top of the dearest unit it improves, per
-# extra unit it reaches. A row that raises a stat on five units is worth
-# more than one that raises it on one, and some stats reach only one of
-# them -- a unit with no weapon has no fire rate. Reach is what is paid for.
-STOLEN_TECH_PRICE_PER_UNIT = 0.5
-# What an upgrade costs, by what it does.
-#
-# Not by the unit it is for and not by the tier it is bought in. A Rhino
-# is worth more than a Flak Trooper on the field, but a run improving a
-# Flak Trooper is making the same kind of decision for the same kind of
-# army, and pricing off the unit's own credit cost meant the shelf's
-# cheap half was the half nobody thought about. What is paid for now is
-# the stat: cloaking an army is the dearest thing a run can do to it,
-# vision the least.
-UNIT_BUFF_PRICES = {
-    'cloak': 250,
-    'sensors': 125,
-    'ammo': 125,
-    'cost': 125,
-    'self_healing': 125,
-    'health': 100,
-    'armor': 100,
-    'damage': 100,
-    'reload': 100,
-    'speed': 100,
-    'production': 100,
-    'sight': 75,
-}
-# And what a stat not named above costs -- range, harvester capacity, and
-# anything a submod adds that this table has never heard of.
-DEFAULT_BUFF_PRICE = 75
-
-# The same for a superweapon's own upgrades. The names collide with the
-# unit table and the prices do not: a power that hits harder is worth
-# twice what a unit that hits harder is, because there is one of it and
-# it decides a battle rather than joining one.
-POWER_BUFF_PRICES = {
-    'damage': 200,
-    'area': 200,
-    'payload': 200,
-    'duration': 150,
-    'recharge': 150,
-    'cost': 75,
-    'vision': 75,
-}
-
-# What is not sold at any price.
-#
-# Passenger firing, veterancy and the two build limits are things the
-# campaign shop delivers and this mode cannot: veterancy is granted on
-# the house, a build limit is raised by building a clone, and a passenger
-# firing out of a transport needs the transport to be the one the rules
-# name. All three would take Ore and change nothing.
-UNSOLD_BUFFS = frozenset({
-    'open_topped', 'veteran', 'build_limit', 'building_limit',
-})
-
-# What it costs to send the shelf away and be dealt another.
-#
-# Cheaper than the cheapest upgrade, because rerolling is what a run does
-# when the shelf has nothing for it -- eight rows for a unit it does not
-# build -- and being charged an upgrade for not getting one is how a run
-# stops rerolling and starts settling. There is no limit on how often:
-# what limits it is that every reroll is Ore not spent on the army.
-REROLL_PRICE = 75
-
-# How much of the shelf is powers rather than units. Read as a share:
-# each row drawn is a power with probability 17/(100+17), so a shelf of
-# eight holds one power more often than not and two now and then.
-UNIT_UPGRADE_WEIGHT = 100
-POWER_UPGRADE_WEIGHT = 17
+# extra unit it reaches. Reach is what is paid for.
+STOLEN_TECH_PRICE_PER_UNIT = float(
+    SETTINGS.economy['stolen_tech_price_per_unit']
+)
+# What an upgrade costs, by what it does -- not by the unit it is for and
+# not by the tier it is bought in. Two tables because the names collide and
+# the prices do not: a unit's ``damage`` and a superweapon's are different
+# purchases.
+UNIT_BUFF_PRICES = dict(SETTINGS.prices['unit'])
+POWER_BUFF_PRICES = dict(SETTINGS.prices['power'])
+# And what a stat named in neither costs -- range, harvester capacity, and
+# anything a submod adds that those tables have never heard of.
+DEFAULT_BUFF_PRICE = int(SETTINGS.prices['default'])
+# What is not sold at any price: what the campaign shop delivers and this
+# mode cannot. Veterancy is granted on the house, a build limit is raised
+# by building a clone, and a passenger firing out of a transport needs the
+# transport the rules name. All of them would take Ore and change nothing.
+UNSOLD_BUFFS = frozenset(SETTINGS.prices['unsold'])
+# How much of the shelf is powers rather than units. Read as a share: each
+# row drawn is a power with probability power/(unit+power).
+UNIT_UPGRADE_WEIGHT = int(SETTINGS.shelf['unit_upgrade_weight'])
+POWER_UPGRADE_WEIGHT = int(SETTINGS.shelf['power_upgrade_weight'])
 
 
 @dataclass(frozen=True)

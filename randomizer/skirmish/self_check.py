@@ -678,21 +678,44 @@ def _run_checks():
         # A tier is as long as its own entry says, and its last battle is
         # the challenge. The early tiers are the short ones: two battles
         # and a challenge, then three, then four for the rest of the run.
-        from .model import TIER_LENGTHS, cycle_battles
+        from .model import (
+            TIER_COUNT,
+            TIER_LENGTHS,
+            battles_in_tier,
+            cycle_battles,
+        )
 
+        # The lengths are the file's -- what is checked is that the
+        # counting follows them, whatever they are. Every tier is as long
+        # as its entry says, with the last standing for every tier after;
+        # the battle that closes one is its last; and a walk is as long as
+        # its tiers add up to rather than as long as any one of them.
+        closes = [
+            battle for battle in range(1, cycle_battles() + 1)
+            if is_challenge_battle(battle)
+        ]
+        expected_closes, running = [], 0
+        for tier in range(1, TIER_COUNT + 1):
+            running += battles_in_tier(tier)
+            expected_closes.append(running)
         cadence_valid = bool(
-            TIER_LENGTHS == (3, 4, 5)
-            and [tier_for(battle) for battle in (1, 3, 4, 7, 8, 12, 13)]
-            == [1, 1, 2, 2, 3, 3, 4]
-            and [
-                battle for battle in range(1, 18)
-                if is_challenge_battle(battle)
-            ] == [3, 7, 12, 17]
+            TIER_LENGTHS
+            and all(one > 0 for one in TIER_LENGTHS)
+            and [battles_in_tier(one) for one in range(1, TIER_COUNT + 1)]
+            == [
+                TIER_LENGTHS[min(one, len(TIER_LENGTHS)) - 1]
+                for one in range(1, TIER_COUNT + 1)
+            ]
+            and closes == expected_closes
+            and [tier_for(battle) for battle in closes]
+            == list(range(1, TIER_COUNT + 1))
+            and tier_for(1) == 1
+            and tier_for(closes[0] + 1) == 2
             and not is_challenge_battle(0)
             and tier_for(0) == 0
-            # And the walk is as long as its tiers add up to, not nine of
-            # any one length.
-            and cycle_battles() == 3 + 4 + 5 * 7
+            and cycle_battles() == sum(
+                battles_in_tier(one) for one in range(1, TIER_COUNT + 1)
+            )
         )
 
         first = offers_for(
@@ -740,19 +763,25 @@ def _run_checks():
 
         # A defeat costs a life and leaves the battle where it was.
         lost = record_defeat(run)
+        # Losing costs a life and leaves the battle where it was. A run
+        # is over when it has lost as many as it was given, however many
+        # that is.
+        spent = lost
+        for _again in range(DEFAULT_LIVES - 1):
+            spent = record_defeat(commit_offer(spent, 1))
         defeat_valid = bool(
             lost.battle == run.battle
             and lost.revivals_used == 1
             and lost.lives_left == DEFAULT_LIVES - 1
-            and lost.status is RunStatus.ACTIVE
-            and record_defeat(
-                commit_offer(record_defeat(commit_offer(lost, 1)), 1)
-            ).status is RunStatus.FAILED
+            and (lost.status is RunStatus.ACTIVE) == (DEFAULT_LIVES > 1)
+            and spent.lives_left == 0
+            and spent.status is RunStatus.FAILED
         )
 
         # The challenge battle offers one map and no choice, and the pool
         # comes back whole once it has been through.
-        closing = replace(won, battle=3)
+        # The first battle that closes a tier, wherever the lengths put it.
+        closing = replace(won, battle=battles_in_tier(1))
         seen = []
         for _round in range(len(challenge_pool)):
             offers = offers_for(
@@ -1080,23 +1109,34 @@ def _challenge_checks():
     # for every battle after it.
     from .progression import TIERS
 
+    from .model import TIER_COUNT, battles_before, battles_in_tier
+
+    # The battles that actually close a tier, wherever the lengths put
+    # them, and the tier each one belongs to.
+    closing = [
+        battles_before(tier) + battles_in_tier(tier)
+        for tier in range(1, TIER_COUNT + 1)
+    ]
     level_valid = bool(
-        # Read at the battles that actually close a tier: 3, 7, 12, 17, 22.
-        challenge_level(3) == AI_DIFFICULTY_EASY
-        and challenge_level(7) == AI_DIFFICULTY_EASY
-        and challenge_level(12) == AI_DIFFICULTY_MEDIUM
-        and challenge_level(17) == AI_DIFFICULTY_MEDIUM
-        and challenge_level(22) == AI_DIFFICULTY_HARD
-        and challenge_level(42) == AI_DIFFICULTY_HARD
-        and challenge_level(400) == TIERS[-1].challenge
-        # Nothing is fought on Easy but the first two challenges: an easy
-        # AI does not make an easy battle, it makes a quiet one.
+        # Each challenge is fought under the mode its own tier names, and
+        # a battle past the last tier is fought under the last tier's.
+        [challenge_level(battle) for battle in closing]
+        == [tier.challenge for tier in TIERS]
+        and challenge_level(closing[-1] + 400) == TIERS[-1].challenge
+        # Nothing is fought on Easy: an easy AI does not make an easy
+        # battle, it makes a quiet one -- it barely attacks, and Mental
+        # Omega's own boost makes that worse rather than better. A
+        # challenge is the exception, because its armies are scripted.
         and not any(
             AI_DIFFICULTY_EASY in tier.enemies for tier in TIERS
         )
-        # The tiers name more enemies and better ones as they rise.
-        and [len(tier.enemies) for tier in TIERS] == [1, 2, 2, 3, 3, 3, 3, 4, 5]
-        and [tier.mental for tier in TIERS].count(True) == 3
+        # The ladder rises rather than wandering: never fewer enemies than
+        # the tier before, and never an easier challenge.
+        and [len(tier.enemies) for tier in TIERS]
+        == sorted(len(tier.enemies) for tier in TIERS)
+        and [-tier.challenge for tier in TIERS]
+        == sorted(-tier.challenge for tier in TIERS)
+        and TIERS and len(TIERS[-1].enemies) >= len(TIERS[0].enemies)
     )
 
     with TemporaryDirectory(prefix='mo-skirmish-challenge-') as temporary:
@@ -1116,7 +1156,7 @@ def _challenge_checks():
             ally_country=3,
         )
         offer = challenge_offer(
-            replace(run, battle=3), pool, maps_dir,
+            replace(run, battle=battles_in_tier(1)), pool, maps_dir,
             skirmish_countries() or (SimpleCountry(0),),
         )
         offer_valid = bool(
@@ -1125,7 +1165,8 @@ def _challenge_checks():
             # Fought beside the ally, which stands in the seat the map keeps
             # for a co-op partner.
             and offer.ally
-            and offer.handicap == AI_DIFFICULTY_EASY
+            # Under the mode its own tier names, which is the file's.
+            and offer.handicap == TIERS[0].challenge
         )
 
         # The mode's INI is merged into the map rather than appended: the
@@ -1158,6 +1199,158 @@ def _challenge_checks():
         'skirmish_challenge_level_valid': level_valid,
         'skirmish_challenge_offer_valid': offer_valid,
         'skirmish_challenge_map_code_valid': merge_valid,
+    }
+
+
+def _balance_config_checks():
+    """The balance file is what the mode is tuned by, and it is checked.
+
+    Two claims. The numbers a run uses are the file's numbers, so an edit
+    there reaches the game rather than sitting beside a constant somebody
+    forgot to delete. And a file that has been edited into nonsense is
+    refused with a message naming what is wrong, rather than loaded into a
+    run that then behaves strangely nine battles later.
+    """
+    from randomizer.config.schema import StaticConfigError, validate_sections
+    from randomizer.config.static import load_static_config
+
+    from .config import CONFIG_NAME, SETTINGS, difficulty_number
+    from .challenges import FIRST_WALK_CHALLENGES
+    from .model import DEFAULT_LIVES, TIER_COUNT, TIER_LENGTHS
+    from .progression import (
+        ALLY_DIFFICULTY,
+        ENEMY_UNBOUGHT_BUFFS,
+        FACTION_STATS,
+        MAX_STACKED,
+        MODIFIERS,
+        OFFER_COUNT,
+        TIERS,
+        WARMUP,
+    )
+    from .shop import (
+        BATTLE_REWARD,
+        CHALLENGE_REWARD_MULTIPLIER,
+        DEFAULT_BUFF_PRICE,
+        POWER_BUFF_PRICES,
+        REROLL_PRICE,
+        REWARD_PER_TIER,
+        SHELF_CAP,
+        SHELF_SIZE,
+        STARTING_ORE,
+        UNIT_BUFF_PRICES,
+        UNSOLD_BUFFS,
+        upgrade_price,
+    )
+
+    sections = load_static_config(CONFIG_NAME)
+    economy = sections['economy']
+    shelf = sections['shelf']
+    prices = sections['prices']
+    run = sections['run']
+    ladder = sections['tiers']['ladder']
+    reads_valid = bool(
+        # Every number the mode plays by is the one in the file.
+        STARTING_ORE == economy['starting_ore']
+        and BATTLE_REWARD == economy['battle_reward']
+        and REWARD_PER_TIER == economy['reward_per_tier']
+        and CHALLENGE_REWARD_MULTIPLIER
+        == economy['challenge_reward_multiplier']
+        and REROLL_PRICE == economy['reroll_price']
+        and SHELF_SIZE == shelf['size']
+        and SHELF_CAP == shelf['cap']
+        and OFFER_COUNT == shelf['offer_count']
+        and MAX_STACKED == shelf['max_stacked_modifiers']
+        and UNIT_BUFF_PRICES == prices['unit']
+        and POWER_BUFF_PRICES == prices['power']
+        and DEFAULT_BUFF_PRICE == prices['default']
+        and UNSOLD_BUFFS == frozenset(prices['unsold'])
+        and TIER_LENGTHS == tuple(run['tier_lengths'])
+        # A walk is as long as the ladder, which is the only place the
+        # number lives: two settings to keep in step would be one to get
+        # wrong.
+        and TIER_COUNT == len(ladder)
+        and DEFAULT_LIVES == run['lives']
+        and FIRST_WALK_CHALLENGES == run['first_walk_challenges']
+        # And the tables, which are read rather than copied: the ladder is
+        # as long as the file says, rung for rung.
+        and len(TIERS) == len(ladder)
+        and [len(one.enemies) for one in TIERS]
+        == [len(one['enemies']) for one in ladder]
+        and [one.enemy_upgrades for one in TIERS]
+        == [one.get('enemy_upgrades', 0) for one in ladder]
+        and [one.challenge for one in TIERS]
+        == [difficulty_number(one['challenge']) for one in ladder]
+        and WARMUP.enemies == SETTINGS.warmup.enemies
+        and [one.key for one in MODIFIERS]
+        == [one['key'] for one in sections['modifiers']]
+        and [one.percent for one in MODIFIERS]
+        == [one['percent'] for one in sections['modifiers']]
+        and ALLY_DIFFICULTY
+        == difficulty_number(sections['enemy']['ally_difficulty'])
+        and FACTION_STATS == tuple(sections['enemy']['faction_stats'])
+        and ENEMY_UNBOUGHT_BUFFS
+        == frozenset(sections['enemy']['unbought_buffs'])
+        # A price is looked up through the file's own tables, and a stat
+        # neither table names falls back to the file's own default.
+        and upgrade_price('damage') == prices['unit']['damage']
+        and upgrade_price('damage', power=True) == prices['power']['damage']
+        and upgrade_price('a stat no table names') == prices['default']
+    )
+
+    def _refuses(edit):
+        """Whether a file edited this way is refused rather than loaded."""
+        edited = load_static_config(CONFIG_NAME)
+        edit(edited)
+        try:
+            validate_sections(CONFIG_NAME, edited, 'skirmish-self-check')
+        except StaticConfigError:
+            return True
+        return False
+
+    def _set(section, key, value):
+        return lambda edited: edited[section].__setitem__(key, value)
+
+    refuses_valid = bool(
+        # A price that is not a price, and a shelf that shrinks as a run
+        # gets richer.
+        _refuses(lambda one: one['prices']['unit'].__setitem__('damage', 0))
+        and _refuses(_set('prices', 'default', 'free'))
+        and _refuses(_set('shelf', 'cap', 1))
+        and _refuses(_set('economy', 'battle_reward', -1))
+        and _refuses(_set('economy', 'reroll_price', 'some'))
+        # A difficulty written in a way the spawn file has never heard of,
+        # and a tier that fields nobody.
+        and _refuses(
+            lambda one: one['tiers']['ladder'][0].__setitem__(
+                'enemies', ['brutal']
+            )
+        )
+        and _refuses(
+            lambda one: one['tiers']['ladder'][0].__setitem__('enemies', [])
+        )
+        and _refuses(_set('enemy', 'ally_difficulty', 'nightmare'))
+        # Two modifiers under one key, which would hide one of them.
+        and _refuses(
+            lambda one: one['modifiers'].append(dict(one['modifiers'][0]))
+        )
+        # An offer that pays nothing for what it asks.
+        and _refuses(
+            lambda one: one['modifiers'][0].__setitem__('percent', 0)
+        )
+        # And an army-wide stat the enemy is never bought, which the draw
+        # would otherwise resolve by silently never picking it.
+        and _refuses(
+            lambda one: one['enemy']['faction_stats'].__setitem__(
+                'sight', 'Sight'
+            )
+        )
+        # While the file as it stands is accepted.
+        and not _refuses(lambda one: None)
+    )
+
+    return {
+        'skirmish_balance_config_read_valid': reads_valid,
+        'skirmish_balance_config_refuses_valid': refuses_valid,
     }
 
 
@@ -1196,13 +1389,20 @@ def _challenge_walk_checks():
         # A map the list does not carry is read off its description
         # instead, which is where the stock ones say the same thing.
         and aberration is not None and aberration.number == 13
-        and in_first_walk(ouroboros)
-        and not in_first_walk(aberration)
+        # Where the line falls is the file's; that the number decides
+        # which side of it a map is on is not.
+        and in_first_walk(ouroboros) == (
+            ouroboros.number <= FIRST_WALK_CHALLENGES
+        )
+        and in_first_walk(aberration) == (
+            aberration.number <= FIRST_WALK_CHALLENGES
+        )
+        and ouroboros.number < aberration.number
         # A map nobody numbered at all is one of the early ones rather than
         # one held back: the holding back is the client's ordering and not
         # a guess about a map it never ordered.
         and in_first_walk(None)
-        and FIRST_WALK_CHALLENGES == 12
+        and FIRST_WALK_CHALLENGES >= 1
     )
 
     run = start_run(
@@ -1852,6 +2052,7 @@ def _shop_checks():
     from .rules import unit_rules
     from .shop import (
         BATTLE_REWARD,
+        CHALLENGE_REWARD_MULTIPLIER,
         REWARD_PER_TIER,
         STARTING_ORE,
         Upgrade,
@@ -1923,8 +2124,20 @@ def _shop_checks():
         offer_modifiers,
     )
 
+    from .model import battles_before, battles_in_tier
+    from .shop import CHALLENGE_REWARD_MULTIPLIER
+
     def _asked(battle, seed='CHECK'):
         return offer_modifiers(battle, OFFER_COUNT, seed=seed)
+
+    # The modifiers a run has to earn, and the first battle of the tier
+    # after the last of them opens.
+    gated = [one for one in MODIFIERS if one.from_tier > 1]
+    latest = battles_before(
+        max((one.from_tier for one in gated), default=1) + 1
+    ) + 1
+    first_close = battles_in_tier(1)
+    second_close = first_close + battles_in_tier(2)
 
     early = _asked(1)
     percents = [
@@ -1953,30 +2166,44 @@ def _shop_checks():
         # enemy that has been bought up.
         and {
             one.key for ask in early for one in ask
-        } & {'alone', 'extra_enemy', 'armed'}
-        # The boosted AI is not asked of a run that has met three enemies
-        # once, and is asked of one that has met them a while.
-        and 'boost' not in {one.key for one in allowed_modifiers(1)}
-        and 'boost' in {one.key for one in allowed_modifiers(18)}
+        } & {
+            one.key for one in MODIFIERS
+            if one.alone or one.extra_enemies or one.faction_upgrades
+        }
+        # Nothing is asked of a run before the run can answer it. Which
+        # modifiers wait, and how long, is the table's; that the waiting
+        # is honoured at both ends is not.
+        and gated
+        and all(
+            # The battle before its tier opens, and the first of that
+            # tier: refused on one, offered on the other.
+            one.key not in {
+                asked.key
+                for asked in allowed_modifiers(battles_before(one.from_tier))
+            }
+            and one.key in {
+                asked.key for asked in allowed_modifiers(
+                    battles_before(one.from_tier) + 1
+                )
+            }
+            for one in gated
+        )
         # Every modifier pays for the asking, and none of them pays so
         # much that taking it is free money. Which of them pays the most
         # is a balance decision and belongs in the table, not here.
         and all(0 < one.percent <= 100 for one in MODIFIERS)
-        # Nor is an enemy that has infiltrated asked of an opening tier.
-        and 'stolen' not in {one.key for one in allowed_modifiers(1)}
-        and 'stolen' in {one.key for one in allowed_modifiers(12)}
         # What a late tier is allowed to ask, it does ask -- read across
         # a run rather than one draw, because there are more combinations
         # than there are offers and no single battle sees them all.
-        and {'boost', 'stolen'} <= {
+        and {one.key for one in gated} <= {
             one.key
-            for battle in range(18, 31)
+            for battle in range(latest, latest + 13)
             for ask in _asked(battle)
             for one in ask
         }
         and not any(
-            one.key in {'boost', 'stolen'}
-            for battle in range(1, 4)
+            one.key in {gate.key for gate in gated}
+            for battle in range(1, battles_in_tier(1) + 1)
             for ask in _asked(battle)
             for one in ask
         )
@@ -1993,11 +2220,12 @@ def _shop_checks():
         and battle_reward(1, bonus_percent=0) == BATTLE_REWARD
         and battle_reward(1, bonus_percent=40)
         > battle_reward(1, bonus_percent=0)
-        # Battle three closes the first tier, so it pays that tier's own
-        # reward doubled -- and the tier after it pays more than that.
-        and battle_reward(3, challenge=True, bonus_percent=0)
-        == BATTLE_REWARD * 2
-        and battle_reward(7, challenge=True) > battle_reward(3, challenge=True)
+        # The battle that closes the first tier pays that tier's own
+        # reward multiplied -- and the tier after it pays more than that.
+        and battle_reward(first_close, challenge=True, bonus_percent=0)
+        == BATTLE_REWARD * CHALLENGE_REWARD_MULTIPLIER
+        and battle_reward(second_close, challenge=True)
+        > battle_reward(first_close, challenge=True)
     )
 
     # The ninth tier does not end the run: it starts it again, harder.
@@ -2115,12 +2343,20 @@ def _shop_checks():
             and ended.stats.battles == quit_early.battles
         )
 
+    # A battle pays its tier's own reward, and a challenge pays that
+    # multiplied. All three numbers are the file's; what is checked is
+    # that the arithmetic uses them.
+    from .model import battles_in_tier
+
+    second_tier = battles_in_tier(1) + 1
+    third_tier = second_tier + battles_in_tier(2)
     reward_valid = bool(
         battle_reward(1) == BATTLE_REWARD
-        and battle_reward(3) == BATTLE_REWARD
-        and battle_reward(4) == BATTLE_REWARD + REWARD_PER_TIER
-        and battle_reward(8) == BATTLE_REWARD + 2 * REWARD_PER_TIER
-        and battle_reward(3, challenge=True) == BATTLE_REWARD * 2
+        and battle_reward(battles_in_tier(1)) == BATTLE_REWARD
+        and battle_reward(second_tier) == BATTLE_REWARD + REWARD_PER_TIER
+        and battle_reward(third_tier) == BATTLE_REWARD + 2 * REWARD_PER_TIER
+        and battle_reward(battles_in_tier(1), challenge=True)
+        == BATTLE_REWARD * CHALLENGE_REWARD_MULTIPLIER
     )
 
     # Past the warmup: nothing is bought during it, so a shop check has
@@ -2168,13 +2404,15 @@ def _shop_checks():
         bought.coins == STARTING_ORE - 2 * cheap.price
         and price_for(cheap) == cheap.price
         and price_for(dear) == dear.price
-        # The shelf grows a row a tier and then stops as well, so a late
-        # run is choosing from more without the screen becoming a list.
+        # The shelf grows a row a tier and then stops, so a late run is
+        # choosing from more without the screen becoming a list. Which
+        # tier it stops at is the two numbers in the file; that it opens
+        # at one, never passes the other, and gets there is not.
         and shelf_size(1) == SHELF_SIZE
-        and shelf_size(5) == SHELF_CAP
-        and shelf_size(9) == SHELF_CAP
-        and [shelf_size(one) for one in range(1, 10)]
-        == sorted(shelf_size(one) for one in range(1, 10))
+        and shelf_size(400) == SHELF_CAP
+        and all(shelf_size(one) <= SHELF_CAP for one in range(1, 20))
+        and [shelf_size(one) for one in range(1, 20)]
+        == sorted(shelf_size(one) for one in range(1, 20))
         and owned_stacks(bought.purchases, 'GGI', 'speed') == 2
         and limit_refused
         and price_refused
@@ -2230,34 +2468,37 @@ def _shop_checks():
     from .shop import REROLL_PRICE
     from .transitions import reroll_shelf
 
-    rerolled = reroll_shelf(offered, 'UnitedStates')
+    # Enough for two of them at whatever the file charges, so a dearer
+    # reroll is a tuning decision rather than a red row.
+    affording = replace(offered, coins=2 * REROLL_PRICE)
+    rerolled = reroll_shelf(affording, 'UnitedStates')
     twice = reroll_shelf(rerolled, 'UnitedStates')
     try:
-        reroll_shelf(replace(offered, coins=REROLL_PRICE - 1), 'UnitedStates')
+        reroll_shelf(replace(affording, coins=REROLL_PRICE - 1), 'UnitedStates')
         broke_refused = False
     except SkirmishTransitionError:
         broke_refused = True
     try:
-        reroll_shelf(replace(offered, battle=WARMUP_BATTLE), 'UnitedStates')
+        reroll_shelf(replace(affording, battle=WARMUP_BATTLE), 'UnitedStates')
         warmup_refused = False
     except SkirmishTransitionError:
         warmup_refused = True
     reroll_valid = bool(
-        rerolled.shelf and rerolled.shelf != offered.shelf
-        and twice.shelf not in {offered.shelf, rerolled.shelf}
+        rerolled.shelf and rerolled.shelf != affording.shelf
+        and twice.shelf not in {affording.shelf, rerolled.shelf}
         # Paid for, once each time, and counted.
-        and rerolled.coins == offered.coins - REROLL_PRICE
-        and twice.coins == offered.coins - 2 * REROLL_PRICE
+        and rerolled.coins == affording.coins - REROLL_PRICE
+        and twice.coins == 0
         and (rerolled.rerolls, twice.rerolls) == (1, 2)
         # The same run rerolling again reaches the same shelf, because a
         # run opened twice is the same run.
-        and reroll_shelf(offered, 'UnitedStates').shelf == rerolled.shelf
+        and reroll_shelf(affording, 'UnitedStates').shelf == rerolled.shelf
         # It deals this country's rows, and it is refused when there is
         # not the Ore for it or nothing to spend it on yet.
         and all(upgrade.key in allied for upgrade in shelf_for(
             replace(rerolled, shelf=rerolled.shelf), 'UnitedStates'
         ))
-        and len(rerolled.shelf) == len(offered.shelf)
+        and len(rerolled.shelf) == len(affording.shelf)
         and broke_refused
         and warmup_refused
     )
@@ -2337,28 +2578,31 @@ def _shop_checks():
         if one.unit in _powers()
     }
     hero_valid = bool(
-        # The bands, as a table rather than as arithmetic.
-        upgrade_price('cloak') == 250
-        and upgrade_price('sensors') == upgrade_price('ammo') == 125
-        and upgrade_price('cost') == upgrade_price('self_healing') == 125
-        and upgrade_price('health') == upgrade_price('armor') == 100
-        and upgrade_price('damage') == upgrade_price('reload') == 100
-        and upgrade_price('speed') == upgrade_price('production') == 100
-        and upgrade_price('sight') == 75
-        # Anything the table has never heard of, including whatever a
-        # submod adds, is the cheapest band rather than an error.
-        and upgrade_price('range') == DEFAULT_BUFF_PRICE
+        # A price is what the table says, by what the upgrade does. Which
+        # stat is dearest is a balance decision and lives in the file; that
+        # the file is what is charged does not.
+        UNIT_BUFF_PRICES
+        and all(
+            upgrade_price(buff) == price
+            for buff, price in UNIT_BUFF_PRICES.items()
+        )
+        and all(
+            upgrade_price(buff, power=True) == price
+            for buff, price in POWER_BUFF_PRICES.items()
+        )
+        # Anything neither table names, including whatever a submod adds,
+        # is the default rather than an error.
+        and 'no_such_stat' not in UNIT_BUFF_PRICES
         and upgrade_price('no_such_stat') == DEFAULT_BUFF_PRICE
-        # A superweapon's own upgrades read a second table, because the
-        # names collide with the first and the prices do not.
-        and upgrade_price('damage', power=True) == 200
-        and upgrade_price('area', power=True) == 200
-        and upgrade_price('payload', power=True) == 200
-        and upgrade_price('duration', power=True) == 150
-        and upgrade_price('recharge', power=True) == 150
-        and upgrade_price('cost', power=True) == 75
-        and upgrade_price('vision', power=True) == 75
-        and POWER_BUFF_PRICES['damage'] != UNIT_BUFF_PRICES['damage']
+        and upgrade_price('no_such_stat', power=True) == DEFAULT_BUFF_PRICE
+        # There are two tables because the same stat name means a
+        # different purchase on a power, so at least one name has to be
+        # priced differently in each -- or one table would do.
+        and any(
+            POWER_BUFF_PRICES[buff] != price
+            for buff, price in UNIT_BUFF_PRICES.items()
+            if buff in POWER_BUFF_PRICES
+        )
         # And the shelf says the same thing: one price per stat across
         # every unit that has it, whatever that unit costs to build.
         and len(priced) == len({buff for buff, _price in priced})
@@ -2556,12 +2800,15 @@ def _shop_checks():
     from .model import BattleOffer
     from .ownership import STOLEN_TECH_GROUP
     from .progression import (
-        ENEMY_UNBOUGHT_BUFFS, FACTION_STATS, MODIFIERS_BY_KEY, TIERS,
-        _enemy_upgrades, _faction_upgrades, engine_named_units,
+        ENEMY_UNBOUGHT_BUFFS, FACTION_STATS, MODIFIERS, MODIFIERS_BY_KEY,
+        TIERS, _enemy_upgrades, _faction_upgrades, engine_named_units,
         faction_units,
     )
     from .shop import earned_by
 
+    # The modifier that buys an enemy's whole army, whatever the table
+    # calls it. The row is about what it does, not about its name.
+    army_buyers = [one for one in MODIFIERS if one.faction_upgrades > 0]
     armed_country = 'UnitedStates'
     # What 375 Ore buys -- the run's third battle -- twice from the same
     # seed, and what a run four tiers later can afford.
@@ -2620,11 +2867,15 @@ def _shop_checks():
             GAME_ROOT / 'MapsMO', skirmish_countries(),
         )
         prototype = closing.player_stolen if closing is not None else ''
+    # What that budget can buy at all: everything if every row were the
+    # cheapest on the shelf, nothing below one of the dearest.
+    cheapest = min(one.price for one in country_upgrades(armed_country))
+    dearest = max(one.price for one in country_upgrades(armed_country))
     armed_valid = bool(
-        # A handful at the third battle rather than a fixed number: what
-        # an enemy carries is what its Ore bought, and 375 Ore buys a
-        # few rows off a shelf priced from 75 to 250.
-        1 <= len(handed) <= 6
+        # Not a fixed number: what an enemy carries is what its Ore
+        # bought, so the count is read against the prices it paid.
+        probe_budget // dearest <= len(handed) <= probe_budget // cheapest
+        and len(handed) >= 1
         # Drawn from the seed, so the battle that is played is the one
         # that was offered.
         and handed == again
@@ -2660,20 +2911,29 @@ def _shop_checks():
         )
         and not (ENEMY_UNBOUGHT_BUFFS & set(FACTION_STATS))
         # The army-wide draw is stats, not units, and only ever ones the
-        # country's own shelf sells.
+        # country's own shelf sells. A table with no modifier that buys an
+        # army has that half of the mode switched off, which is a table to
+        # allow rather than a row to fail.
         and stats_handed
         and set(stats_handed) <= set(FACTION_STATS)
+        and bool(army_buyers) == any(
+            any(one.enemy_faction_bought()) for one in dealt
+        )
         and _faction_upgrades(armed_country, 0, Random(7)) == ()
         # It is what an offer asks for, not what a tier hands out. The
-        # tier's number buys units; the modifier's buys the army.
-        and MODIFIERS_BY_KEY['armed'].faction_upgrades > 0
-        and MODIFIERS_BY_KEY['armed'].enemy_upgrades == 0
+        # tier's number buys units; the modifier's buys the army. Which
+        # modifier that is, and what it is called, is the table's: it is
+        # found by what it does.
+        and all(one.enemy_upgrades == 0 for one in army_buyers)
         # And the table says so battle by battle: an offer's army is
         # bought up when, and only when, that offer asked for it. Every
         # offer getting it is the modifier nobody paid for, and none
         # getting it is a modifier that buys nothing.
         and dealt
-        and any('armed' in one.modifiers for one in dealt)
+        and (not army_buyers or any(
+            set(one.modifiers) & {buyer.key for buyer in army_buyers}
+            for one in dealt
+        ))
         # A tier buys its enemies an army-wide stat and an offer asking
         # for a bought-up one buys more. Two different things: the Ore
         # above buys units, this buys the whole army -- so the count is
@@ -2749,15 +3009,13 @@ def _shop_checks():
         and _spent(armed_country, handed) <= probe_budget
         and _spent(armed_country, richer) <= earned_by(20)
         and len(richer) > len(handed)
-        # The opening tier fights the army the rules describe. After that
-        # an enemy is armed, and never less well armed than it was a tier
-        # ago -- what a run walks into has to keep pace with what it has
-        # been buying itself.
-        and TIERS[0].enemy_upgrades == 0
+        # An enemy is never less well armed than it was a tier ago: what
+        # a run walks into has to keep pace with what it has been buying
+        # itself. How many any one tier hands out, and whether the first
+        # hands out none, is the ladder's own shape.
         and [one.enemy_upgrades for one in TIERS]
         == sorted(one.enemy_upgrades for one in TIERS)
-        and TIERS[len(TIERS) // 2].enemy_upgrades > 0
-        and TIERS[-1].enemy_upgrades >= 3
+        and TIERS[-1].enemy_upgrades >= TIERS[0].enemy_upgrades
         # Two enemies playing one country are one army as far as the
         # rules are concerned, so their sets are put together rather than
         # written twice.
@@ -2990,6 +3248,7 @@ def validate_skirmish_contract():
     report.update(_table_checks())
     report.update(_challenge_checks())
     report.update(_challenge_walk_checks())
+    report.update(_balance_config_checks())
     report.update(_option_checks())
     report.update(_clone_checks())
     report.update(_ai_checks())
