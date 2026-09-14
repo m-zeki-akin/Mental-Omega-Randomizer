@@ -238,6 +238,27 @@ neither means anything to the other.
 - **`randomizer/ui` goes when the two interfaces are at parity**, and not
   before: it is what the fallback falls back to.
 
+## Upstream, not carried over
+
+Heinki's repository is merged as of `51c0468`: the Nanofiber chain, prism
+towers, Flint Westwood, and the data around them. What was left behind is
+left behind on purpose, because it is written against a Shop Mode and a
+window this fork replaced. Each of these is a feature to port on this
+fork's own model, not a diff to apply:
+
+- **Shop Mode.** Powers on the shelf (`a4da248`), the Gem Dividend
+  permanent upgrade, stage guardrails (`f3067b2`), the ore percentage
+  pass (`2e4da01`), the balance pass (`d072af3`), shelf tooltips
+  (`647fb0e`, `5775399`), and the run popup (`978cf9f`). Read them with
+  `git show <sha>`; their fields live on upstream's `ShopRun`/`ShopProfile`.
+- **Archipelago.** Upstream extracted `randomizer/generation/` so the
+  APWorld can generate a run without an install, and updated the apworld,
+  the client and the YAML around it. This fork generates headless through
+  `campaign/generator.py` instead, and its Archipelago subtree stays at
+  0.6.2. Porting means deciding which generation root the APWorld calls.
+- **The Gear Change rework** (`b9b053f`), which makes it an independent
+  power again. Here the Industrial Plant grants it.
+
 ## Player reports, not yet looked at
 
 - Cloaked Prism Towers reportedly do not link when they fire.

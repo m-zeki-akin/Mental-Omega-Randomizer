@@ -215,6 +215,11 @@ Deleted as stale (do not recreate): `DEVELOPER_GUIDE.md`,
 - Unanswered by the user: whether the spy actually enters an enemy
   refinery and gets nothing; whether to push `feat/next` to `fork`.
 - Working tree carries the user's in-flight campaign Shop rebalance
-  (`configs/shop_mode.json`, `config/shop_mode.py`,
-  `shop_polish_controller.py`, `shop/economy.py`, build scripts). Their
-  `shop_domain` rows are red until they finish it.
+  (`configs/shop_mode.json`, `config/shop_mode.py`, `shop/economy.py`,
+  build scripts). Their `shop_domain` rows are red until they finish it.
+- Upstream (`origin`, Heinki) is merged as of `51c0468`, engine fixes and
+  data only. Their Shop Mode, Tk window, `randomizer/generation/` and the
+  Archipelago updates coupled to those were deliberately not taken — see
+  TODO.md "Upstream, not carried over". A later merge will not re-offer
+  them (the merge commit says they are merged), so port from
+  `git diff 17860cd origin/main -- <file>` by hand.
