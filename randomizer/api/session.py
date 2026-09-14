@@ -243,6 +243,7 @@ def _record(ticket, repository):
     # else: a battle going badly could otherwise be thrown away from the
     # menu at no cost, which is the whole of the difficulty.
     won = bool(result is not None and result.won)
+    kept_off = ()
     ally = None
     from randomizer.skirmish.factions import country_by_index
 
@@ -251,7 +252,13 @@ def _record(ticket, repository):
         ally = ally_country.country_id
     try:
         if won:
-            run = record_victory(run, ally_country=ally, result=result)
+            from randomizer.config.player import load_config
+            from randomizer.ui.roguelike_settings import kept_off_shelf
+
+            kept_off = kept_off_shelf(load_config())
+            run = record_victory(
+                run, ally_country=ally, result=result, kept_off=kept_off,
+            )
         else:
             run = record_defeat(run, result=result)
     except SkirmishTransitionError as exc:
@@ -265,7 +272,7 @@ def _record(ticket, repository):
         # behind it. Dealing here rather than when a screen next reads is
         # what lets a screen read without writing.
         try:
-            run = deal(run)
+            run = deal(run, kept_off=kept_off)
         except (SkirmishTransitionError, OSError):
             dealt = False
     else:

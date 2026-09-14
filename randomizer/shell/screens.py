@@ -66,9 +66,13 @@ BY_MODE = {
     # the launcher to look at is the stage they are on and the shelf in
     # front of them. Setup beside it describes the next run, which is a
     # different question and outlives this one.
+    # Records is the roguelike pair's, not the skirmish's: a run with
+    # lives ends somewhere, and where it ended is one screen for both
+    # kinds of run rather than a board each.
     'Shop Mode': (
         ('shoprun', 'Run'),
         ('shop', 'Setup'),
+        ('records', 'Records'),
     ),
     'Skirmish Shop': (
         ('skirmish', 'Battle'),

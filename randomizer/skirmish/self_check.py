@@ -1433,6 +1433,97 @@ def _balance_config_checks():
     }
 
 
+def _kept_off_checks():
+    """What the roguelike settings keep off a shelf stays off every shelf.
+
+    The switches are Shop Mode's, stored in the block both roguelikes
+    read; turned on for one they are on for the other. A row for a power
+    on the list is not dealt, not rerolled onto the shelf, and not bought
+    by the ally -- at the start of a run or after a battle.
+    """
+    from randomizer.shop.config import SHOP_CONFIG
+    from randomizer.ui.roguelike_settings import kept_off_shelf
+
+    from .powers import superweapon_ids
+    from .shop import ally_shopping, draw_shelf
+    from .transitions import reroll_shelf, start_run
+
+    group = next(
+        (
+            one for one in SHOP_CONFIG.reward_exclusion_groups
+            if one.id == 'superweapons'
+        ),
+        None,
+    )
+    if group is None:
+        return {'skirmish_kept_off_shelf_valid': False}
+    hidden = {str(one).upper() for one in group.target_ids}
+    off = kept_off_shelf({'generation': {group.setting_key: True}})
+    powers = superweapon_ids()
+
+    def _powers_in(keys):
+        return {str(key).split(':')[0].upper() for key in keys} & powers
+
+    run = replace(
+        start_run(run_id='kept', seed='KEPT-OFF', player_country=0,
+                  ally_country=3),
+        battle=5, coins=5000,
+    )
+    # Wide draws, so the two big powers a country has come up on the plain
+    # shelf and the filtered one is measured against something.
+    plain = _powers_in(draw_shelf(run, 'UnitedStates', count=60))
+    kept = _powers_in(draw_shelf(run, 'UnitedStates', count=60, kept_off=off))
+    # The reroll and the ally are held to it exactly: with every row but
+    # one kept off, the one row is all a reroll can deal and all the ally
+    # can buy. A draw of nine from three hundred could miss two hidden
+    # powers by luck; it cannot miss three hundred hidden rows.
+    from .shop import country_upgrades
+
+    def _all_but_one(country):
+        rows = sorted(
+            country_upgrades(country), key=lambda one: (one.price, one.unit),
+        )
+        only = str(rows[0].unit).upper()
+        return only, frozenset(
+            str(one.unit).upper() for one in rows if str(one.unit).upper() != only
+        )
+
+    only_american, all_but_american = _all_but_one('UnitedStates')
+    rerolled = {
+        str(key).split(':')[0].upper() for key in reroll_shelf(
+            replace(run, shelf=()), 'UnitedStates', kept_off=all_but_american,
+        ).shelf
+    }
+    only_soviet, all_but_soviet = _all_but_one('USSR')
+    bought, _left = ally_shopping(run, 'USSR', 5000, kept_off=all_but_soviet)
+    opening = start_run(
+        run_id='kept-2', seed='KEPT-OFF-2', player_country=0,
+        ally_country=3, ally_roster='USSR', kept_off=all_but_soviet,
+    )
+    return {
+        'skirmish_kept_off_shelf_valid': bool(
+            # Read off the settings block, and empty when nothing is off.
+            off == hidden
+            and kept_off_shelf({}) == frozenset()
+            and kept_off_shelf({'generation': {group.setting_key: False}})
+            == frozenset()
+            # The plain shelf shows the country's big powers; the kept one
+            # shows none of them and still shows the rest.
+            and plain & hidden
+            and not (kept & hidden)
+            and kept - hidden
+            # A reroll deals only what is left; the ally, at the start of
+            # a run and after a battle, buys only what is left.
+            and rerolled == {only_american}
+            and bought
+            and {str(one.unit).upper() for one in bought} == {only_soviet}
+            and opening.ally_purchases
+            and {str(one.unit).upper() for one in opening.ally_purchases}
+            == {only_soviet}
+        ),
+    }
+
+
 def _seat_flag_checks():
     """The seat shows the chosen country's flag, and nothing else moves.
 
@@ -3443,6 +3534,7 @@ def validate_skirmish_contract():
     report.update(_challenge_walk_checks())
     report.update(_balance_config_checks())
     report.update(_seat_flag_checks())
+    report.update(_kept_off_checks())
     report.update(_option_checks())
     report.update(_clone_checks())
     report.update(_ai_checks())

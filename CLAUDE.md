@@ -73,7 +73,8 @@ Every module's docstring says *why*; read it before changing it.
 | `randomizer/shell/` | New interface host: `choice` (which UI; default still `classic`), `screens` (tabs per mode), `host`, `entry` | |
 | `web/` | Front end: `views/*.js` one per screen (`register('name', render)`), `components/index.js`, `styles/tokens.css` | |
 | `randomizer/application/` | Classic Tk controllers. Being retired **except** Archipelago (`generator.build` imports `ArchipelagoController`) | `skirmish_controller`, `shop_controller`, `launch_controller`, `archipelago_controller` |
-| `randomizer/ui/` | Tk widgets + shared tables both UIs read (`campaign_settings`, `shop_settings`, `cameos`, `config`) | |
+| `randomizer/ui/` | Tk widgets + shared tables both UIs read (`campaign_settings`, `shop_settings`, `roguelike_settings` = the pair's shared shelf switches + `kept_off_shelf()`, `settings_rows`, `cameos`, `config`) | |
+| Settings scope | `api/settings.py` `Settings.answer` marks each section `scope: kind|mode`; `about(mode)` names kind/mode/shared; `web/components/settings.js settingsSections(sections, tools, about)` groups by it. A row with `mode=` is that mode's own; `mode=None` is the kind's. Records tab is on both roguelikes (skirmish board + `shop.profile`). | |
 | `randomizer/campaign/` | Campaign run generation without a window | `generator`, `generation`, `store` |
 | `randomizer/maps/` | Generated mission-map pipeline (clones, buffs, hooks, powers) | `pipeline` (3k lines, ordered stages), `clone_builder`, `player_clones`, `ini` (never replace with ConfigParser) |
 | `randomizer/rewards/` | Reward catalogue, planning, roster, buff reach | `definitions`, `planning`, `catalogue`, `buff_reach`, `roster`, `weights` |

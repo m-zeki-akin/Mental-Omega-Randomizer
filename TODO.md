@@ -171,8 +171,14 @@ has been played end to end from the page, not a piece of work.
 ### Which settings belong to a kind, and which to one mode
 
 The grouping is worth having only if it decides where a setting goes.
-What follows is that decision; it is not built yet, and each line is a
-row on a screen when it is.
+What follows is that decision. It is built as far as the settings that
+exist go: every section a table answers says whether it is the kind's or
+one mode's, the Setup screens draw them under those two headings, the
+roguelike pair share one table (`randomizer/ui/roguelike_settings.py`,
+stored in the `generation` block both read, and honoured by the skirmish
+shelf, the reroll and the ally's shopping), and Records is one screen on
+both roguelikes. What is not built is any setting the lines below name
+that does not exist yet.
 
 **Campaign** -- shared by Classic, Mission List and Grid, because all
 three are the installed campaign in some order: the campaign filter, the
@@ -190,14 +196,14 @@ lands on. Each has its own too: Campaign has the pacing (already drawn)
 and the mission pool; Skirmish has the country pair, the map pool, and
 the locked difficulty and speed a battle is played at.
 
-Two consequences worth writing down. The Roguelike pair should share one
-Records screen rather than growing a second board -- today only Skirmish
-has one. And a setting that is shared has to be stored where both modes
-read it: the Campaign three already are (one `generation` block), the
-Roguelike two are not (`shop_*` keys beside skirmish's own). Shop Mode's
-own setup is drawn here now, and the two roguelikes do share the mission
-pool through `generation` -- what is still apart is everything the
-skirmish keeps under its own name.
+Two consequences, both now the case. The Roguelike pair share one Records
+screen -- the skirmish board and what every Shop run has left behind, on
+both modes' tabs. And a shared setting is stored where both modes read
+it: the Campaign three in one `generation` block, and the roguelike pair's
+shelf switches in the same block, read by the skirmish shelf as well as
+the campaign shop's. Shop Mode's pacing and trades stay its own, and the
+skirmish's country pair, map pool and locked speed stay its own, because
+neither means anything to the other.
 
 - **Shop Mode's starting loadout.** Everything else about the next Shop
   run is on its Setup screen: the pacing, the optional trades, the seed,

@@ -416,7 +416,23 @@ def available_upgrades(upgrades, purchases):
     )
 
 
-def draw_shelf(run, country, *, count=SHELF_SIZE, salt='shelf', purchases=None):
+def on_the_shelf(upgrades, kept_off=()):
+    """Return the rows the player has not switched off.
+
+    ``kept_off`` is what the roguelike settings hide from every shelf --
+    the same switches Shop Mode reads -- as upper-cased target ids. A row
+    for a unit or a power in it is not dealt, not bought by the ally, and
+    not rerolled onto the shelf either.
+    """
+    if not kept_off:
+        return list(upgrades)
+    return [
+        one for one in upgrades if str(one.unit).upper() not in kept_off
+    ]
+
+
+def draw_shelf(run, country, *, count=SHELF_SIZE, salt='shelf', purchases=None,
+               kept_off=()):
     """Return the keys of the upgrades to offer for one battle.
 
     Drawn from the run's seed and its battle number, out of what the buyer
@@ -427,7 +443,7 @@ def draw_shelf(run, country, *, count=SHELF_SIZE, salt='shelf', purchases=None):
     from .powers import superweapon_ids
 
     upgrades = available_upgrades(
-        country_upgrades(country),
+        on_the_shelf(country_upgrades(country), kept_off),
         run.purchases if purchases is None else purchases,
     )
     if not upgrades:
@@ -502,12 +518,13 @@ def purchase_stacks(purchases, upgrade, *, stacks=1):
     return tuple(updated)
 
 
-def ally_shopping(run, country, coins):
+def ally_shopping(run, country, coins, *, kept_off=()):
     """Return what the ally buys with what it has, and what is left.
 
     The ally spends on its own, from its own country's list, and it spends
     what it has rather than saving: an ally that hoards is an ally that
-    never gets better.
+    never gets better. What the player has kept off the shelf is off the
+    ally's too: the switch is about the run, not about who is shopping.
     """
     from .ai import fielded_by_ai
 
@@ -518,7 +535,7 @@ def ally_shopping(run, country, coins):
     fielded = fielded_by_ai()
     upgrades = available_upgrades(
         [
-            one for one in country_upgrades(country)
+            one for one in on_the_shelf(country_upgrades(country), kept_off)
             if not fielded or one.unit in fielded
             or one.unit.startswith(STOLEN_TECH_GROUP)
         ],

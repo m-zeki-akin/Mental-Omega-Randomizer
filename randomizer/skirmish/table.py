@@ -39,11 +39,12 @@ def enemy_pool(run):
     return eligible or countries
 
 
-def deal(run):
+def deal(run, *, kept_off=()):
     """Put this battle's offers on the table, drawing them if needed.
 
     Returns the run unchanged when a table already stands. Dealing twice
     into the same battle would redraw what the player is looking at.
+    ``kept_off`` is what the roguelike settings hide from every shelf.
     """
     if run is None or run.offers:
         return run
@@ -67,5 +68,6 @@ def deal(run):
         offers,
         shelf=draw_shelf(
             run, country.country_id, count=shelf_size(run.tier),
+            kept_off=kept_off,
         ) if country else (),
     )

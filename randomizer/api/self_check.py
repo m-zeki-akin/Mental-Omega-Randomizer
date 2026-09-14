@@ -1961,8 +1961,49 @@ def validate_api_contract():
         if any(name in text for name in TOOLKIT_NAMES):
             toolkit_free = False
 
+    # A table of settings says whose each section is: shared by every mode
+    # of the kind, or one mode's own. Grid is the one campaign mode with a
+    # section of its own; Classic has none; the roguelike pair's table is
+    # shared end to end. And the reading names the kind, its modes, and
+    # the mode being set up, so a screen can group by it.
+    from randomizer.ui.campaign_settings import SECTIONS as CAMPAIGN_SECTIONS
+    from randomizer.ui.roguelike_settings import SECTIONS as ROGUELIKE_SECTIONS
+
+    from .settings import Settings, about
+
+    campaign_table = Settings(CAMPAIGN_SECTIONS)
+    grid_only = [
+        part['name'] for part in campaign_table.answer({}, mode='Grid Mode')
+        if part['scope'] == 'mode'
+    ]
+    classic_only = [
+        part['name'] for part in campaign_table.answer({}, mode='Classic')
+        if part['scope'] == 'mode'
+    ]
+    roguelike_scopes = {
+        part['scope'] for part in Settings(ROGUELIKE_SECTIONS).answer({})
+    }
+    whose = about('Grid Mode')
+    scoped = bool(
+        grid_only == ['Grid']
+        and classic_only == []
+        and roguelike_scopes == {'kind'}
+        and whose['kind'] == 'Campaign'
+        and whose['mode'] == 'Grid'
+        and set(whose['shared']) == {'Classic', 'Mission List', 'Grid'}
+        and about('Skirmish Shop')['kind'] == 'Roguelike'
+        and set(about('Shop Mode')['shared']) == {'Campaign', 'Skirmish'}
+        # And every settings reading carries it.
+        and all(
+            isinstance(replies[name].get('result', {}).get('about'), dict)
+            for name in ('campaign.settings', 'shop.settings', 'skirmish.settings')
+            if name in replies
+        )
+    )
+
     return {
         'api_actions': len(registered),
+        'api_settings_say_whose_valid': scoped,
         'api_actions_described_valid': bool(
             described
             and len(described) == len(registered)
@@ -2035,6 +2076,7 @@ def validate_api_contract():
         'api_asking_changes_nothing_valid': before == after,
         'api_contract_valid': bool(
             json_safe
+            and scoped
             and toolkit_free
             and _arguments_arrive_valid()
             and _battle_outlives_the_launcher_valid()

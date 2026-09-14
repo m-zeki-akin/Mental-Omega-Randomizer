@@ -56,6 +56,24 @@ def block(config, row, *, make=False):
     return held
 
 
+def about(mode):
+    """Return whose settings a screen is drawing: the kind, and its modes.
+
+    The five modes are two kinds of game, and a table of settings belongs
+    to a kind with a few rows that belong to one mode of it. A screen that
+    knows the kind, the modes that share it, and the mode being set up
+    can group the sections by whose they are.
+    """
+    from randomizer.ui.config import mode_family, mode_label, modes_in_family
+
+    kind = mode_family(mode)
+    return {
+        'kind': kind,
+        'mode': mode_label(mode),
+        'shared': [mode_label(one) for one in modes_in_family(kind)],
+    }
+
+
 class Settings:
     """One table of settings, and everything a boundary does with it.
 
@@ -278,6 +296,14 @@ class Settings:
         return [
             {
                 'name': name,
+                # Whose section this is: one mode's own, or shared by
+                # every mode the table is for. A screen groups by it, so
+                # a player can see which settings follow them across the
+                # kind and which stay with the mode they are on.
+                'scope': (
+                    'mode' if all(row.get('mode') for row in shown)
+                    else 'kind'
+                ),
                 'settings': [
                     self.shown(config, row, blank) for row in shown
                 ],

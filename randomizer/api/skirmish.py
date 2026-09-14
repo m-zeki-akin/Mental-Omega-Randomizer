@@ -30,6 +30,10 @@ from randomizer.skirmish.shop import (
     shelf_for,
 )
 from randomizer.skirmish.table import deal
+from randomizer.ui.roguelike_settings import (
+    SECTIONS as ROGUELIKE_SECTIONS,
+    kept_off_shelf,
+)
 from randomizer.skirmish.stats import stats_lines
 from randomizer.skirmish.transitions import run_progress_text
 
@@ -37,6 +41,7 @@ from randomizer.ui.config import LOCKED_GAME_SPEED_VALUE
 
 from . import session
 from .contract import COMMAND, ApiError, action
+from .settings import Settings, about
 from .pictures import data_uri
 
 
@@ -56,6 +61,44 @@ def _data_uri(path):
 # difficulty can be changed between battles is not the run its rewards
 # were tuned against.
 LOCKED_DIFFICULTY = 1
+
+
+# What the roguelike settings keep off every shelf, read once per
+# request from the block both roguelikes write.
+def _kept_off():
+    from randomizer.config.player import load_config
+
+    return kept_off_shelf(load_config())
+
+
+def _deal(run):
+    return deal(run, kept_off=_kept_off())
+
+
+ROGUELIKE = Settings(ROGUELIKE_SECTIONS)
+
+
+@action('skirmish.settings', 'What the two roguelikes keep off their shelves')
+def roguelike_settings():
+    from randomizer.config.player import load_config
+
+    return {
+        'about': about('Skirmish Shop'),
+        'sections': ROGUELIKE.answer(load_config()),
+    }
+
+
+@action('skirmish.use_setting', 'Change one roguelike setting', kind=COMMAND)
+def use_roguelike_setting(name='', value=None):
+    from randomizer.config.player import load_config, save_config
+
+    config = load_config()
+    ROGUELIKE.write(config, name, value)
+    save_config(config)
+    return {
+        'about': about('Skirmish Shop'),
+        'sections': ROGUELIKE.answer(config),
+    }
 
 
 def _country(index):
@@ -488,7 +531,8 @@ def start(player=0, ally=3, color=-1):
     if chosen is None or beside is None:
         raise ApiError('Choose an army and an ally')
     try:
-        run = deal(start_run(
+        run = _deal(start_run(
+            kept_off=_kept_off(),
             run_id=uuid4().hex,
             seed=uuid4().hex[:12].upper(),
             player_country=chosen.index,
@@ -623,7 +667,7 @@ def reroll():
         raise ApiError('This run plays a country the rules no longer have')
     try:
         saved = repository.save_run(
-            reroll_shelf(current, country.country_id)
+            reroll_shelf(current, country.country_id, kept_off=_kept_off())
         )
     except SkirmishTransitionError as exc:
         raise ApiError(str(exc)) from exc
@@ -642,7 +686,7 @@ def skip_the_warmup():
     try:
         # Stepping past the warmup clears its table, so the battle behind
         # it is dealt in the same breath.
-        saved = repository.save_run(deal(skip_warmup(current)))
+        saved = repository.save_run(_deal(skip_warmup(current)))
     except SkirmishTransitionError as exc:
         raise ApiError(str(exc)) from exc
     return {'battle': saved.battle, 'offers': len(saved.offers)}
@@ -687,7 +731,7 @@ def deal_table():
         return {'battle': current.battle, 'offers': len(current.offers),
                 'dealt': False}
     try:
-        saved = repository.save_run(deal(current))
+        saved = repository.save_run(_deal(current))
     except SkirmishTransitionError as exc:
         raise ApiError(str(exc)) from exc
     return {'battle': saved.battle, 'offers': len(saved.offers), 'dealt': True}

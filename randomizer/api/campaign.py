@@ -26,9 +26,11 @@ from randomizer.ui.campaign_settings import (
 
 from randomizer.core.diagnostics import event as log_event
 
+from randomizer.ui.config import PROGRESSION_MODES
+
 from .contract import COMMAND, ApiError, action
 from .pictures import data_uri
-from .settings import Settings
+from .settings import Settings, about
 
 
 # What the stored run calls the mode it was generated for, and the one
@@ -150,6 +152,9 @@ def _answer(config):
     return {
         'mode': mode,
         'generated_seed': standing,
+        # Whose settings these are, so the screen can say which of them
+        # follow the player across the kind and which are this mode's.
+        'about': about(mode or PROGRESSION_MODES[0]),
         'sections': CAMPAIGN.answer(config, mode=mode, blank=bool(standing)),
     }
 

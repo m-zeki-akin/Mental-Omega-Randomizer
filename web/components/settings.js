@@ -243,9 +243,34 @@ export function settingsPanel(part, tools) {
   });
 }
 
-/** Every section of a table, in the order the launcher gave them. */
-export function settingsSections(sections, tools) {
-  return (sections || []).map((part) => settingsPanel(part, tools));
+/**
+ * Every section of a table, in the order the launcher gave them.
+ *
+ * With `about` -- the kind of game, the modes that share it, and the
+ * mode being set up -- the sections are grouped by whose they are: the
+ * ones every mode of the kind reads, then the ones this mode alone
+ * reads. A player can then see which settings follow them across the
+ * kind and which stay behind when they switch mode.
+ */
+export function settingsSections(sections, tools, about) {
+  const panels = (sections || []).map((part) => settingsPanel(part, tools));
+  if (!about) return panels;
+  const shared = [];
+  const own = [];
+  (sections || []).forEach((part, index) => {
+    (part.scope === 'mode' ? own : shared).push(panels[index]);
+  });
+  const grouped = [];
+  if (shared.length) {
+    grouped.push(section(
+      `${about.kind} — shared by ${(about.shared || []).join(', ')}`,
+      shared,
+    ));
+  }
+  if (own.length) {
+    grouped.push(section(`${about.mode} only`, own));
+  }
+  return grouped;
 }
 
 /** The catalogue names the searches in a table ask for. */

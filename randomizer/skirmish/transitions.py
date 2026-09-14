@@ -50,6 +50,7 @@ def start_run(
     created='',
     lives=DEFAULT_LIVES,
     ally_roster='',
+    kept_off=(),
 ):
     run_id = str(run_id or '')
     seed = str(seed or '')
@@ -73,7 +74,9 @@ def start_run(
     # The ally does its first shopping before the run's first shot. It had
     # none in the opening battle otherwise: it shops out of what a victory
     # pays, and at the start nothing has been won.
-    purchases, left = ally_shopping(run, ally_roster, run.ally_coins)
+    purchases, left = ally_shopping(
+        run, ally_roster, run.ally_coins, kept_off=kept_off,
+    )
     return replace(run, ally_purchases=purchases, ally_coins=left)
 
 
@@ -109,7 +112,7 @@ def commit_offer(run, index):
     return replace(run, committed_offer=index)
 
 
-def record_victory(run, *, ally_country=None, result=None):
+def record_victory(run, *, ally_country=None, result=None, kept_off=()):
     """Advance to the next battle, paying for it and letting the ally shop.
 
     What a battle pays is decided by the tier it was fought in and nothing
@@ -131,7 +134,9 @@ def record_victory(run, *, ally_country=None, result=None):
     )
     ally_purchases, ally_coins = (
         (run.ally_purchases, run.ally_coins + reward) if not ally_country
-        else ally_shopping(run, ally_country, run.ally_coins + reward)
+        else ally_shopping(
+            run, ally_country, run.ally_coins + reward, kept_off=kept_off,
+        )
     )
     won = replace(
         run,
@@ -156,10 +161,10 @@ def record_victory(run, *, ally_country=None, result=None):
     )
     if won.battle <= cycle_battles():
         return won
-    return enter_nightmare(won, ally_country=ally_country)
+    return enter_nightmare(won, ally_country=ally_country, kept_off=kept_off)
 
 
-def enter_nightmare(run, *, ally_country=None):
+def enter_nightmare(run, *, ally_country=None, kept_off=()):
     """Start the nine tiers again, with both your armies stripped.
 
     What the enemies have they keep -- their tiers do not reset, they
@@ -185,12 +190,12 @@ def enter_nightmare(run, *, ally_country=None):
     # The ally is equipped again before the first shot, the way it was at
     # the start of the run.
     purchases, left = ally_shopping(
-        stripped, ally_country, stripped.ally_coins
+        stripped, ally_country, stripped.ally_coins, kept_off=kept_off,
     )
     return replace(stripped, ally_purchases=purchases, ally_coins=left)
 
 
-def reroll_shelf(run, country):
+def reroll_shelf(run, country, *, kept_off=()):
     """Pay to send this battle's shelf away and be dealt another.
 
     The new one is drawn from the same seed and battle with the reroll
@@ -219,6 +224,7 @@ def reroll_shelf(run, country):
             run, country,
             count=shelf_size(run.tier),
             salt=f'shelf:reroll:{rerolls}',
+            kept_off=kept_off,
         ),
     )
 

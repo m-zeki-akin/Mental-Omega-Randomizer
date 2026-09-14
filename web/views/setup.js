@@ -8,6 +8,7 @@ import { act, call, register, show } from '../app.js';
 import {
   button, el, field, notice, panel, pill, row, section, select, table,
 } from '../components/index.js';
+import { settingsSections } from '../components/settings.js';
 
 const COLUMNS = [
   { key: 'seed', label: 'Seed' },
@@ -171,9 +172,15 @@ async function render(root) {
   const countries = await call('skirmish.countries');
   const palette = await call('skirmish.colors');
   const { runs, active } = await call('skirmish.runs');
+  const settings = await call('skirmish.settings');
   root.replaceChildren(
     section('Start', chooser(countries, palette)),
     section('Runs', runList(runs, active)),
+    // What the pair of roguelikes share, drawn here as well as on Shop
+    // Mode's Setup: a switch turned on either side is on for both.
+    ...settingsSections(settings.sections, {
+      onChange: (name, value) => act('skirmish.use_setting', { name, value }),
+    }, settings.about),
   );
 }
 

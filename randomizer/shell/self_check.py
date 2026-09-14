@@ -361,6 +361,23 @@ def validate_shell_contract():
     unanswered = _actions_the_screens_ask_for(root)
     impatient = _presses_wait_their_turn(root)
 
+    # A run with lives ends somewhere whichever kind of run it was, so the
+    # roguelike pair share one Records screen rather than a board each --
+    # and the campaign three, whose runs do not end that way, have none.
+    from .screens import screens as _screens
+
+    roguelikes = modes_in('Roguelike')
+    records_valid = bool(
+        roguelikes
+        and all(
+            ('records', 'Records') in _screens(mode) for mode in roguelikes
+        )
+        and not any(
+            ('records', 'Records') in _screens(mode)
+            for mode in modes() if mode not in roguelikes
+        )
+    )
+
     return {
         'shell_pages_present_valid': present,
         'shell_views_keep_to_themselves_valid': not borrowing,
@@ -378,7 +395,10 @@ def validate_shell_contract():
         'shell_every_action_asked_for_exists_valid': not unanswered,
         'shell_presses_wait_their_turn_valid': not impatient,
         'shell_every_mode_is_one_kind_of_game_valid': families_valid,
+        'shell_roguelikes_share_records_valid': records_valid,
         'shell_contract_valid': bool(
+            records_valid
+            and
             present
             and _choice_valid()
             and _fallback_valid()

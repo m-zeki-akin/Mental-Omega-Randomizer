@@ -103,7 +103,7 @@ async function render(root) {
           + 'the run in progress.',
         )
         : null,
-      ...settingsSections(answer.sections, tools),
+      ...settingsSections(answer.sections, tools, answer.about),
       panel('Generate', {
         body: 'Deals the missions, plans the rewards and writes the run '
           + 'down. The Run tab is where it is then played.',

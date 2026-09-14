@@ -54,17 +54,10 @@ RUN_SETTINGS = (
 # run is dealt out of the same installed missions.
 MISSION_SETTINGS = MISSION_POOL_SETTINGS
 
-# Each hides its rewards from the shelf, from the permanent loadout, and
-# from every buff that would have improved them. Chosen before a run and
-# fixed for its whole length.
-REWARD_SETTINGS = tuple(
-    _row(
-        group.setting_key, group.display_name, SWITCH,
-        f'{group.description} Hides {len(group.target_ids)} of them.',
-        where=GENERATION,
-    )
-    for group in SHOP_CONFIG.reward_exclusion_groups
-)
+# What may reach a shelf at all is a question about the kind of game, not
+# about this mode, so the rows live with the roguelike pair and are drawn
+# here as this run's own.
+from .roguelike_settings import REWARD_SETTINGS  # noqa: E402
 
 SECTIONS = (
     ('The next run', RUN_SETTINGS),

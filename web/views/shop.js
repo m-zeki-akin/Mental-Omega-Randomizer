@@ -103,7 +103,7 @@ async function render(root) {
   root.replaceChildren(
     section('The next run', [
       pacingPanel(settings),
-      ...settingsSections(settings.sections, tools),
+      ...settingsSections(settings.sections, tools, settings.about),
     ]),
     section('Optional run modifiers', [
       notice(

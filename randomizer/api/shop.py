@@ -30,7 +30,7 @@ from randomizer.shop.modifiers import (
 from randomizer.ui.shop_settings import SECTIONS
 
 from .contract import COMMAND, ApiError, action
-from .settings import Settings
+from .settings import Settings, about
 
 
 # The rest of the setup -- the seed, the faction pool, which missions a
@@ -95,6 +95,9 @@ def _answer(config):
         'gem_scale_percent': pacing_gem_scale_percent(chosen),
         'default': not pacing_to_store(chosen, SHOP_CONFIG) and not enabled,
         'sections': SHOP.answer(config),
+        # Whose settings these are: the roguelike pair's, drawn as this
+        # run's own beside what it shares with the skirmish.
+        'about': about('Shop Mode'),
     }
 
 
