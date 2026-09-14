@@ -1142,7 +1142,17 @@ class LaunchController:
                             + ', '.join(sorted(art_aliases))
                             + '.'
                         )
-                except Exception:
+                except Exception as exc:
+                    # Nanofiber mutations are the one case where missing art
+                    # is not cosmetic: the chain mutates infantry into types
+                    # the game cannot draw, and playing on loses them.
+                    if '[mornanofiberanimations]' in read_text(
+                        hook['root_map']
+                    ).lower():
+                        raise RuntimeError(
+                            'Required Nanofiber mutation assets could not be '
+                            'prepared; launch stopped to prevent infantry loss.'
+                        ) from exc
                     self.append_log(
                         'Could not prepare temporary unit cameo art; '
                         'existing custom art was left untouched.',
