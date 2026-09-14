@@ -38,6 +38,7 @@ from .challenges import (
 )
 from .clones import apply_house_clones
 from .colors import UNCHOSEN, color_ids, house_colors, is_a_color
+from .flag import stage_seat_flags
 from .factions import country_by_index, skirmish_countries
 from .options import merge_game_options
 from .powers import apply_power_clones, superweapon_ids
@@ -307,6 +308,10 @@ def prepare_battle(battle, *, before=None, after=None):
             merge_map_code(SPAWN_MAP_INI, code)
 
     apply_seat(SPAWN_MAP_INI, battle['player'].country_id, battle['seat'])
+    # The map now names the chosen country's flag on the seat, but the
+    # engine loaded the seat's picture at startup by the name the rules
+    # gave it. The picture behind that name is swapped instead.
+    stage_seat_flags(battle['player'].country_id, battle['seat'])
     write_skirmish_spawn_ini(
         SPAWN_INI,
         skirmish_spawn_ini_text(

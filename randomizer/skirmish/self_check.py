@@ -1433,6 +1433,122 @@ def _balance_config_checks():
     }
 
 
+def _seat_flag_checks():
+    """The seat shows the chosen country's flag, and nothing else moves.
+
+    The engine loads a country's flag once at startup by the name the
+    rules give it, so the map naming another picture on the seat changed
+    nothing. The picture is staged under the seat's own file name before
+    the battle and taken away after -- only the launcher's own file, and
+    only while it still reads the way it was written.
+    """
+    from .flag import flag_plan, remove_staged_flags, stage_seat_flags
+
+    rules = {
+        'Latin': {'File.Flag': 'cuba.pcx', 'File.ObserverFlag': 'cuba.pcx'},
+        'USSR': {'File.Flag': 'ussr.pcx', 'File.ObserverFlag': 'obsussr.pcx'},
+        'Neutral': {},
+    }
+    plan = flag_plan(rules, 'Latin', 'USSR')
+    images = {'cuba.pcx': b'CUBA'}
+
+    def _bytes(path):
+        # A row reads what is there and says so; it never trips over what
+        # is not.
+        return path.read_bytes() if path.is_file() else b''
+    with TemporaryDirectory(prefix='mo-skirmish-flag-') as temporary:
+        root = Path(temporary) / 'game'
+        root.mkdir()
+        manifest = Path(temporary) / 'staged_flags.json'
+        # A loose file already in the root is a submod's, and stays.
+        (root / 'obsussr.pcx').write_bytes(b'THEIRS')
+        staged = stage_seat_flags(
+            'Latin', 'USSR', rules=rules, game_root=root, manifest=manifest,
+            fetch=images.get,
+        )
+        written = _bytes(root / 'ussr.pcx')
+        untouched = _bytes(root / 'obsussr.pcx')
+        listed = manifest.is_file()
+        # Staged twice is staged once: the second run takes the first away
+        # before writing, rather than stacking.
+        again = stage_seat_flags(
+            'Latin', 'USSR', rules=rules, game_root=root, manifest=manifest,
+            fetch=images.get,
+        )
+        # A file that no longer reads the way it was written is somebody
+        # else's now, and removal leaves it where it is.
+        (root / 'ussr.pcx').write_bytes(b'EDITED SINCE')
+        kept = remove_staged_flags(manifest=manifest)
+        survived = _bytes(root / 'ussr.pcx') == b'EDITED SINCE'
+        (root / 'ussr.pcx').unlink(missing_ok=True)
+        # And the plain case: staged, then gone, manifest and all.
+        stage_seat_flags(
+            'Latin', 'USSR', rules=rules, game_root=root, manifest=manifest,
+            fetch=images.get,
+        )
+        removed = remove_staged_flags(manifest=manifest)
+        gone = not (root / 'ussr.pcx').exists() and not manifest.exists()
+        still_theirs = _bytes(root / 'obsussr.pcx') == b'THEIRS'
+    staging_valid = bool(
+        plan == (('ussr.pcx', 'cuba.pcx'), ('obsussr.pcx', 'cuba.pcx'))
+        # A seat that is the chosen country, or a country naming no flag,
+        # plans nothing.
+        and flag_plan(rules, 'Latin', 'Latin') == ()
+        and flag_plan(rules, 'Neutral', 'USSR') == ()
+        and flag_plan(rules, 'Latin', 'Neutral') == ()
+        and staged == ('ussr.pcx',)
+        and written == b'CUBA'
+        and untouched == b'THEIRS'
+        and listed
+        and again == ('ussr.pcx',)
+        and kept == ()
+        and survived
+        and removed == ('ussr.pcx',)
+        and gone
+        and still_theirs
+    )
+
+    # Against the installation: the plan names real files, and the image
+    # comes out of the archives as a PCX -- into a scratch root, never the
+    # game's.
+    installed = {}
+    from .seats import _installed_rules
+
+    real = _installed_rules()
+    if real:
+        with TemporaryDirectory(prefix='mo-skirmish-flag-real-') as temporary:
+            root = Path(temporary)
+            manifest = root / 'staged_flags.json'
+            real_plan = flag_plan(real, 'Latin', 'USSR')
+            real_staged = stage_seat_flags(
+                'Latin', 'USSR', rules=real, game_root=root, manifest=manifest,
+            )
+            heads = {
+                name: _bytes(root / name)[:1] for name in real_staged
+            }
+            remove_staged_flags(manifest=manifest)
+            installed = {
+                'plan': real_plan, 'staged': real_staged, 'heads': heads,
+                'clean': not any((root / name).exists() for name in real_staged),
+            }
+    installed_valid = bool(
+        installed
+        and installed['plan']
+        and all(
+            name.lower().endswith('.pcx')
+            for pair in installed['plan'] for name in pair
+        )
+        and installed['staged']
+        # A PCX begins with the manufacturer byte 0x0A.
+        and all(head == b'\x0a' for head in installed['heads'].values())
+        and installed['clean']
+    )
+    return {
+        'skirmish_seat_flag_valid': staging_valid,
+        'skirmish_seat_flag_installed_valid': installed_valid,
+    }
+
+
 def _challenge_walk_checks():
     """Which challenges a run may be dealt, and who stands beside it.
 
@@ -3326,6 +3442,7 @@ def validate_skirmish_contract():
     report.update(_challenge_checks())
     report.update(_challenge_walk_checks())
     report.update(_balance_config_checks())
+    report.update(_seat_flag_checks())
     report.update(_option_checks())
     report.update(_clone_checks())
     report.update(_ai_checks())

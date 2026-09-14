@@ -43,6 +43,12 @@ is whether the game does what they ask. Each names what to look at.
   an enemy fields is the upgraded copy. A card says how many each one
   carries, so what is on screen can be checked against what is fought.
 
+- **The seat's flag.** The chosen country's flag PCX is staged under the
+  seat's file name before a battle and removed after it. Watch the
+  diplomacy panel and the observer flag for the chosen country's flag on
+  the player's row; if the seat's own flag still shows, the engine reads
+  the archive ahead of a loose root file for that name.
+
 - **The ally fielding its copies.** The ally's upgrades are private copies
   of its units, and a computer player builds what its task forces name, so
   the staged `aimo.ini` names the copies in its teams -- 24 of them in the
@@ -147,12 +153,6 @@ is whether the game does what they ask. Each names what to look at.
   prerequisite and generic group about the copy. The linked forms are done:
   a unit that deploys is copied together with what it deploys into, and the
   copies name each other.
-
-- **The seat's flag.** The player is seated on a spare country wearing the
-  country they chose. The in-game diplomacy panel shows the seat's own flag,
-  because the flag comes from the client's resources by country index rather
-  than from the rules the map rewrites. Cosmetic, and it needs a client-side
-  mapping to fix.
 
 ## The new interface
 

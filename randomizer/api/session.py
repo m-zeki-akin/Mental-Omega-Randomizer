@@ -220,8 +220,12 @@ def _record(ticket, repository):
     # belonging to a run that is no longer there. Leaving the ticket behind
     # would offer the same battle to the next launcher again.
     _drop()
-    # The staged AI file belongs to the battle that just ended.
+    # The staged AI file belongs to the battle that just ended, and so
+    # does the flag staged under the seat's name.
     remove_staged_ai_file()
+    from randomizer.skirmish.flag import remove_staged_flags
+
+    remove_staged_flags()
     result = last_game_result(
         read_debug_log_tail(DEBUG_LOG, ticket['log_offset']),
         player_name=ticket['player_name'],

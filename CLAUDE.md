@@ -158,6 +158,14 @@ The bundle manifest regenerates at build. Add a line to `configs/README.md`.
   (`y*1000+x`) — use the latter for placement.
 - Colours: `colors.house_colors` — ally nearest the player's, enemies
   furthest; challenge armies keep the map's colours.
+- Seat flag: countries name their images (`File.Flag`, `File.ObserverFlag`
+  — Ares tags, set by MO for all 12). The map copy of the seat section
+  already names the chosen flag, but the engine loads the picture at
+  startup by the *rules* name, so `skirmish/flag.py` stages the chosen
+  PCX under the seat's file name in the game root before launch and
+  removes it after (`APP_DIR/staged_flags.json` holds digests; a file
+  that changed or pre-existed is never deleted). Loose root files beat
+  MIX members. Unverified in-game as of 2026-09-14.
 - Web quirks: `[hidden]{display:none!important}` loses to any class that
   sets `display:` — toggle with `el.hidden`, never give a hideable node a
   `display` class. `pill(text, variant, title)` carries tooltips.
