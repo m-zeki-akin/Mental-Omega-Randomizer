@@ -39,7 +39,7 @@ Skills `.claude/skills/launcher-change` (change loop) and `launcher-ui`
 |---|---|
 | Game root | `D:\Program Files (x86)\Steam\steamapps\common\Command & Conquer Red Alert II MO` |
 | Env for source runs | `MO_RANDOMIZER_GAME_ROOT="<game root>"` (required for anything touching game data) |
-| Run from source | `python launcher_gui.py` (`--shell` = new interface, `--classic` = Tk) |
+| Run from source | `python launcher_gui.py` (one interface; `--shell` is accepted and means the same) |
 | Self-check, source | `python launcher_gui.py --self-check` → writes **`./self_check.json`** (APP_DIR = repo in source mode) |
 | Self-check, packaged | exe `--self-check` → `%LOCALAPPDATA%\MentalOmegaRandomizer\<id>\self_check.json`, exit 0/1 |
 | Build (this machine) | `powershell -File .\build_exe.local.ps1 -Output <path>` (~25 s; pipe to `Select-Object -Last 2`) |
@@ -70,10 +70,10 @@ Every module's docstring says *why*; read it before changing it.
 | `randomizer/skirmish/` | Skirmish Shop (the most active area) | `progression` tiers/offers/enemy arming · `shop` prices/shelf/rewards · `launch` build one battle · `transitions` run state changes · `model` dataclasses · `config` reads `configs/skirmish.json` · `challenges` client challenge maps · `clones`/`powers`/`ai` private unit/SW copies + AI teaching · `seats`/`ownership` who plays what · `spawn` spawn.ini · `self_check` |
 | `randomizer/shop/` | Campaign roguelike Shop Mode, pure rules | `transitions`, `economy`, `shelf`, `missions`, `new_run`, `launch_rules`, `persistence`, `config` (`shop_mode.json`), `self_check` |
 | `randomizer/api/` | The only boundary screens talk across; `@action('mode.name')` returns JSON-safe data | `skirmish`, `shop`, `campaign`, `launcher`, `session`, `settings`, `contract`, `self_check` |
-| `randomizer/shell/` | New interface host: `choice` (which UI; default still `classic`), `screens` (tabs per mode), `host`, `entry` | |
+| `randomizer/shell/` | Interface host: `screens` (tabs per mode), `host`, `entry` (opens it; a failure is a dialog + exit, no fallback) | |
 | `web/` | Front end: `views/*.js` one per screen (`register('name', render)`), `components/index.js`, `styles/tokens.css` | |
-| `randomizer/application/` | Classic Tk controllers. Being retired **except** Archipelago (`generator.build` imports `ArchipelagoController`) | `skirmish_controller`, `shop_controller`, `launch_controller`, `archipelago_controller` |
-| `randomizer/ui/` | Tk widgets + shared tables both UIs read (`campaign_settings`, `shop_settings`, `roguelike_settings` = the pair's shared shelf switches + `kept_off_shelf()`, `settings_rows`, `cameos`, `config`) | |
+| `randomizer/application/` | Campaign controllers composed headless by `campaign/generator.py` (`Generator(SeedController, RewardController, StateController, StartingUnlocksController, UnlockDataController, ProgressionController, LaunchController, EnemyScalingController, ArchipelagoController)`). `_dependencies.py` is the import hub; it still names `tkinter` (optional) for dead callbacks | `launch_controller`, `seed_controller`, `archipelago_controller` |
+| `randomizer/ui/` | Shared tables the interface reads (`campaign_settings`, `campaign_catalogues`, `shop_settings`, `roguelike_settings` = the pair's shared shelf switches + `kept_off_shelf()`, `settings_rows`, `cameos`, `config`, `palette`). No widgets | |
 | Settings scope | `api/settings.py` `Settings.answer` marks each section `scope: kind|mode`; `about(mode)` names kind/mode/shared; `web/components/settings.js settingsSections(sections, tools, about)` groups by it. A row with `mode=` is that mode's own; `mode=None` is the kind's. Records tab is on both roguelikes (skirmish board + `shop.profile`). | |
 | `randomizer/campaign/` | Campaign run generation without a window | `generator`, `generation`, `store` |
 | `randomizer/maps/` | Generated mission-map pipeline (clones, buffs, hooks, powers) | `pipeline` (3k lines, ordered stages), `clone_builder`, `player_clones`, `ini` (never replace with ConfigParser) |
@@ -183,9 +183,13 @@ The bundle manifest regenerates at build. Add a line to `configs/README.md`.
 - Native campaign TechnoTypes stay for AI/scripts; player effects go on
   clones. Engine-named units (`[General]`: harvester, MCV, pad aircraft)
   are never cloned army-wide.
-- Interface default is still `classic` (`shell/choice.py`); falling back to
-  `randomizer.application.app.main()` must survive until the Tk window is
-  deleted. All five modes are ported to `web/`.
+- There is one interface (`web/`); the Tk window is deleted. Kept
+  controllers still carry dead `messagebox`/`self.after`/`tk.` lines the
+  headless generator never reaches — remove them only with the
+  `_dependencies.py` tkinter import, together. `shell_is_the_only_interface_valid`
+  names the one module allowed to say `tkinter`.
+- Archipelago has no screen yet: `ui/archipelago.py` went with the window.
+  Connecting/YAML export needs an `api/` action set and a `web/` view.
 
 ## Documents — what to open, and when
 
@@ -205,8 +209,9 @@ Deleted as stale (do not recreate): `DEVELOPER_GUIDE.md`,
 
 ## Open threads
 
-- Delete the classic Tk window and make `web/` the default — keep
-  Archipelago working (it lives in `randomizer/application/`).
+- Archipelago screen for `web/` (connect, YAML) — the code paths are
+  alive (`generator.py`, `tools/check_archipelago_integration.py`), the UI
+  is not.
 - Unanswered by the user: whether the spy actually enters an enemy
   refinery and gets nothing; whether to push `feat/next` to `fork`.
 - Working tree carries the user's in-flight campaign Shop rebalance

@@ -145,64 +145,78 @@ def _actions_the_screens_ask_for(root):
     return missing
 
 
-def _choice_valid():
-    """The interface that opens is the one that was asked for.
+def _failure_reported_valid():
+    """An interface that will not open says so rather than raising.
 
-    Two ways of asking and one of them wins: a flag is for one run, the
-    kept setting is for every other. A setting nobody recognises means the
-    old window, because that is the one that can do everything.
-    """
-    from . import choice
-
-    kept = {'interface': choice.NEW}
-    return bool(
-        choice.chosen(['--classic'], kept) == choice.CLASSIC
-        and choice.chosen(['--interface'], {'interface': choice.CLASSIC})
-        == choice.NEW
-        and choice.chosen(['--shell'], {}) == choice.NEW
-        # A flag among others, and nothing to say about the rest.
-        and choice.chosen(['--self-check', '--interface'], {}) == choice.NEW
-        and choice.chosen([], kept) == choice.NEW
-        and choice.chosen([], {}) == choice.CLASSIC
-        and choice.chosen([], {'interface': 'sideways'}) == choice.CLASSIC
-        and choice.chosen(None, None) == choice.CLASSIC
-    )
-
-
-def _fallback_valid():
-    """An interface that will not open leaves the player with the other one.
-
-    The launcher asks this before it builds a window. A false answer is
-    the old window, and a failure has to be a false answer rather than an
-    exception: the alternative is an exe that opens nothing.
+    The launcher's entry point asks this and exits on a false answer.
+    There is no other window to fall back to, so what matters is that a
+    failure is an answer -- logged, and shown -- and not an exception
+    that leaves an exe opening nothing and saying nothing.
     """
     import randomizer.shell as package
 
-    from .entry import open_chosen_interface
+    from . import entry
 
     opened = []
+    warned = []
 
     def refuse():
         raise RuntimeError('no WebView2 here')
 
-    keep = package.run_shell
+    def ask(**how):
+        # A row that raised where the launcher would have raised would
+        # take the whole report down with it, which is the failure it is
+        # here to find. It is an answer either way.
+        try:
+            return entry.open_interface(**how)
+        except Exception:
+            return 'raised'
+
+    keep_shell, keep_warn = package.run_shell, entry.warn
     try:
-        # Asked for and broken: the old window, quietly.
+        # Broken, with the self-check's silence on: a false answer and
+        # no dialog.
         package.run_shell = refuse
-        failed = open_chosen_interface(['--interface'], warn=False)
-        # Asked for and working: this one, and only once.
+        entry.warn = lambda title, text: warned.append(title)
+        failed = ask(warn_player=False)
+        # Broken, as the player would see it: the same answer, said.
+        told = ask()
+        # Working: a true answer, and the interface built once.
         package.run_shell = lambda: opened.append(True)
-        asked = open_chosen_interface(['--interface'], warn=False)
-        # Not asked for: the old window, without the new one being built.
-        classic = open_chosen_interface(['--classic'], warn=False)
+        worked = ask()
     finally:
-        package.run_shell = keep
+        package.run_shell, entry.warn = keep_shell, keep_warn
     return bool(
         failed is False
-        and asked is True
-        and classic is False
+        and told is False
+        and worked is True
         and opened == [True]
+        and len(warned) == 1
     )
+
+
+def _only_interface_valid():
+    """There is one interface, and no code path to another.
+
+    The old window was Tk; the check is that nothing under the package
+    asks for it. One module is allowed to: the campaign controllers'
+    import hub still names tkinter for the dead callbacks the headless
+    generator never reaches, and that allowance is written here so its
+    removal is a row turning stricter rather than a surprise.
+    """
+    from pathlib import Path
+
+    package = Path(__file__).resolve().parent.parent
+    allowed = {'application/_dependencies.py'}
+    naming = {
+        path.relative_to(package).as_posix()
+        for path in package.rglob('*.py')
+        if 'tkinter' in _read(path)
+        # This module names it in prose, above, and the api sweep names
+        # it as a word to refuse.
+        and path.name != 'self_check.py'
+    }
+    return bool(naming <= allowed)
 
 
 def validate_shell_contract():
@@ -315,25 +329,16 @@ def validate_shell_contract():
         and loaded == named
     )
 
-    # A mode played here does not carry the way out of here. The 'classic'
-    # screen is what an unported mode is drawn as -- what it is, and one
-    # press to open the old window at it -- so a ported mode holding one
-    # would be telling a player their mode is not drawn on the screen
-    # that draws it. The way to the old window is on Launcher either way.
-    from .screens import BY_MODE, PORTED
+    # Every mode the launcher lists is drawn here, with screens of its
+    # own: there is no other window now, so a mode without a row would be
+    # a mode that cannot be played.
+    from randomizer.ui.config import PROGRESSION_MODES
 
-    escapes_valid = bool(
-        PORTED
-        and all(
-            ('classic', 'Mode') not in BY_MODE.get(mode, ())
-            for mode in PORTED
-        )
-        # And an unported mode keeps it, or there is no way to reach the
-        # window that plays it.
-        and all(
-            ('classic', 'Mode') in pairs
-            for mode, pairs in BY_MODE.items() if mode not in PORTED
-        )
+    from .screens import BY_MODE
+
+    every_mode_drawn_valid = bool(
+        set(PROGRESSION_MODES) == set(BY_MODE)
+        and all(BY_MODE[mode] for mode in PROGRESSION_MODES)
     )
 
     # The control is two: a kind of game, then one of that kind. Which
@@ -382,8 +387,8 @@ def validate_shell_contract():
         'shell_pages_present_valid': present,
         'shell_views_keep_to_themselves_valid': not borrowing,
         'shell_views_are_named_once_valid': not misnamed,
-        'shell_interface_choice_valid': _choice_valid(),
-        'shell_falls_back_to_the_old_window_valid': _fallback_valid(),
+        'shell_failure_to_open_is_reported_valid': _failure_reported_valid(),
+        'shell_is_the_only_interface_valid': _only_interface_valid(),
         'shell_tokens_are_the_only_palette_valid': not stray_colours,
         'shell_tokens_are_the_only_scale_valid': not stray_sizes,
         'shell_hidden_means_hidden_valid': hidden_valid,
@@ -391,7 +396,7 @@ def validate_shell_contract():
         'shell_no_markup_parsing_valid': markup_free,
         'shell_components_are_pure_valid': bool(components and components_pure),
         'shell_every_screen_a_mode_names_exists_valid': screens_valid,
-        'shell_a_ported_mode_has_no_way_out_valid': escapes_valid,
+        'shell_every_mode_is_drawn_valid': every_mode_drawn_valid,
         'shell_every_action_asked_for_exists_valid': not unanswered,
         'shell_presses_wait_their_turn_valid': not impatient,
         'shell_every_mode_is_one_kind_of_game_valid': families_valid,
@@ -400,15 +405,15 @@ def validate_shell_contract():
             records_valid
             and
             present
-            and _choice_valid()
-            and _fallback_valid()
+            and _failure_reported_valid()
+            and _only_interface_valid()
             and not stray_colours
             and not stray_sizes
             and hidden_valid
             and markup_free
             and components_pure
             and screens_valid
-            and escapes_valid
+            and every_mode_drawn_valid
             and not borrowing
             and not misnamed
             and not unanswered

@@ -188,7 +188,7 @@ The report is written to `self_check.json` in the player data folder, `%LOCALAPP
 | `randomizer/skirmish/` | Skirmish Shop: tiers, offers, shelf, enemy arming, battle launch |
 | `randomizer/shop/` | Campaign Shop Mode: pure economy, offers, purchases, lifecycle |
 | `randomizer/campaign/` | Campaign run generation without a window |
-| `randomizer/application/` | Classic Tk controllers (being retired) and the Archipelago session adapter |
+| `randomizer/application/` | Campaign controllers composed headless by `randomizer/campaign/`, and the Archipelago session adapter |
 | `randomizer/config/` | Player YAML, static JSON loading, schema validation, and tuning adapters |
 | `randomizer/core/` | Paths, storage, diagnostics, version, and collection primitives |
 | `randomizer/launch/` | Spawn and option INI mechanics |

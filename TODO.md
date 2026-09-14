@@ -154,19 +154,27 @@ is whether the game does what they ask. Each names what to look at.
   a unit that deploys is copied together with what it deploys into, and the
   copies name each other.
 
-## The new interface
+## The interface
 
-The mode control offers the five modes as two kinds of game -- Campaign
-(Classic, Mission List, Grid) and Roguelike (Campaign, Skirmish) -- and
-the screens follow whichever is standing. Skirmish and the three Campaign
-modes are played here: each has its setup, its run, its unlocks, and
-Grid its board, and a mission is launched and recorded from the page.
-Roguelike/Campaign has its setup here and its run in the classic window.
+There is one. The mode control offers the five modes as two kinds of game
+-- Campaign (Classic, Mission List, Grid) and Roguelike (Campaign,
+Skirmish) -- and the screens follow whichever is standing. Every mode is
+played here: each has its setup, its run, its unlocks, Grid its board, and
+a mission is launched and recorded from the page. The Tk window that came
+before it is deleted.
 
-What is left for the Campaign three is the word: `PORTED` in
-`randomizer/shell/screens.py` still names only Skirmish, so the classic
-window opens for them. Flipping it is a decision to make after a mission
-has been played end to end from the page, not a piece of work.
+Two things it left behind:
+
+- **Archipelago has no screen.** Connecting, and writing the player YAML,
+  were on the old window. The code that does the work is kept
+  (`randomizer/application/archipelago_controller.py`, composed by
+  `randomizer/campaign/generator.py`) and the AP tool still exercises it;
+  what is missing is an `api/` action set and a `web/` view.
+- **The kept controllers still name the toolkit.** A few dozen
+  `messagebox`/`self.after`/`tk.` lines sit on code paths the headless
+  generator never reaches, and `randomizer/application/_dependencies.py`
+  imports tkinter (optionally) so they compile. Removing them is one job:
+  the lines, the import, and the toolkit from the build.
 
 ### Which settings belong to a kind, and which to one mode
 

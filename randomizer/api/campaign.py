@@ -277,10 +277,9 @@ CAMPAIGN_MODES = ('Classic', 'Mission List', 'Grid Mode')
 def _refuse_if_archipelago(state, doing):
     """Refuse to touch a run an Archipelago server is playing along with.
 
-    The classic window locks its own controls while a session is up. The
-    mark is on the run rather than on that window, which is what makes it
-    askable from here -- and the answer sends the player back there,
-    because that is where a session is ended.
+    The mark is on the run rather than on a window, which is what makes
+    it askable from here. Ending a session is the Archipelago client's,
+    and the answer says so.
     """
     playing = (state or {}).get('archipelago')
     if isinstance(playing, dict) and str(
@@ -288,7 +287,7 @@ def _refuse_if_archipelago(state, doing):
     ).strip().lower() == 'active':
         raise ApiError(
             'This run is being played with Archipelago. Finish or '
-            f'disconnect it in the classic window before {doing}.'
+            f'disconnect the session before {doing}.'
         )
 
 

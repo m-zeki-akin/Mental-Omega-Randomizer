@@ -84,28 +84,23 @@ def run_launcher():
         # Housekeeping must never be the reason the launcher fails to open.
         log_event('runtime_leftover_sweep_failed', traceback=traceback.format_exc())
     try:
-        from randomizer.shell.entry import open_chosen_interface
+        from randomizer.shell.entry import open_interface
 
-        if open_chosen_interface():
-            return 0
-        from randomizer.application.app import main
-        main()
-        return 0
+        # There is one interface, and it reports its own failure to open.
+        # What is caught here is everything before it: a runtime that
+        # would not even import.
+        return 0 if open_interface() else 1
     except Exception:
         detail = traceback.format_exc()
         log_event('launcher_startup_failed', traceback=detail)
         try:
-            import tkinter as tk
-            from tkinter import messagebox
+            from randomizer.shell.entry import warn
 
-            root = tk.Tk()
-            root.withdraw()
-            messagebox.showerror(
+            warn(
                 'Mental Omega Randomizer Startup Failed',
                 'The launcher could not load its configuration or runtime.\n\n'
                 f'{detail.splitlines()[-1]}\n\nSee {LAUNCHER_LOG} for details.',
             )
-            root.destroy()
         except Exception:
             pass
         return 1
@@ -1093,27 +1088,12 @@ def run_self_check():
             ).get('Range') == '384'
         )
         from randomizer.application import (
-            advanced_settings as advanced_settings_module,
-            app as application_module,
             reward_controller as reward_controller_module,
             seed_controller as seed_controller_module,
             starting_unlocks as starting_unlocks_module,
             state_controller as state_controller_module,
         )
         required_runtime_symbols = {
-            application_module: (
-                'MAIN_REWARD_WEIGHT_TYPES',
-                'POWER_BUFF_WEIGHT_TYPES',
-                'UNIT_BUFF_WEIGHT_TYPES',
-                'normalize_reward_weights',
-            ),
-            advanced_settings_module: (
-                'DEFAULT_REWARD_WEIGHT',
-                'MAIN_REWARD_WEIGHT_TYPES',
-                'POWER_BUFF_WEIGHT_TYPES',
-                'UNIT_BUFF_WEIGHT_TYPES',
-                'clamp_reward_weight',
-            ),
             reward_controller_module: (
                 'normalize_reward_weights',
                 'reward_selection_weight',
@@ -1296,20 +1276,6 @@ def run_self_check():
         from randomizer.rewards.buff_reach import summary as buff_reach_summary
         offered_buff_reach = buff_reach_summary()
         undefined_global_names, scanned_modules = scan_undefined_globals()
-        # A row that says a unit is buyable and a button that refuses to buy
-        # it are two answers to one question. They drifted apart once already:
-        # the rows moved to the between-missions rule when runs became
-        # endless and the buttons kept testing whether a run was active at
-        # all, so every row read "Available" beside a dead button. Both now
-        # call one helper, and this is what says so.
-        from randomizer.application.shop_controller import ShopController
-        from randomizer.application.shop_polish_controller import (
-            ShopPolishController,
-        )
-        permanent_gate_button_names = (
-            ShopPolishController.refresh_permanent_purchase_buttons
-            .__code__.co_names
-        )
         # Every campaign setting the new interface offers is a setting the
         # launcher actually keeps. The table names them by key, and a key
         # that has been renamed under it would draw a control that reads
@@ -1432,35 +1398,6 @@ def run_self_check():
                 )
                 for row in campaign_setting_rows
             )
-        )
-        # Two windows now draw one mode's setup, and a setting drawn twice
-        # is a setting that can be read from two places. The classic
-        # window's controls used to start at the configured baseline every
-        # time it opened; both windows go through the same two readers
-        # now, and this is what keeps it that way -- a window that reads
-        # its own variables instead would show one thing while the other
-        # showed another, and nothing would say so.
-        shop_setup_read_once = (
-            'configured_pacing'
-            in ShopController.initialize_shop_controller.__code__.co_names
-            and 'configured_modifiers'
-            in ShopController.initialize_shop_controller.__code__.co_names
-            and 'pacing_to_store'
-            in ShopController.save_current_launcher_config.__code__.co_names
-            and 'configured_pacing'
-            in ShopController.apply_portable_settings.__code__.co_names
-            # And the one moment the boxes are not the player's choice:
-            # an active run fills them in and disables them, so saving
-            # then would write the run over the choice.
-            and 'shop_setup_locked'
-            in ShopController.save_current_launcher_config.__code__.co_names
-        )
-        permanent_purchase_gate_shared = (
-            'shop_permanent_purchase_block'
-            in ShopController._refresh_permanent_shop.__code__.co_names
-            and 'shop_permanent_purchase_block' in permanent_gate_button_names
-            # And the rule it replaced is gone rather than sitting beside it.
-            and 'RunStatus' not in permanent_gate_button_names
         )
         eva_voice_profiles = validate_eva_voice_profiles(
             EVA_VOICE_TAGS,
@@ -1692,8 +1629,6 @@ def run_self_check():
             # Three ways this can be a clean bill that means nothing: it
             # found nothing, it read nothing, or it can no longer tell.
             'undefined_globals_scan_bites': scan_detects_missing_import(),
-            'permanent_purchase_gate_shared': permanent_purchase_gate_shared,
-            'shop_setup_read_once_valid': shop_setup_read_once,
             'campaign_settings_exist_valid': campaign_settings_exist,
             'undefined_globals_valid': (
                 not undefined_global_names
@@ -1724,8 +1659,6 @@ def run_self_check():
                 'api_contract_valid',
                 'shell_contract_valid',
                 'player_data_contract_valid',
-                'permanent_purchase_gate_shared',
-                'shop_setup_read_once_valid',
                 'campaign_settings_exist_valid',
                 'undefined_globals_valid',
                 'archipelago_client_contract_valid',

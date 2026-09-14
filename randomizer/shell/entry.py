@@ -1,9 +1,13 @@
-"""Which window a start opens, and what happens when it will not open.
+"""Opening the interface, and what happens when it will not open.
 
-The launcher's entry point asks this before it builds anything. Keeping it
-here rather than in the entry script is not tidiness: the packaged build
-turns that script into ``__main__``, so a check that wanted to prove the
-fallback works could not import it.
+The launcher's entry point calls this rather than building anything
+itself. Keeping it here rather than in the entry script is not tidiness:
+the packaged build turns that script into ``__main__``, so a check that
+wanted to prove a failure is reported could not import it.
+
+There is one interface now. The old window was the fallback for a long
+time, and is gone; a failure here is reported and the launcher exits,
+because there is nothing else to open.
 """
 
 import sys
@@ -12,55 +16,50 @@ import traceback
 from randomizer.core.diagnostics import event as log_event
 from randomizer.core.paths import LAUNCHER_LOG
 
-from .choice import NEW, chosen
+
+def warn(title, text):
+    """Put one message in front of the player without a toolkit.
+
+    Windows has a dialog of its own, which is the one thing that can be
+    relied on when the interface is what failed. Anywhere else the log is
+    the message.
+    """
+    if sys.platform != 'win32':
+        return False
+    try:
+        import ctypes
+
+        ctypes.windll.user32.MessageBoxW(None, str(text), str(title), 0x10)
+        return True
+    except Exception:
+        return False
 
 
-def open_chosen_interface(argv=None, *, warn=True):
-    """Open the new interface if that is what was asked for.
+def open_interface(*, warn_player=True):
+    """Open the interface. Returns whether it opened.
 
-    Returns whether it opened. A false answer means the old window, and
-    that is also what a failure means: an interface that will not start is
-    a reason to fall back to the one that will, not a reason to leave the
-    player with nothing.
+    A failure is a false answer rather than an exception, and it is
+    logged and shown, because an exe that opens nothing and says nothing
+    is the one outcome worse than a broken window.
 
-    ``warn`` is what the self-check turns off. Everything here has to be
-    callable without a window appearing, or the row that proves the
-    fallback works would open a dialog nobody is there to close.
+    ``warn_player`` is what the self-check turns off. Everything here has
+    to be callable without a dialog appearing, or the row that proves a
+    failure is reported would open one nobody is there to close.
     """
     import randomizer.shell as package
 
-    try:
-        from randomizer.config.player import load_config
-
-        wanted = chosen(sys.argv[1:] if argv is None else argv, load_config())
-    except Exception:
-        log_event('interface_choice_failed', traceback=traceback.format_exc())
-        return False
-    if wanted != NEW:
-        return False
     try:
         package.run_shell()
         return True
     except Exception:
         detail = traceback.format_exc()
         log_event('interface_failed', traceback=detail)
-        if not warn:
-            return False
-        try:
-            import tkinter as tk
-            from tkinter import messagebox
-
-            root = tk.Tk()
-            root.withdraw()
-            messagebox.showwarning(
-                'The New Interface Could Not Open',
+        if warn_player:
+            warn(
+                'The Launcher Could Not Open',
                 '\n\n'.join((
-                    'Opening the classic launcher instead.',
                     detail.splitlines()[-1],
                     f'See {LAUNCHER_LOG} for details.',
                 )),
             )
-            root.destroy()
-        except Exception:
-            pass
         return False

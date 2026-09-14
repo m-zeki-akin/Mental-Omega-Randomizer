@@ -15,7 +15,6 @@ from ._dependencies import (
     log_event,
     messagebox,
     normalize_faction,
-    redraw_launcher_grid,
     refresh_grid_states,
     reward_display_name,
     time,
@@ -147,21 +146,15 @@ class ProgressionController:
             self.tree_scrollbar.grid()
 
     def redraw_grid(self):
-        started = time.perf_counter()
-        previous_signature = self.grid_render_signature
-        redraw_launcher_grid(self)
+        """Nothing draws here now: the page reads the board from the state."""
         if self.archipelago_run_active():
             grid = self.state.get('grid', {}) if self.state else {}
             log_event(
-                'archipelago_grid_redrawn',
-                topology_changed=previous_signature != self.grid_render_signature,
+                'archipelago_grid_changed',
                 nodes=len(grid.get('nodes', {})),
                 width=grid.get('width'),
                 height=grid.get('height'),
                 goal=grid.get('goal'),
-                elapsed_ms=round(
-                    (time.perf_counter() - started) * 1000, 1
-                ),
                 **self._archipelago_log_context(),
             )
 

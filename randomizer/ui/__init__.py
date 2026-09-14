@@ -1,2 +1,2 @@
-"""Tk presentation and cameo support."""
+"""Shared tables the interface reads, and cameo support."""
 

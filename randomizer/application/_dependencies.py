@@ -164,11 +164,15 @@ from randomizer.rewards.catalogue import (
     valid_choice,
 )
 
+# The window these controllers were written for is gone; the campaign
+# generator composes them headless and never reaches a callback that
+# draws. The names stay importable so those dead callbacks still compile,
+# and stay harmless when the toolkit is not there at all.
 try:
     import tkinter as tk
     from tkinter import ttk, filedialog, messagebox, scrolledtext
-except ImportError:
-    raise ImportError('tkinter is required to run this launcher UI.')
+except ImportError:  # pragma: no cover - a build without the toolkit
+    tk = ttk = filedialog = messagebox = scrolledtext = None
 
 
 from randomizer.core.paths import (
@@ -262,11 +266,6 @@ from randomizer.ui.config import (
 )
 from randomizer.launch.game import MAX_OPTION_INI_BYTES
 from randomizer.campaign.store import CHECK_SCHEMA_VERSION  # noqa: F401
-from randomizer.ui.builder import create_widgets as build_launcher_widgets
-from randomizer.ui.grid import redraw_grid as redraw_launcher_grid
-from randomizer.ui.scrolling import scroll_under_pointer
-from randomizer.ui.theme import apply_color_mode as apply_launcher_color_mode
-from randomizer.ui.tooltips import WidgetTooltip
 
 DEFAULT_MISSION_GOAL = int(DEFAULT_CONFIG['mission_goal'])
 HOOK_POLL_MS = 1500

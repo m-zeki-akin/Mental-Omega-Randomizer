@@ -57,7 +57,7 @@ one"* survive being reread a month later.
 
 ## Probes
 
-Real-Tk and end-to-end probes live in the session scratchpad, not the repo.
+End-to-end probes live in the session scratchpad, not the repo.
 Two that matter and are worth rebuilding if missing:
 
 - a **run-loop probe** that drives the real app object through a whole run

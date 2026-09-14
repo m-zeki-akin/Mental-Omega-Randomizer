@@ -3053,11 +3053,10 @@ def _launch_rules_checks():
     therefore only be launched from a window: not because launching
     needed one, but because working out what to launch with did.
 
-    They are functions of the run now, and the controller calls them. So
-    this asserts two things at once -- that the answers are still the
-    right answers, and that there is only one copy of them left.
+    They are functions of the run now, and the window that kept the
+    copies is gone. What is left to assert is that the answers are still
+    the right answers.
     """
-    from randomizer.application import shop_controller
     from randomizer.shop import launch_rules
     from randomizer.shop.model import (
         MissionEconomyClass,
@@ -3118,34 +3117,6 @@ def _launch_rules_checks():
         and launch_rules.launch_rewards(run) is not None
     )
 
-    # And the window calls these rather than keeping its own copy.
-    # Read from the compiled names each method uses, not from its source:
-    # a packaged launcher has no source to read, and the first version of
-    # this check passed on a developer's machine and brought the whole
-    # self-check down inside the exe.
-    def names(method):
-        return set(getattr(method, '__code__').co_names)
-
-    delegates_valid = bool(
-        'shop_launch_rewards'
-        in names(shop_controller.ShopController.active_launch_rewards)
-        and 'shop_reward_settings'
-        in names(shop_controller.ShopController.active_reward_settings)
-        and 'shop_enemy_scaling_entries'
-        in names(shop_controller.ShopController.active_enemy_scaling_entries)
-        and 'modifier_clone_seed_plan'
-        in names(shop_controller.ShopController._shop_modifier_clone_seed_plan)
-        # The bodies are gone rather than merely unused: whatever each
-        # one reached for to do the work itself is no longer named in it.
-        and 'modifier_effects'
-        not in names(shop_controller.ShopController.active_reward_settings)
-        and 'canonical_reward_for_id'
-        not in names(shop_controller.ShopController.active_launch_rewards)
-        and 'active_shop_tech_ids'
-        not in names(
-            shop_controller.ShopController._shop_modifier_clone_seed_plan
-        )
-    )
     # And the other half of a run that could only be started from a
     # window: what it is started *with*.
     from randomizer.campaign import generator
@@ -3206,19 +3177,8 @@ def _launch_rules_checks():
             )['selected_reward_ids'] == ()
         )
 
-    # And the window asks for the plan rather than working one out.
-    plans_valid = bool(
-        'plan_new_run'
-        in names(shop_controller.ShopController.start_shop_run)
-        and 'generate_mission_offers'
-        not in names(shop_controller.ShopController.start_shop_run)
-        and 'shop_starter_unit_ids'
-        not in names(shop_controller.ShopController.start_shop_run)
-    )
     return {
         'shop_new_run_plan_valid': plan_valid,
-        'shop_new_run_planned_once_valid': plans_valid,
         'shop_launch_settings_valid': settings_valid,
         'shop_launch_rewards_valid': rewards_valid,
-        'shop_launch_rules_shared_valid': delegates_valid,
     }

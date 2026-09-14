@@ -18,8 +18,8 @@ This document is the authoritative implementation reference. Player-facing optio
 | `randomizer/ui/` | Widget construction, palettes, Grid rendering, tooltips, cameos, and custom presentation |
 
 Every Python module is kept below 1,000 lines. Stable facades
-(`randomizer.maps.rules`, `randomizer.missions.safety`,
-`randomizer.rewards.catalogue`, and `randomizer.ui.builder`) isolate callers
+(`randomizer.maps.rules`, `randomizer.missions.safety`, and
+`randomizer.rewards.catalogue`) isolate callers
 from responsibility-based implementation splits.
 
 The launcher does not patch the original campaign MIX archives. It extracts and caches source maps, writes a temporary loose root map for the selected scenario, and removes only files carrying the randomizer hook marker.

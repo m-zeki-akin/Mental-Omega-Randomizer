@@ -8,7 +8,7 @@
  *
  * Generating is here too now, at the end where it belongs: everything
  * above it is what the run will be made of, and the press is what makes
- * it. Playing the run is still the classic window's. */
+ * it. Playing the run is Run's, next door. */
 
 import { act, call, refresh, register } from '../app.js';
 import { cameos } from '../cameos.js';

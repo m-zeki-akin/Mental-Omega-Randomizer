@@ -1,8 +1,8 @@
 /* Shop Mode's setup: what the next run will be started with.
  *
- * The run itself is played in the classic window, and the panel next door
- * says so. This screen is here anyway, because the setup is not part of a
- * run: it outlives the run it was used for, both windows read it from one
+ * The run itself is played on Run, next door. This screen is its own,
+ * because the setup is not part of a run: it outlives the run it was used
+ * for, and both screens read it from one
  * place, and a mode's settings belong on that mode's screen rather than
  * in a window the player has to open to find them.
  *

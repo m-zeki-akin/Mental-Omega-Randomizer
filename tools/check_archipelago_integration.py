@@ -45,7 +45,6 @@ from Archipelago.client.handshake import ArchipelagoProtocolError, validate_slot
 from Archipelago.client.session import _scout_location_ids
 from randomizer.application.archipelago_controller import ArchipelagoController
 from randomizer.application.shop_archipelago_controller import ShopArchipelagoController
-from randomizer.application.shop_controller import ShopController
 from randomizer.shop.model import RunStatus
 from randomizer.rewards.catalogue import REWARD_POOL
 
@@ -106,24 +105,6 @@ def make_world(manifest):
     world.create_items()
     world.set_rules()
     return world
-
-
-class Widget:
-    def __init__(self, children=()):
-        self.children = list(children)
-        self.state = 'normal'
-
-    def configure(self, **values):
-        self.__dict__.update(values)
-
-    def cget(self, key):
-        return getattr(self, key)
-
-    def winfo_children(self):
-        return self.children
-
-    def winfo_class(self):
-        return 'TButton'
 
 
 class IntegrationTests(unittest.TestCase):
@@ -233,41 +214,6 @@ class IntegrationTests(unittest.TestCase):
         slot['run_manifest']['randomizer_seed'] = 'tampered'
         with self.assertRaises(ArchipelagoProtocolError):
             validate_slot_data(slot)
-
-    def test_shop_controls_during_connection_and_restart(self):
-        class Controller(ShopController, ArchipelagoController):
-            pass
-        controller = Controller()
-        controller._archipelago_gameplay_locked = True
-        controller.shop_run = None
-        for name in ('shop_progression_mode_combo', 'shop_seed_entry',
-                     'shop_setup_start_button', 'shop_faction_pool_combo',
-                     'shop_game_speed_combo', 'shop_starting_buff_draft_combo',
-                     'shop_discount_specialization_combo', 'shop_difficulty_combo'):
-            setattr(controller, name, Widget())
-        controller.appearance_frame = Widget()
-        controller.settings_frame = Widget([controller.shop_setup_start_button,
-                                             controller.shop_seed_entry])
-        controller.advanced_tab = Widget()
-        for name in ('archipelago_save_yaml_button', 'archipelago_server_entry',
-                     'archipelago_port_entry', 'archipelago_slot_entry',
-                     'archipelago_password_entry'):
-            setattr(controller, name, Widget())
-        controller.initialize_archipelago_control_registry()
-        self.assertNotIn(controller.shop_setup_start_button,
-                         controller._archipelago_gameplay_widgets)
-        for validated, status, expected in (
-            (False, None, 'disabled'), (True, None, 'normal'),
-            (True, RunStatus.ACTIVE, 'disabled'),
-            (True, RunStatus.FAILED, 'normal'),
-            (True, RunStatus.COMPLETED, 'normal'),
-        ):
-            with self.subTest(validated=validated, status=status):
-                controller.shop_archipelago_game_active = lambda: validated
-                controller.shop_run = SimpleNamespace(status=status) if status else None
-                controller._enforce_archipelago_control_lock()
-                self.assertEqual(controller.shop_setup_start_button.state, expected)
-                self.assertEqual(controller.shop_seed_entry.state, 'disabled')
 
     def test_shop_stage_markers_and_purchase_locations(self):
         slot = validate_slot_data(make_world(fixture('Shop Mode')).fill_slot_data())

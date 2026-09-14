@@ -16,7 +16,6 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from randomizer.application.launch_controller import LaunchController
-from randomizer.application.advanced_settings import AdvancedSettingsController
 from randomizer.config.player import DEFAULT_CONFIG
 from randomizer.core.paths import BATTLE_CLIENT_INI, GENERATED_MAP_DIR
 from randomizer.maps._shared import (
@@ -299,12 +298,9 @@ def _assert_targeted_contracts(generated_paths):
             raise AssertionError(
                 f'{unit_id} incorrectly shares direct buffs with {sorted(linked_ids)}'
             )
-    advanced_ids = {
-        entry['id']
-        for entry in AdvancedSettingsController.advanced_unit_pool_entries(
-            object()
-        )
-    }
+    from randomizer.ui.campaign_catalogues import UNIT_ACCESS, catalogue
+
+    advanced_ids = {entry['id'] for entry in catalogue(UNIT_ACCESS)}
     missing_prototypes = set(independent_prototypes) - advanced_ids
     if missing_prototypes:
         raise AssertionError(

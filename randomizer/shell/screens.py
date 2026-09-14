@@ -14,10 +14,9 @@ One table, here, rather than a list of tabs written into the page. The page
 asks what the mode has and draws that, so a mode gains a screen by gaining
 a row here and nothing else needs to know.
 
-Every mode is drawn here now. There used to be a screen for the ones that
-were not -- what the mode is, and one press to open the old window at it
--- and it is gone with the last mode that needed it. The way to the old
-window is on Launcher, where it is a setting rather than a way out.
+Every mode is drawn here, and this is the only place a mode is drawn:
+the window that came before it is gone, so a mode with no row here is a
+mode that cannot be played.
 """
 
 from randomizer.ui.config import (
@@ -80,22 +79,6 @@ BY_MODE = {
         ('records', 'Records'),
     ),
 }
-# The modes that are *played* here, which is not the same as the modes
-# that have a screen here. Shop Mode's setup is drawn and its run is not,
-# and a mode control that called that ported would be telling a player
-# they can play it in this window.
-#
-# The three campaign modes joined the skirmish once every link of playing
-# one was proved without a window: the run is generated from the
-# settings, a mission is written out and hooked, and what the game says
-# in its log becomes rewards in hand and the mission after it open. The
-# one step not proved is starting the process, which is the same call
-# either window makes.
-PORTED = frozenset({
-    'Skirmish Shop', 'Classic', 'Mission List', 'Grid Mode', 'Shop Mode',
-})
-
-
 def families():
     """Return the kinds of game, each with the modes that are one of it."""
     return [

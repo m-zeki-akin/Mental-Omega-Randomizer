@@ -8,7 +8,6 @@ finds twice.
 """
 
 from randomizer.shell import screens as screen_table
-from randomizer.shell.choice import CLASSIC, NEW, remember, remembered
 
 from . import session
 from .contract import COMMAND, ApiError, action
@@ -33,11 +32,11 @@ def _keep(config):
 
 
 def _campaign_seed():
-    """Return the seed the classic window generated, and what for.
+    """Return the campaign seed standing, and what mode it was made for.
 
     A campaign mode's own progression is fixed when its seed is made, so a
-    seed already standing is worth saying: it is why the classic window
-    will open on that mode whatever this one is set to.
+    seed already standing is worth saying beside the mode control: it is
+    the run the campaign screens carry on from, whatever mode is looked at.
     """
     from randomizer.campaign import store
 
@@ -77,7 +76,6 @@ def modes():
                     {
                         'name': entry['mode'],
                         'label': entry['label'],
-                        'ported': entry['mode'] in screen_table.PORTED,
                         'current': entry['mode'] == current,
                     }
                     for entry in family['modes']
@@ -90,7 +88,6 @@ def modes():
                 'name': mode,
                 'label': screen_table.label(mode),
                 'family': screen_table.family(mode),
-                'ported': mode in screen_table.PORTED,
                 'current': mode == current,
             }
             for mode in screen_table.modes()
@@ -133,7 +130,6 @@ def use_mode(name=''):
         'current': wanted,
         'label': screen_table.label(wanted),
         'family': screen_table.family(wanted),
-        'ported': wanted in screen_table.PORTED,
         'screens': [
             {'name': screen, 'label': label}
             for screen, label in screen_table.screens(wanted)
@@ -143,8 +139,7 @@ def use_mode(name=''):
 
 # What a mission is written out looking and sounding like. Three
 # settings that belong to no mode -- they are the same in a campaign run
-# and a Shop one -- and that the classic window keeps among its own, which
-# is why they had no home here.
+# and a Shop one -- so no mode's setup is where they belong.
 LOOK = 'player_color'
 SHUFFLE = 'rainbowizer'
 VOICE = 'eva_voice'
@@ -177,10 +172,7 @@ def _mission_look(config):
 @action('launcher.appearance', 'How the launcher itself is set up')
 def appearance():
     config = _settings()
-    kept = remembered(config)
     return {
-        'interface': kept,
-        'new': kept == NEW,
         'theme': DARK if config.get(THEME_KEY) else LIGHT,
         'dark': bool(config.get(THEME_KEY)),
         'mission': _mission_look(config),
@@ -219,7 +211,7 @@ def use_mission_look(name='', value=None):
 
 @action('launcher.use_theme', 'Draw the launcher light or dark', kind=COMMAND)
 def use_theme(name=''):
-    """Both interfaces read one setting, so both change together."""
+    """One setting, kept in the config so the next start reads it too."""
     wanted = str(name or '').strip().lower()
     if wanted not in (DARK, LIGHT):
         raise ApiError(f'There is no {wanted or "unnamed"} theme')
@@ -227,29 +219,3 @@ def use_theme(name=''):
     config[THEME_KEY] = wanted == DARK
     _keep(config)
     return {'theme': wanted, 'dark': wanted == DARK}
-
-
-@action(
-    'launcher.use_interface',
-    'Keep one of the two interfaces as the one that opens',
-    kind=COMMAND,
-)
-def use_interface(name=''):
-    """Remember which interface opens next time.
-
-    Next time and not this one: a window cannot become another one while
-    it is open, and pretending otherwise would mean closing the launcher
-    under somebody who only meant to change a setting.
-    """
-    wanted = str(name or '').strip().lower()
-    if wanted not in (CLASSIC, NEW):
-        raise ApiError(f'There is no {wanted or "unnamed"} interface')
-    kept = remember(wanted)
-    return {
-        'interface': kept,
-        'message': (
-            'The classic window opens the next time the launcher starts.'
-            if kept == CLASSIC else
-            'This interface opens the next time the launcher starts.'
-        ),
-    }
