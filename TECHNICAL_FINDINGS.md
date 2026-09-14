@@ -212,7 +212,7 @@ Granting missed objective checks on victory is intentional. The objective/action
 
 Polling continues while the spawned process is alive. On exit the launcher records marker counts, clears the active process/hook, removes generated root maps, and removes any launcher-generated loose `rulesmo.ini` file.
 
-If map extraction or hook preparation throws, the launcher logs the traceback, cleans generated root maps, and can still start the mission without automatic objective detection. If no victory candidate exists, the mission remains playable but automatic victory progress is unavailable; the hidden debug completion control is the recovery path. Shop has no shared mission-tree selection, so its log-only recovery control includes a picker populated from the current mission offers. Completing an uncommitted choice first selects and commits that exact offer, then uses the normal idempotent Shop victory transaction and stage advancement.
+If map extraction or hook preparation throws, the launcher logs the traceback, cleans generated root maps, and can still start the mission without automatic objective detection. If no victory candidate exists, the mission remains playable but automatic victory progress is unavailable; the hidden debug completion control is the recovery path. Shop has no shared mission-tree selection, so its log-only recovery control includes a picker populated from the current mission choices. Completing an uncommitted choice first selects and commits that exact mission, then uses the normal idempotent Shop victory transaction and stage advancement.
 
 An installed Mental Omega 3.3.6 audit recognized a victory action on all 97 extracted campaign maps. Objective matching is less complete: 58 maps had a different number of briefing objectives and hookable objective actions, while `SROAD` and `EGODSEND` exposed no standard objective-complete action. This is why victory reconciliation remains required.
 
@@ -395,12 +395,11 @@ Ares limits type IDs to 24 characters. Prefixing the complete source name produc
 
 All active player-facing support/aid definitions have an entry in `AID_POWER_MAP_CONFIGS`. Copies clear source power, faction, building, designator, inhibitor, and source-range gates where needed and permit map-wide targeting. Elite Reserves is the exception: its isolated copy remains building-bound, is attached to all eight Barracks variants, is restricted to player countries, and never receives an action `34` grant. Ordinary copies inherit their complete installed recharge/effect/delivery fields. The spawners are the reviewed exception: installed `RechargeTime=0.01` is their invisible construction helper delay, so repeatable minefields use AHAMARTIA's player-facing `2.5` timing and both grids use its `1`-minute timing. Cryomine, EMP Mine, and Genomine fields preserve their installed four-object delivery lists, while Confusion and Stasis grids preserve nine objects. Paladin Aid disables inherited automatic targeting and does not inject the unusable external `SP_RANGE` designator. Knightfall preserves installed `RechargeTime=6.5`. M.A.D. Mine intentionally preserves installed `Deliver.Types=FAMMIN`, which deploys one mine. Kingsnakes delivers a complete map-local `MORF_KSNAK` copy with `PoweredBy=` instead of changing global `F_KSNAK`. Drakuv `RAVA` and Harbinger `HARB` remain `Trainable=no` aid payloads. Harbinger Tower `FAHARB` and EMP Control Station `NAEMPS` are excluded from access/buff pools because their building-free powers clear source gates. Original mission objects remain unchanged.
 
-Special-building access can also declare its installed granted power. Industrial
-Plant access binds a private `MORGearChange` copy to `MORPNAINDP`; the private
-Hunter-Seeker payload permits every player country, fixing Latin-owned plants
-in Happy Birthday and Exist to Exit without changing native mission power
-types. Owning Gear Change separately still grants that same copy through action
-`34`.
+Gear Change remains independent from Industrial Plant access. Its private
+`MORGearChange` copy is granted through action `34`, ignores foreign-tech gates,
+and uses an invisible exact-House provider. The Hunter-Seeker payload permits
+every player country and targets shared `fact` armor, disabling Allied, Soviet,
+Epsilon, and Foehn War Factories without changing native mission power types.
 
 Offensive and secondary copies also set `IsPowered=false`. Chronoshift uses copied `MORChronoWarp`; Chronolift uses copied `MORPostlift`. Their installed two-stage targeting stays intact. Ten campaigns override shared lightning globals, so copied Lightning Storm receives explicit installed 3.3.6 effect values without rewriting mission storm definitions. `MORNuke` globally remains installed `Type=MultiMissile`, `Action=Nuke`, `WeaponType=NukeCarrier`; changing Type/Action in a map copy is unsupported and broke the power in every mission. Fatal Impact alone registers a private `MORFNukePayload` copied from the installed `NukePayload` (Damage `600`, Warhead `NUKE`) and points only `MORNuke` at it, leaving the map's Damage `5000`/`MIDASDeathWH` objective payload untouched. Mercury Strike follows the supplied mapper-tested building-free `MultiMissile` form rather than an EMPulse cannon: `Nuke.Payload=MercuryOverdriveAlt`, `SW.Warhead=MercuryStrikeAlt`, and `Nuke.SiloLaunch=no`. The payload, projectile, laser, and both warheads are registered map-local copies of the installed originals; `PreventScatter=yes` is the only effect change. Private copies are necessary because campaigns can override the globals (`ACONV` sets `MercuryOverdrive Damage=220`) while the reward must preserve installed recharge `6`, cost `-800`, weapon speed `100`, damage `150`, and effect data. Inherited EMPulse pulse/range fields are removed and no hidden Mercury startup buildings are generated. Wallbuster also follows a mapper-tested `MultiMissile` design. `MORWBCarrier` launches `MORWBUp` through `NukeMaker`; `MORWBPayload` descends through `MORWBDown` and deals the installed 320 damage through private `MORWBWarhead`. Both WeaponTypes, both Projectiles, and the Warhead are registered. The copy retains installed recharge `8.5`, cost, `wbsticon.pcx`, `RROCKET`, and `FLARERED`. Generic clone specs support a separate `source` key so two private sections can safely derive from one installed template. Renamed TechnoType payload clones must explicitly retain source `Image`; omitting `Image=B52` from `MORB52` made Stratofortress crash when the first cloned aircraft spawned. Time Freeze cannot use its native `EMPulse` implementation as a portable reward: the mission power depends on an authored cannon/building relationship, and cloned hidden cannons consumed the charge without applying the effect. The portable copy is now `Type=GenericWarhead`, detonates private `MORTimeFreezeWH` directly with `SW.Damage=0`, and sets `AllowZeroDamage=yes` so sonar/weapon-disable/AttachEffect fields are not optimized away. `DamageAirThreshold=-1` extends the battlefield-wide freeze to airborne units. Its exact-House static provider supplies the launch building needed by Ares targeting, allowing stable `Range=1.4`, `SW.RangeMaximum=384`, and `SW.RangeMinimum=-1`. No Time Freeze weapon or startup cannon is generated. Nanofiber clears inherited `IsPlug` and `Upgrades`; otherwise its hidden `FANANO` clone remains an upgrade rather than a standalone firing building. Hidden support placement orders candidate cells inward toward map center so edge anchors do not send cannon actions farther outside playable terrain. Startup actions share the existing 16-action chunk limit.
 
@@ -919,3 +918,84 @@ the Engineer/MCV opening. Tier 1 enemy firepower cloned `HumveeGun`, allowing
 the opening guard to kill the objective Engineer before entry. Mission policy
 now excludes only native `AHMV` from enemy tier-unit cloning in `ESHIP`; other
 hostile houses and units still receive configured AI scaling.
+
+Parasomnia (`ASOMNIA`) now uses the same mission-wide enemy-scaling exclusion
+as Withershins. Its scripted fleet opening cannot absorb accumulated hostile
+stat or power rewards. The shared launch pipeline suppresses those rewards in
+both Shop and normal randomized missions without changing authored combat.
+
+The Remnant (`FREMNANT`) explicitly permits native `AMCV` and `SMCV` production.
+The generic randomized-type production gate previously reintroduced player
+`ForbiddenHouses` despite that exception, so Action 106 announced construction
+but could not expose either MCV. These two IDs now bypass that gate. Their
+authored `TechLevel=11` remains until Action `01000302` lowers it to `7`; native
+prerequisites and mission identities remain intact. Standard may register a
+linked Construction Yard buff counterpart, but it stays locked and receives
+no MCV unlock action, so only the native MCV becomes buildable.
+
+## Foehn Nanofiber mutations and weapon buffs
+
+Nanofiber Sync does not use a TechnoType conversion field. Its seven warheads
+kill matching infantry armor types with `InfDeathAnim=NANODEATH1..7`; the art
+animations index `General.AnimToInfantry` and preserve victim ownership. See
+[Ares infantry warheads](https://ares-developers.github.io/Ares-docs/new/warheads/infantry.html)
+and [mutation ownership](https://ares-developers.github.io/Ares-docs/new/makeinfantryowner.html).
+Adding linked buff targets alone therefore leaves mutations spawning native units.
+
+The linked pairs are KNIGHT/KINGS, BANE/BANE_N, CLAIR/DUPL, ZORB/ZORB_N,
+COVE/RAIL, HUNTR/DEVI, and SYNC/SYNC_N. Each evolved clone uses its own installed
+stats and weapons with the source unit's earned stacks. `maps/nanofiber.py`
+appends private clone IDs to the mutation list, preserving all native slots.
+Private armor aliases prevent native mutation warheads from consuming player
+clones. An appended seven-stage weapon chain targets those aliases and uses
+private animations deployed through the temporary art overlay. Mutation damage
+uses final clone health so health and armor stacks do not prevent conversion.
+Native infantry, evolved forms, and their mutation animation slots remain intact.
+
+The first implementation registered private animations only in the map. The
+reported Allied 02 (`AEAGLESFLY`) disappearance was reproduced in the player's
+September 8 autosave: all seven private AnimTypes had a null SHP pointer and
+`MakeInfantry=-1`, despite correct deployed art sections. Ares 3.0 creates these
+map-only AnimTypes after animation art initialization. The mutation therefore
+killed the original infantry without spawning replacements.
+
+Art deployment now also stages a complete copy of the installed `rulesmo.ini`,
+adding only the private animation registrations before art initialization.
+The map still supplies all unit definitions, buffs, and `AnimToInfantry` slots.
+The runtime asset manifest removes both temporary INIs after play. Custom loose
+rules are not overwritten, and required mutation-asset deployment failures stop
+launch instead of continuing with lethal, incomplete mutations. An isolated
+engine launch of the player's Allied 02 map confirmed all seven private
+AnimTypes now have loaded sprites and `MakeInfantry` values 8 through 14 in the
+new autosave. Existing saves retain the broken serialized definitions; restart
+the mission through the updated launcher. Actual battlefield conversion remains
+a separate smoke check.
+
+Knightfall payloads resolve KNIGHT/COVE through the normal delivery clone path,
+including compact runtime IDs. Mastodon firepower buffs clone `PrometheusBlast`
+and replace both normal and elite firing slots; zero-damage charge weapons
+remain charge weapons. Proto-Gharial uses `WaterImage=GHTNK2W` in both the static
+roster and installed-rules template policy.
+
+Visual and combat behavior still require confirmation in-game.
+
+## Prism forwarding on cloned defenses
+
+Installed `ATESLA` omits `PrismForwarding=yes` because Ares enables forwarding
+implicitly only for `General.PrismType=ATESLA`. Player clones have different
+IDs and lose that default. Cloak rewards exposed the problem by creating a
+clone; the published Ares support-selection routine does not reject cloak.
+The former generated Allied 02 clone also retained stock
+`PrismForwarding.SupportWeapon` and `EliteSupportWeapon` while its ordinary
+weapon slots pointed at buffed private weapons.
+
+The final clone-reference pass now materializes the source forwarding mode
+and expands existing allowed target families to include native, production,
+and mission-reference identities. Native and cloned towers can support each
+other under the installed ownership/alliance rules. Explicit disabled modes
+and directed target restrictions remain respected. Weapon cloning also
+rewrites both prism support references so range and reload upgrades apply to
+support beams. Cloak rewards remain enabled; live combat still needs confirmation.
+
+References: [Ares prism forwarding defaults and weapon fields](https://ares-developers.github.io/Ares-docs/new/buildings/prismforwarding.html),
+[Ares support tower selection](https://github.com/Ares-Developers/Ares/blob/master/src/Ext/Building/PrismForward.cpp).
